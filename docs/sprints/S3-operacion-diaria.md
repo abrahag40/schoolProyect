@@ -78,7 +78,9 @@ tienen la mejor evidencia causal de todo nuestro corpus:
 > este mecanismo con "+17% de asistencia y −38% de reprobación". Las cifras
 > verificadas contra la fuente publicada son **+12% y −27%**. La dirección del
 > hallazgo no cambia; la magnitud sí, y la regla 1 del CLAUDE.md no admite
-> cifras sin fuente. Queda corregido aquí y en el informe de mercado.
+> cifras sin fuente. Queda corregido aquí y en el CHANGELOG; el Informe de
+> Mercado Fase 0 (artefacto publicado) queda **marcado para corrección** en su
+> próxima revisión — no se edita en silencio un documento que el CEO ya leyó.
 
 **Inferencia propia (marcada como tal).** El mecanismo de Rogers & Feller
 funciona porque corrige una **creencia equivocada** del padre, no porque
