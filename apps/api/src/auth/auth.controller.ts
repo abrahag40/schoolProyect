@@ -1,6 +1,8 @@
-import { Body, Controller, HttpCode, Post } from '@nestjs/common';
+import { Body, Controller, HttpCode, Post, Res } from '@nestjs/common';
+import type { Response } from 'express';
 import { z } from 'zod';
 import { ServicioAuth } from './auth.service.js';
+import { limpiarCookieSesion, ponerCookieSesion } from '../comun/cookie-sesion.js';
 
 /**
  * Validacion en el borde (DoD Seguridad): nada entra al dominio sin pasar por
@@ -19,8 +21,28 @@ export class ControladorAuth {
 
   @Post('login')
   @HttpCode(200)
-  async login(@Body() cuerpo: unknown) {
+  async login(@Body() cuerpo: unknown, @Res({ passthrough: true }) res: Response) {
     const datos = EsquemaLogin.parse(cuerpo);
-    return this.auth.iniciarSesion(datos.escuela, datos.email, datos.contrasena);
+    const resultado = await this.auth.iniciarSesion(datos.escuela, datos.email, datos.contrasena);
+
+    // La cookie es para la web. El token sigue viajando en el cuerpo porque la
+    // app movil lo necesita: no puede usar cookies del navegador y lo guarda
+    // en el llavero cifrado del sistema.
+    ponerCookieSesion(res, resultado.token);
+    return resultado;
+  }
+
+  /**
+   * Cerrar sesion de verdad.
+   *
+   * Con el token en almacenamiento del navegador bastaba con borrarlo del
+   * lado del cliente; con cookie httpOnly el cliente NO puede tocarla, asi que
+   * el servidor tiene que retirarla. Sin este endpoint, "salir" en la web
+   * dejaria la sesion viva hasta que expirara sola.
+   */
+  @Post('logout')
+  @HttpCode(204)
+  logout(@Res({ passthrough: true }) res: Response): void {
+    limpiarCookieSesion(res);
   }
 }

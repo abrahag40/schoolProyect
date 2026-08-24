@@ -216,10 +216,26 @@ try {
     }
 
     for (const t of e.familia) {
+      const correoTutor = `${t.nombre.toLowerCase()}@ejemplo.mx`;
+
+      // Cada tutor recibe cuenta de acceso a la app (Sprint 2). El rol TUTOR es
+      // uno mas del catalogo: la misma persona podria ademas ser docente y
+      // entraria una sola vez, con los dos roles.
+      const { rows: usr } = await q(
+        `INSERT INTO usuario (id, tenant_id, email, password_hash, nombre, activo, "creadoEn")
+         VALUES (gen_random_uuid(), $1, $2, $3, $4, true, now()) RETURNING id`,
+        [e.id, correoTutor, hashDemo, `${t.nombre} ${t.apellidos}`],
+      );
+      await q(
+        `INSERT INTO usuario_rol (id, tenant_id, usuario_id, rol, creado_en)
+         VALUES (gen_random_uuid(), $1, $2, 'TUTOR', now())`,
+        [e.id, usr[0].id],
+      );
+
       const { rows } = await q(
-        `INSERT INTO tutor (id, tenant_id, nombre, apellidos, email, creado_en)
-         VALUES (gen_random_uuid(), $1, $2, $3, $4, now()) RETURNING id`,
-        [e.id, t.nombre, t.apellidos, `${t.nombre.toLowerCase()}@ejemplo.mx`],
+        `INSERT INTO tutor (id, tenant_id, nombre, apellidos, email, usuario_id, creado_en)
+         VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, now()) RETURNING id`,
+        [e.id, t.nombre, t.apellidos, correoTutor, usr[0].id],
       );
       // Cada tutor se vincula a TODOS los alumnos de su escuela demo (son
       // hermanos en el caso del colegio: el descuento por hermanos de S4

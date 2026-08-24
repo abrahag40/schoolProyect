@@ -5,6 +5,66 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) · Versiona
 Se escribe desde el primer commit, no al final: reconstruir la historia despues
 es caro; anotarla por release es gratis.
 
+## [0.3.0] — 2026-08-24 — Sprint 2: La app de familias
+
+Objetivo: que quien entre a la app móvil sea una **madre o un padre**, no un
+empleado de la escuela; que vea a sus hijos; y que la sesión de la web deje de
+ser robable por un script.
+
+### Agregado
+
+- **Acceso de tutores (AZ-M6.1):** rol `TUTOR` y endpoint `GET /mis-hijos`.
+  Devuelve los hijos de quien pregunta con su grupo, sede, escuela, parentesco
+  y si es pagador. Un tutor de otra escuela ve a otra familia con el mismo
+  correo; el personal recibe 403 — ver a todos los alumnos jamás debe salir por
+  la puerta de "mis hijos".
+- **Home de la familia en móvil:** una tarjeta por hijo, con el vocabulario de
+  su vertical (Grupo / Categoría / Nivel), etiquetas de accesibilidad y
+  deslizar-para-refrescar.
+- **Sesión persistente con biometría:** quien ya entró no vuelve a teclear su
+  contraseña; el teléfono confirma que es la misma persona. Si el dispositivo
+  no tiene sensor, se continúa sin bloquear en lugar de dejar a alguien fuera
+  de ver a su hijo.
+- **Tubería de notificaciones (AZ-M5.3, cimiento):** tabla de dispositivos por
+  persona (una familia usa varios teléfonos), registro en cada arranque —los
+  tokens rotan y un registro viejo deja a la familia sin avisos, sin error
+  visible—, envío de prueba y baja automática de tokens muertos. Puerto
+  `Mensajero` con proveedor `simulated` por defecto (§18).
+
+### Seguridad
+
+- **DEUDA DEL SPRINT 0 PAGADA:** la sesión de la web pasó de `sessionStorage` a
+  **cookie httpOnly + SameSite=Lax**. Verificado en el navegador: JavaScript no
+  puede leerla. Se agregó `POST /auth/logout`, porque con cookie httpOnly el
+  cliente ya no puede borrarla solo. La app móvil sigue con encabezado y
+  `SecureStore`: cada superficie usa el mecanismo seguro de su plataforma.
+- Tabla nueva `dispositivo_push` con RLS forzado, como toda tabla de negocio.
+
+### Corregido
+
+- **Los errores de validación devolvían 500 en vez de 400.** Un 500 miente
+  sobre de quién es la culpa, ensucia el monitoreo (si la mitad de las alertas
+  son datos mal escritos, nadie vuelve a mirarlas) y no le dice al cliente qué
+  corregir. Ahora responden 400 con el detalle campo por campo, en lenguaje de
+  persona. Detectado al probar la tubería de notificaciones.
+
+### Documentación
+
+- **Pre-diseño D10 entregado** (deuda del Sprint 1): matriz maestra de las 8
+  pantallas críticas con su objetivo de pasos, wireframes de baja fidelidad de
+  las cuatro más importantes, y las 7 reglas comunes de interfaz.
+- Protocolo de cierre de sprint en `CLAUDE.md`, con la precisión de que el
+  Daily es diario y lo que cierra el sprint son Review y Retrospectiva.
+
+### Pendiente declarado
+
+- **Push en dispositivo físico:** la tubería está completa y probada por efecto
+  contra el proveedor simulado, pero la entrega real a un teléfono exige un
+  build de EAS (y cuenta de Apple Developer para iPhone). Lo simulado engaña si
+  nunca se prueba contra lo real: queda como validación pendiente, no como
+  hecho.
+- **Despliegue a staging:** sigue bloqueado por las cuentas de nube.
+
 ## [0.2.0] — 2026-08-24 — Sprint 1: Comunidad y plataforma
 
 Objetivo: que el modelo de datos sea multi-vertical de verdad (no un colegio

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -9,18 +9,38 @@ import {
   View,
 } from 'react-native';
 import { router } from 'expo-router';
-import * as SecureStore from 'expo-secure-store';
 import { paleta, AREA_TACTIL } from '../tema';
+import { guardarToken, leerToken, desbloquear } from '../sesion';
+import { configurarPresentacion } from '../notificaciones';
 
 const API = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3333';
 
 export default function PantallaLogin() {
   const c = paleta(useColorScheme());
+  const [verificando, setVerificando] = useState(true);
   const [escuela, setEscuela] = useState('colegio-azahar');
-  const [email, setEmail] = useState('directora@colegioazahar.mx');
+  const [email, setEmail] = useState('elena@ejemplo.mx');
   const [contrasena, setContrasena] = useState('azahar-demo-2026');
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Sesion persistente con desbloqueo biometrico: quien ya entro una vez no
+  // vuelve a teclear su contrasena, pero el telefono confirma que es la misma
+  // persona. Es higiene que el corpus de resenas pide a gritos ("login
+  // complicado" es queja recurrente en las apps escolares mexicanas).
+  useEffect(() => {
+    void (async () => {
+      configurarPresentacion();
+      const token = await leerToken();
+      if (!token) {
+        setVerificando(false);
+        return;
+      }
+      const { ok } = await desbloquear();
+      if (ok) router.replace('/panel');
+      else setVerificando(false);
+    })();
+  }, []);
 
   async function entrar() {
     setError(null);
@@ -37,11 +57,7 @@ export default function PantallaLogin() {
         return;
       }
       const sesion = await r.json();
-      // SecureStore y no AsyncStorage: el token va al llavero del sistema
-      // (Keychain / Keystore), cifrado por el SO. AsyncStorage guarda texto
-      // plano legible por cualquiera con acceso al sistema de archivos del
-      // dispositivo — lineamiento OWASP MASVS-STORAGE-1.
-      await SecureStore.setItemAsync('azahar.token', sesion.token);
+      await guardarToken(sesion.token);
       router.replace('/panel');
     } catch {
       setError('No pudimos contactar al servidor.');
@@ -59,6 +75,14 @@ export default function PantallaLogin() {
     color: c.texto,
     backgroundColor: c.superficie,
   };
+
+  if (verificando) {
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+        <ActivityIndicator color={c.accionFondo} />
+      </View>
+    );
+  }
 
   return (
     <ScrollView contentContainerStyle={{ padding: 16, gap: 12 }}>
