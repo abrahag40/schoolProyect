@@ -34,6 +34,10 @@ try {
     'plataforma.cliente',
     'plataforma.miembro',
     'plataforma.socio',
+    'notificacion',
+    'asistencia',
+    'asignacion_docente',
+    'configuracion_escuela',
     'tutor_alumno',
     'consentimiento',
     'tutor',
@@ -79,6 +83,14 @@ try {
           nombre: 'Marta Ibarra',
           roles: ['ADMIN', 'DOCENTE', 'COBRANZA'],
         },
+        // Docente "pura": sin rol de direccion. Es la cuenta que demuestra la
+        // regla — ve 1o A porque se le asigno, y NO ve el resto de la escuela.
+        {
+          email: 'maestra@colegioazahar.mx',
+          nombre: 'Beatriz Nava',
+          roles: ['DOCENTE'],
+          cohortes: [0],
+        },
       ],
       alumnos: [
         { nombre: 'Sofia', apellidos: 'Ramirez Loera', nacimiento: '2018-03-12', cohorte: 0 },
@@ -97,6 +109,27 @@ try {
           recoge: true,
         },
       ],
+      // Companeros de grupo SIN familia registrada en la app: es el estado real
+      // de una escuela recien migrada, donde no todos los tutores se han dado
+      // de alta. Sirve para que el pase de lista se vea como se ve de verdad y
+      // para probar que una falta sin destinatarios no rompe nada.
+      companeros: [
+        { nombre: 'Emilia', apellidos: 'Nunez Vargas', cohorte: 0 },
+        { nombre: 'Bruno', apellidos: 'Salas Trejo', cohorte: 0 },
+        { nombre: 'Ximena', apellidos: 'Ojeda Pineda', cohorte: 0 },
+      ],
+      // Sofia ya lleva dos faltas recientes: la del dia de la demo sera la
+      // tercera y disparara el aviso acumulado con el umbral por omision.
+      // Sin este historial habria que esperar tres dias para ver la funcion
+      // con mejor evidencia del producto.
+      historial: [
+        { alumno: 0, cohorte: 0, diasAtras: 6, estado: 'AUSENTE' },
+        { alumno: 0, cohorte: 0, diasAtras: 3, estado: 'AUSENTE' },
+        { alumno: 0, cohorte: 0, diasAtras: 2, estado: 'PRESENTE' },
+        { alumno: 0, cohorte: 0, diasAtras: 1, estado: 'PRESENTE' },
+        { alumno: 1, cohorte: 2, diasAtras: 2, estado: 'PRESENTE' },
+        { alumno: 1, cohorte: 2, diasAtras: 1, estado: 'RETARDO' },
+      ],
       cliente: { estado: 'ACTIVO', plan: 'base', precio: '2400.00', alumnos: 400, modulos: [] },
     },
     {
@@ -113,12 +146,24 @@ try {
         { nombre: 'Sub-10', tipo: 'CATEGORIA', orden: 10 },
         { nombre: 'Sub-12', tipo: 'CATEGORIA', orden: 12 },
       ],
-      usuarios: [{ email: 'coach@academiaazahar.mx', nombre: 'Rene Palacios', roles: ['DUENO'] }],
+      usuarios: [
+        { email: 'coach@academiaazahar.mx', nombre: 'Rene Palacios', roles: ['DUENO'] },
+        {
+          email: 'auxiliar@academiaazahar.mx',
+          nombre: 'Ivan Cruz',
+          roles: ['DOCENTE'],
+          cohortes: [1],
+        },
+      ],
       alumnos: [
         { nombre: 'Diego', apellidos: 'Fuentes Ortiz', nacimiento: '2015-11-20', cohorte: 1 },
       ],
       familia: [
         { nombre: 'Paola', apellidos: 'Ortiz', parentesco: 'MADRE', paga: 100, recoge: true },
+      ],
+      historial: [
+        { alumno: 0, cohorte: 1, diasAtras: 4, estado: 'PRESENTE' },
+        { alumno: 0, cohorte: 1, diasAtras: 1, estado: 'AUSENTE' },
       ],
       cliente: {
         estado: 'CORTESIA',
@@ -161,12 +206,14 @@ try {
       sedeIds.push(rows[0].id);
     }
 
+    const idsDeUsuario = {};
     for (const u of e.usuarios) {
       const { rows } = await q(
         `INSERT INTO usuario (id, tenant_id, email, password_hash, nombre, activo, "creadoEn")
          VALUES (gen_random_uuid(), $1, $2, $3, $4, true, now()) RETURNING id`,
         [e.id, u.email, hashDemo, u.nombre],
       );
+      idsDeUsuario[u.email] = rows[0].id;
       for (const rol of u.roles) {
         await q(
           `INSERT INTO usuario_rol (id, tenant_id, usuario_id, rol, creado_en)
@@ -192,6 +239,27 @@ try {
       cohorteIds.push(rows[0].id);
     }
 
+    // Parametros de asistencia. Se siembran explicitos aunque coincidan con los
+    // valores por omision: una escuela sin fila dependeria del default del
+    // codigo, y el dia que ese default cambie, cambiaria bajo sus pies.
+    await q(
+      `INSERT INTO configuracion_escuela
+         (id, tenant_id, umbral_faltas, ventana_dias, avisar_falta_del_dia, zona_horaria, actualizado_en)
+       VALUES (gen_random_uuid(), $1, 3, 30, true, 'America/Mexico_City', now())`,
+      [e.id],
+    );
+
+    // Quien pasa lista de que grupo. Tabla y no columna: hay co-docencia.
+    for (const u of e.usuarios.filter((x) => x.cohortes)) {
+      for (const indice of u.cohortes) {
+        await q(
+          `INSERT INTO asignacion_docente (id, tenant_id, usuario_id, cohorte_id, titular, creada_en)
+           VALUES (gen_random_uuid(), $1, $2, $3, true, now())`,
+          [e.id, idsDeUsuario[u.email], cohorteIds[indice]],
+        );
+      }
+    }
+
     // Aviso de privacidad versionado: los consentimientos apuntan a la version
     // exacta que el tutor acepto (LFPDPPP 2025).
     const { rows: aviso } = await q(
@@ -212,6 +280,20 @@ try {
         `INSERT INTO inscripcion (id, tenant_id, alumno_id, cohorte_id, estado, alta_en)
          VALUES (gen_random_uuid(), $1, $2, $3, 'ACTIVA', now())`,
         [e.id, rows[0].id, cohorteIds[a.cohorte]],
+      );
+    }
+
+    // Historial de asistencia. Registrado a nombre de un docente real de la
+    // escuela: `registrado_por` es una coordenada de auditoria (§37) y sembrar
+    // un uuid inventado dejaria la bitacora apuntando a nadie.
+    const quienRegistra = Object.values(idsDeUsuario)[0];
+    for (const h of e.historial ?? []) {
+      const fecha = new Date(Date.now() - h.diasAtras * 864e5).toISOString().slice(0, 10);
+      await q(
+        `INSERT INTO asistencia
+           (id, tenant_id, alumno_id, cohorte_id, fecha, estado, registrado_por, registrado_en)
+         VALUES (gen_random_uuid(), $1, $2, $3, $4::date, $5::"EstadoAsistencia", $6, now())`,
+        [e.id, alumnoIds[h.alumno], cohorteIds[h.cohorte], fecha, h.estado, quienRegistra],
       );
     }
 
@@ -267,6 +349,22 @@ try {
       }
     }
 
+    // Despues del bloque de familia a proposito: el vinculo tutor-alumno de
+    // arriba abarca a los alumnos ya creados, y estos no deben quedar como
+    // hijos de Elena.
+    for (const c of e.companeros ?? []) {
+      const { rows } = await q(
+        `INSERT INTO alumno (id, tenant_id, nombre, apellidos, activo, creado_en)
+         VALUES (gen_random_uuid(), $1, $2, $3, true, now()) RETURNING id`,
+        [e.id, c.nombre, c.apellidos],
+      );
+      await q(
+        `INSERT INTO inscripcion (id, tenant_id, alumno_id, cohorte_id, estado, alta_en)
+         VALUES (gen_random_uuid(), $1, $2, $3, 'ACTIVA', now())`,
+        [e.id, rows[0].id, cohorteIds[c.cohorte]],
+      );
+    }
+
     // La escuela como CLIENTE de ZaharDev. La academia llega por el socio.
     const porSocio = e.vertical === 'ACADEMIA_DEPORTIVA' ? idSocio : null;
     await q(
@@ -294,7 +392,9 @@ try {
 
     console.log(
       `[seed] ${e.nombre} (${e.vertical}) — ${e.cohortes.length} cohortes, ` +
-        `${e.alumnos.length} alumnos, ${e.familia.length} tutores, cliente ${e.cliente.estado}`,
+        `${e.alumnos.length + (e.companeros ?? []).length} alumnos, ` +
+        `${e.familia.length} tutores, ` +
+        `${(e.historial ?? []).length} registros de asistencia, cliente ${e.cliente.estado}`,
     );
   }
 

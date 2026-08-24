@@ -30,10 +30,9 @@ Toda propuesta, recomendación, advertencia o decisión DEBE:
 - **PLAN MAESTRO v1.0 — OFICIALIZADO por el CEO el 23-ago-2026. ES LA FUENTE DE LA VERDAD: https://claude.ai/code/artifact/8bab40f8-e83a-4587-8514-a8c3fa41bfc4** — Product Goal, épicas E1–E8 con triple justificación, Sprints 0–5 especificados en 10 campos + S6–S12 en resolución media (rolling-wave §19), R2/R3/cartera, DoD 3 capas, DoR, ADR-001..007, decisiones §1–§25, gobernanza, métricas y bitácora D1–D13.
   - **Regla vigente:** ningún desarrollo fuera del plan. Toda petición nueva pasa por el mecanismo de 3 salidas (entra y algo sale / se cierra el sprint / va al backlog). Callarse y ejecutar fuera del plan es la falta.
   - **Sprint 0 ACEPTADO por el CEO y commiteado** (rama `sprint-0-fundaciones`, tag `v0.1.0`). **Cambio C1 trazado en el plan v1.1** (24-ago-2026): épica E9 Plataforma ZaharDev (wizard Activate, panel de clientes, dashboard MRR, portal del socio), esquema `plataforma` + reglas BI-ready (ADR-008), nube Vercel+Render+Neon (ADR-009, runbook en docs/operacion/INFRA.md — pendiente: el CEO crea las 3 cuentas).
-  - **Sprint activo: SPRINT 2 — entregado** (rama `sprint-2-familias`, tag `v0.3.0`). Entregado: acceso de tutores y `GET /mis-hijos`, home de la familia en móvil, biometría y sesión persistente, tubería de notificaciones con puerto `Mensajero`, **deuda del token pagada** (cookie httpOnly + logout), corrección de validación 500→400, y el **pre-diseño D10** que venía pendiente. **Pendiente:** validar push en dispositivo físico (requiere build de EAS) y desplegar a staging (cuentas de nube del CEO).
+  - **Sprint activo: SPRINT 3 — operación diaria** (rama `sprint-3-operacion`, aprobado por el CEO el 24-ago-2026). Sprint Backlog en [docs/sprints/S3-operacion-diaria.md](docs/sprints/S3-operacion-diaria.md). Entregado: pase de lista móvil-primero, asignación docente↔cohorte, motor de avisos automáticos por inasistencia (ADR-010, outbox transaccional), bandeja de avisos de la familia, parámetros de asistencia por escuela, y **ensayo de despliegue** (`pnpm ensayo:despliegue`) que ya cazó un fallo de instalación limpia. **Pendiente:** push en dispositivo físico (build de EAS) y staging.
   - Sprints cerrados con ceremonia completa: S0 `v0.1.0` · S1 `v0.2.0` · S2 `v0.3.0`. Ramas mergeadas a `main` al ser aceptadas.
-  - **Impedimento abierto desde S0 (escalado al CEO en el cierre de S2):** sin cuentas de nube no hay staging. Van 3 sprints y 6 migraciones sin desplegar; el riesgo crece solo. Pasos en [docs/operacion/INFRA.md](docs/operacion/INFRA.md).
-  - **Propuesta en gate: Sprint 3 — operación diaria** (horarios, pase de lista móvil, asistencia append-only y alertas automáticas por umbral sobre la tubería del S2), más validación de push en Android y ensayo de despliegue local como mitigación del impedimento.
+  - **Impedimento abierto desde S0 (escalado en el cierre de S2, sigue abierto):** sin cuentas de nube no hay staging. Van 4 sprints y 7 migraciones sin desplegar. Mitigado parcialmente por el ensayo de despliegue (§42), que NO lo sustituye. Pasos en [docs/operacion/INFRA.md](docs/operacion/INFRA.md).
   - El estado real del repo se genera con `pnpm estado` (nunca se escribe a mano — §7).
 
 ## Protocolo de cierre de sprint (obligatorio, instrucción del CEO 24-ago-2026)
@@ -75,6 +74,7 @@ Las decisiones numeradas viven en [docs/decisiones.md](docs/decisiones.md) y se 
 - **§6** — CI rojo/verde binario. Jamás `continue-on-error`.
 - **§30** — El azul de marca `#04A9F5` no se usa como texto sobre claro ni como fondo de botón con texto blanco (2.63:1). Existe `primary-strong` para eso, y un test lo verifica.
 - **§34** — Toda configuración no obvia lleva su porqué en el propio archivo. Antes de "limpiar" un valor raro, lee el comentario.
+- **§41/§42** — Desarrollo usa el MISMO compilador que la imagen de producción (nada de type-stripping), y mientras no exista staging real ningún sprint cierra sin `pnpm ensayo:despliegue` en verde.
 
 Puertos de este proyecto (§35): web 3010, api 3333, base de datos 5434.
 

@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ControladorNotificaciones } from './notificaciones.controller.js';
+import { ControladorAvisos } from './avisos.controller.js';
 import { Mensajero, MensajeroSimulado } from './mensajero.js';
 
 /**
@@ -8,7 +9,7 @@ import { Mensajero, MensajeroSimulado } from './mensajero.js';
  * codigo — esa es la razon de que exista el puerto.
  */
 @Module({
-  controllers: [ControladorNotificaciones],
+  controllers: [ControladorNotificaciones, ControladorAvisos],
   providers: [
     {
       provide: Mensajero,

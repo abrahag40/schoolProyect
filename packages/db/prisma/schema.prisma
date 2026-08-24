@@ -94,16 +94,16 @@ model Cliente {
 /// Bitacora de negocio de ZaharDev: altas, cambios de plan, cortesias,
 /// suspensiones. Append-only — es la tabla de hechos del dashboard ejecutivo.
 model EventoPlataforma {
-  id          String   @id @default(uuid()) @db.Uuid
+  id         String   @id @default(uuid()) @db.Uuid
   /// Las cuatro coordenadas (§37): a que cliente, quien, cuando y que.
-  tenantId    String?  @map("tenant_id") @db.Uuid
-  actorEmail  String   @map("actor_email")
-  tipo        String
-  ocurridoEn  DateTime @default(now()) @map("ocurrido_en") @db.Timestamptz(6)
+  tenantId   String?  @map("tenant_id") @db.Uuid
+  actorEmail String   @map("actor_email")
+  tipo       String
+  ocurridoEn DateTime @default(now()) @map("ocurrido_en") @db.Timestamptz(6)
   /// Detalle accesorio. Lo que se agrega o grafica vive en columnas, no aqui.
-  datos       Json?
+  datos      Json?
   /// Importe involucrado cuando aplica (cambio de precio, cortesia valorizada).
-  montoMxn    Decimal? @map("monto_mxn") @db.Decimal(10, 2)
+  montoMxn   Decimal? @map("monto_mxn") @db.Decimal(10, 2)
 
   @@index([tenantId, ocurridoEn])
   @@index([tipo, ocurridoEn])
@@ -148,6 +148,7 @@ model Tenant {
   alumnos          Alumno[]
   tutores          Tutor[]
   avisosPrivacidad AvisoPrivacidad[]
+  configuracion    ConfiguracionEscuela?
 
   @@map("tenant")
   @@schema("public")
@@ -167,7 +168,7 @@ model Sede {
   activa   Boolean  @default(true)
   creadaEn DateTime @default(now()) @db.Timestamptz(6)
 
-  tenant   Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant   Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   cohortes Cohorte[]
   roles    UsuarioRol[]
 
@@ -186,10 +187,12 @@ model Usuario {
   activo       Boolean  @default(true)
   creadoEn     DateTime @default(now()) @db.Timestamptz(6)
 
-  tenant       Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  roles        UsuarioRol[]
-  tutor        Tutor?
-  dispositivos DispositivoPush[]
+  tenant         Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  roles          UsuarioRol[]
+  tutor          Tutor?
+  dispositivos   DispositivoPush[]
+  asignaciones   AsignacionDocente[]
+  notificaciones Notificacion[]
 
   /// Unico DENTRO de la escuela: la misma persona puede ser tutora en un
   /// colegio y entrenadora en una academia.
@@ -262,10 +265,12 @@ model Cohorte {
   activa    Boolean     @default(true)
   creadaEn  DateTime    @default(now()) @map("creada_en") @db.Timestamptz(6)
 
-  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  periodo      Periodo       @relation(fields: [periodoId], references: [id], onDelete: Cascade)
-  sede         Sede          @relation(fields: [sedeId], references: [id], onDelete: Cascade)
+  tenant        Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  periodo       Periodo             @relation(fields: [periodoId], references: [id], onDelete: Cascade)
+  sede          Sede                @relation(fields: [sedeId], references: [id], onDelete: Cascade)
   inscripciones Inscripcion[]
+  asignaciones  AsignacionDocente[]
+  asistencias   Asistencia[]
 
   @@index([tenantId, periodoId])
   @@map("cohorte")
@@ -294,6 +299,7 @@ model Alumno {
   tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   inscripciones Inscripcion[]
   tutores       TutorAlumno[]
+  asistencias   Asistencia[]
 
   @@index([tenantId])
   @@index([tenantId, activo])
@@ -348,18 +354,18 @@ model Tutor {
 /// Los competidores modelan un solo "responsable de pago" y por eso sus
 /// usuarios piden a gritos incluir al tercer pagador en el recibo.
 model TutorAlumno {
-  id                  String     @id @default(uuid()) @db.Uuid
-  tenantId            String     @map("tenant_id") @db.Uuid
-  tutorId             String     @map("tutor_id") @db.Uuid
-  alumnoId            String     @map("alumno_id") @db.Uuid
-  parentesco          Parentesco @default(TUTOR)
-  esPagador           Boolean    @default(false) @map("es_pagador")
+  id                   String     @id @default(uuid()) @db.Uuid
+  tenantId             String     @map("tenant_id") @db.Uuid
+  tutorId              String     @map("tutor_id") @db.Uuid
+  alumnoId             String     @map("alumno_id") @db.Uuid
+  parentesco           Parentesco @default(TUTOR)
+  esPagador            Boolean    @default(false) @map("es_pagador")
   /// Reparto del cargo entre pagadores. Suma 100 entre los pagadores de un
   /// alumno; la validacion vive en el dominio (packages/core, S4).
-  porcentajePago      Decimal?   @map("porcentaje_pago") @db.Decimal(5, 2)
-  esContactoEmergencia Boolean   @default(false) @map("es_contacto_emergencia")
-  puedeRecoger        Boolean    @default(false) @map("puede_recoger")
-  creadoEn            DateTime   @default(now()) @map("creado_en") @db.Timestamptz(6)
+  porcentajePago       Decimal?   @map("porcentaje_pago") @db.Decimal(5, 2)
+  esContactoEmergencia Boolean    @default(false) @map("es_contacto_emergencia")
+  puedeRecoger         Boolean    @default(false) @map("puede_recoger")
+  creadoEn             DateTime   @default(now()) @map("creado_en") @db.Timestamptz(6)
 
   tutor  Tutor  @relation(fields: [tutorId], references: [id], onDelete: Cascade)
   alumno Alumno @relation(fields: [alumnoId], references: [id], onDelete: Cascade)
@@ -399,20 +405,20 @@ model AvisoPrivacidad {
 /// imagenes) deben poder rechazarse SIN perder el servicio educativo, y eso
 /// solo es posible si cada una es una fila con su propia evidencia.
 model Consentimiento {
-  id         String    @id @default(uuid()) @db.Uuid
-  tenantId   String    @map("tenant_id") @db.Uuid
-  avisoId    String    @map("aviso_id") @db.Uuid
-  tutorId    String    @map("tutor_id") @db.Uuid
+  id         String              @id @default(uuid()) @db.Uuid
+  tenantId   String              @map("tenant_id") @db.Uuid
+  avisoId    String              @map("aviso_id") @db.Uuid
+  tutorId    String              @map("tutor_id") @db.Uuid
   /// Null = consentimiento general del tutor; con valor = referido a un alumno.
-  alumnoId   String?   @map("alumno_id") @db.Uuid
+  alumnoId   String?             @map("alumno_id") @db.Uuid
   finalidad  Finalidad
   otorgado   Boolean
   /// Evidencia del acto (§10): por donde y cuando se manifesto. Sin esto, el
   /// consentimiento es una casilla sin valor probatorio.
   canal      CanalConsentimiento
-  otorgadoEn DateTime  @default(now()) @map("otorgado_en") @db.Timestamptz(6)
+  otorgadoEn DateTime            @default(now()) @map("otorgado_en") @db.Timestamptz(6)
   /// Revocacion: no se borra la fila, se marca. El historico es la prueba.
-  revocadoEn DateTime? @map("revocado_en") @db.Timestamptz(6)
+  revocadoEn DateTime?           @map("revocado_en") @db.Timestamptz(6)
 
   aviso AvisoPrivacidad @relation(fields: [avisoId], references: [id])
   tutor Tutor           @relation(fields: [tutorId], references: [id], onDelete: Cascade)
@@ -443,6 +449,164 @@ model EventoAuditoria {
   @@index([tenantId, ocurridoEn])
   @@index([tenantId, entidad, entidadId])
   @@map("evento_auditoria")
+  @@schema("public")
+}
+
+/// Parametros de operacion de UNA escuela. 1:1 con Tenant.
+///
+/// Tabla aparte y no columnas en `tenant` porque el tenant es la raiz de
+/// identidad y aislamiento; mezclarle preferencias operativas hace que cada
+/// ajuste de producto toque la tabla mas critica del sistema.
+model ConfiguracionEscuela {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @unique @map("tenant_id") @db.Uuid
+
+  /// Faltas dentro de la ventana que disparan el aviso acumulado. Es
+  /// configurable porque la tolerancia real difiere por vertical: tres faltas
+  /// en un colegio son una alerta; en una academia deportiva de fin de semana
+  /// pueden ser un mes entero.
+  umbralFaltas      Int     @default(3) @map("umbral_faltas")
+  ventanaDias       Int     @default(30) @map("ventana_dias")
+  /// Si se avisa la falta del dia ademas del acumulado. Una escuela puede
+  /// preferir solo el acumulado para no saturar a las familias.
+  avisarFaltaDelDia Boolean @default(true) @map("avisar_falta_del_dia")
+
+  /// Zona horaria de la escuela. Mexico tiene varias (Baja California, Sonora,
+  /// Quintana Roo): calcular "hoy" en UTC marcaria faltas del dia equivocado
+  /// en las escuelas del noroeste, y el servidor no siempre corre en Mexico.
+  zonaHoraria String @default("America/Mexico_City") @map("zona_horaria")
+
+  actualizadoEn DateTime @default(now()) @updatedAt @map("actualizado_en") @db.Timestamptz(6)
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("configuracion_escuela")
+  @@schema("public")
+}
+
+/// Quien puede pasar lista de una cohorte.
+///
+/// Tabla y no columna `responsableId` en Cohorte: existe la co-docencia (dos
+/// maestras de un mismo grupo) y las academias con entrenador y auxiliar. Una
+/// columna obligaria a elegir a uno y dejar al otro fuera del sistema.
+model AsignacionDocente {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  usuarioId String   @map("usuario_id") @db.Uuid
+  cohorteId String   @map("cohorte_id") @db.Uuid
+  /// Titular del grupo. El auxiliar tambien pasa lista, pero los reportes de
+  /// dirección se dirigen al titular.
+  titular   Boolean  @default(true)
+  creadaEn  DateTime @default(now()) @map("creada_en") @db.Timestamptz(6)
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  cohorte Cohorte @relation(fields: [cohorteId], references: [id], onDelete: Cascade)
+
+  @@unique([usuarioId, cohorteId])
+  @@index([tenantId])
+  @@index([cohorteId])
+  @@map("asignacion_docente")
+  @@schema("public")
+}
+
+/// Asistencia de UN alumno, en UNA cohorte, en UN dia (AZ-M3.1).
+///
+/// HECHO CORREGIBLE, no evento inmutable (§39). El docente se equivoca y la
+/// justificacion llega dos dias despues: un modelo de solo-agregar obligaria a
+/// leer N eventos para responder "¿falto Sofia el martes?". La fila se corrige
+/// y CADA correccion deja rastro en `evento_auditoria`, que si es append-only.
+/// Asi la consulta es barata y la historia sigue siendo indestructible.
+///
+/// Unicidad por (alumno, cohorte, fecha) y no por (alumno, fecha): un alumno
+/// puede estar inscrito en un grado Y en un taller vespertino, y cada grupo
+/// pasa su lista.
+model Asistencia {
+  id        String           @id @default(uuid()) @db.Uuid
+  tenantId  String           @map("tenant_id") @db.Uuid
+  alumnoId  String           @map("alumno_id") @db.Uuid
+  cohorteId String           @map("cohorte_id") @db.Uuid
+  /// Fecha escolar, no instante. `date` y no `timestamptz`: "el martes" es el
+  /// martes en la escuela, sin importar en que zona corre el servidor.
+  fecha     DateTime         @db.Date
+  estado    EstadoAsistencia
+  nota      String?
+
+  /// Quien registro el ultimo estado, y cuando. Coordenadas §37 en columnas.
+  registradoPor String   @map("registrado_por") @db.Uuid
+  registradoEn  DateTime @default(now()) @map("registrado_en") @db.Timestamptz(6)
+
+  alumno  Alumno  @relation(fields: [alumnoId], references: [id], onDelete: Cascade)
+  cohorte Cohorte @relation(fields: [cohorteId], references: [id], onDelete: Cascade)
+
+  @@unique([alumnoId, cohorteId, fecha])
+  @@index([tenantId, fecha])
+  @@index([tenantId, cohorteId, fecha])
+  @@index([tenantId, alumnoId, fecha])
+  @@map("asistencia")
+  @@schema("public")
+}
+
+/// Aviso dirigido a UNA persona. Es a la vez outbox de envio y registro de lo
+/// comunicado (AZ-M5.1/AZ-M5.2).
+///
+/// La fila se crea DENTRO de la transaccion que produce el hecho, y el envio
+/// ocurre despues del commit (ADR-010). Si el proceso muere entre ambos, el
+/// aviso queda pendiente y reenviable — nunca se pierde ni se duplica, porque
+/// `clave` es unica por escuela.
+model Notificacion {
+  id        String @id @default(uuid()) @db.Uuid
+  tenantId  String @map("tenant_id") @db.Uuid
+  /// Destinatario. Persona, no dispositivo: una madre puede tener dos telefonos
+  /// y el aviso es uno solo.
+  usuarioId String @map("usuario_id") @db.Uuid
+
+  /// Tipo estable para analitica (§37). Cambiar estas cadenas rompe series
+  /// historicas: se agregan tipos, no se renombran.
+  tipo     String
+  titulo   String
+  cuerpo   String
+  /// A donde lleva el toque. Sin destino la notificacion informa pero no
+  /// resuelve — el reclamo mas repetido del corpus de resenas del sector.
+  destino  String?
+  /// Alumno al que se refiere, cuando aplica. Columna y no JSON: se agrupa por
+  /// alumno en los reportes.
+  alumnoId String? @map("alumno_id") @db.Uuid
+
+  /// Clave de idempotencia (§15): `falta:{alumno}:{fecha}`,
+  /// `acumulada:{alumno}:{ano-mes}`. Unica POR DESTINATARIO: el mismo aviso
+  /// llega a la madre y al padre (dos filas), pero jamas dos veces a la misma
+  /// persona. La unicidad la impone la BASE, no la aplicacion: dos peticiones
+  /// concurrentes no pueden ganar las dos.
+  clave String
+
+  creadaEn     DateTime  @default(now()) @map("creada_en") @db.Timestamptz(6)
+  enviadaEn    DateTime? @map("enviada_en") @db.Timestamptz(6)
+  /// Cuantos dispositivos alcanzo. 0 con `enviadaEn` puesto significa que la
+  /// familia no tiene la app instalada: dato de producto, no error.
+  dispositivos Int       @default(0)
+  leidaEn      DateTime? @map("leida_en") @db.Timestamptz(6)
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, usuarioId, clave])
+  @@index([tenantId, usuarioId, creadaEn])
+  @@index([tenantId, tipo, creadaEn])
+  @@map("notificacion")
+  @@schema("public")
+}
+
+/// Estados del pase de lista.
+///
+/// RETARDO existe separado de AUSENTE porque no es lo mismo para la familia ni
+/// para el indicador de riesgo: un retardo NO dispara aviso (§40). JUSTIFICADA
+/// es una falta con causa reconocida por la escuela — cuenta en el expediente,
+/// no en el disparador de alerta.
+enum EstadoAsistencia {
+  PRESENTE
+  AUSENTE
+  RETARDO
+  JUSTIFICADA
+
   @@schema("public")
 }
 
@@ -477,19 +641,19 @@ enum Rol {
 /// telefonos: la madre en el suyo, el padre en el suyo. Notificar "al usuario"
 /// y no "a sus dispositivos" dejaria a uno de los dos sin enterarse.
 model DispositivoPush {
-  id         String    @id @default(uuid()) @db.Uuid
-  tenantId   String    @map("tenant_id") @db.Uuid
-  usuarioId  String    @map("usuario_id") @db.Uuid
+  id         String     @id @default(uuid()) @db.Uuid
+  tenantId   String     @map("tenant_id") @db.Uuid
+  usuarioId  String     @map("usuario_id") @db.Uuid
   /// Token que emite el servicio de notificaciones para ESTE dispositivo.
   /// Cambia cuando el sistema operativo lo rota; por eso se re-registra en
   /// cada arranque en lugar de guardarse una sola vez.
-  token      String    @unique
+  token      String     @unique
   plataforma Plataforma
   /// Ultima vez que el dispositivo se reporto vivo. Sirve para dejar de
   /// enviar a telefonos que ya no existen (los tokens muertos degradan la
   /// reputacion del canal).
-  vistoEn    DateTime  @default(now()) @map("visto_en") @db.Timestamptz(6)
-  creadoEn   DateTime  @default(now()) @map("creado_en") @db.Timestamptz(6)
+  vistoEn    DateTime   @default(now()) @map("visto_en") @db.Timestamptz(6)
+  creadoEn   DateTime   @default(now()) @map("creado_en") @db.Timestamptz(6)
 
   usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
 

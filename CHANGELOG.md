@@ -5,6 +5,86 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) · Versiona
 Se escribe desde el primer commit, no al final: reconstruir la historia despues
 es caro; anotarla por release es gratis.
 
+## [0.4.0] — 2026-08-24 — Sprint 3: La operación diaria
+
+Objetivo: que el docente tome asistencia desde su teléfono en menos de 30
+segundos y que, cuando un alumno acumula faltas, **su familia reciba el aviso en
+la app sin que nadie lo escriba a mano**.
+
+### Agregado
+
+- **Pase de lista (AZ-M3.1):** pantalla móvil-primero con "Todos presentes" en
+  un toque —el caso del 90% de los días—, controles de 44 px y guardado único al
+  final. El estado seleccionado se marca con grosor y símbolo, no con color: el
+  color nunca porta solo el significado (WCAG 2.2 SC 1.4.1).
+- **Asignación docente↔cohorte (AZ-M3.2):** tabla y no columna, porque existe la
+  co-docencia y las academias con entrenador y auxiliar. Una docente ve solo sus
+  grupos; dirección y administración ven todos.
+- **Motor de avisos automáticos (AZ-M5.1):** al guardar la lista, la falta
+  genera aviso a **todos** los tutores con acceso a la app —enterarse de que su
+  hijo faltó es de la crianza, no de la cobranza— y al alcanzar el umbral se
+  suma el aviso acumulado, que dice **cuántas** faltas lleva. Ese número es el
+  mecanismo con evidencia (Rogers & Feller 2018), no un adorno.
+- **Bandeja de avisos de la familia (AZ-M5.2):** `GET /mis-avisos` y su sección
+  en el home de la app, con marcar-leído. Existe porque el push puede no llegar
+  —permisos, app cerrada, iOS sin cuenta de desarrollador— y un aviso que solo
+  vive en el push se pierde sin dejar rastro.
+- **Parámetros de asistencia por escuela (AZ-M3.3):** umbral, ventana, si se
+  avisa la falta del día y **zona horaria**. México tiene varias zonas y el
+  servidor corre en UTC: calcular "hoy" con la hora del servidor marcaría la
+  falta del día equivocado en las escuelas del noroeste.
+- **Ensayo de despliegue (`pnpm ensayo:despliegue`):** construye la imagen,
+  arranca contra una base **vacía**, comprueba que migra sola y que el esquema
+  desplegado conserva el aislamiento. No sustituye a staging y lo dice en su
+  propia salida.
+
+### Corregido
+
+- **El arranque en una base vacía moría** (`ERR 3F000`): `ensure-app-role`
+  buscaba funciones con un cast a `regnamespace` sobre el esquema `plataforma`,
+  que en una base nueva todavía no existe. Es decir: **el primer despliegue a la
+  nube habría fallado**. Cazado por el ensayo de despliegue, antes de que
+  existiera la cuenta de Neon.
+- **`pnpm dev` del API no arrancaba con Node 25:** el type-stripping no resuelve
+  un import `.js` a su hermano `.ts` ni emite `emitDecoratorMetadata`, así que
+  la inyección de dependencias de Nest habría fallado solo en desarrollo. Ahora
+  desarrollo usa el mismo compilador que la imagen de producción (§41).
+- **El mensaje al guardar decía "familias" cuando contaba avisos.** Una alumna
+  con tres tutores que además cruza el umbral produce seis avisos, no seis
+  familias. Una cifra falsa en la pantalla del docente es un dato que después
+  nadie vuelve a creer.
+
+### Seguridad
+
+- Cuatro tablas nuevas (`asistencia`, `asignacion_docente`, `notificacion`,
+  `configuracion_escuela`) con RLS habilitado y forzado, más pruebas de
+  aislamiento propias: no se puede registrar la falta de un alumno de otra
+  escuela ni con su identificador en la mano.
+- **Frontera de grupo, que RLS no cubre:** marcar a un alumno que no pertenece
+  a la cohorte se rechaza en la aplicación. Son del mismo tenant, así que la
+  base los dejaría pasar.
+- Marcar un aviso como leído filtra por `usuarioId`: dos familias de la misma
+  escuela no se tocan entre sí.
+
+### Documentación
+
+- `docs/sprints/S3-operacion-diaria.md` — Sprint Backlog con la plantilla de 10
+  campos. Nuevo: los sprints ahora dejan su backlog en el repo.
+- ADR-010 (outbox transaccional, con los disparadores para cambiar a una cola).
+- Decisiones §39–§42.
+- **Corrección de evidencia:** el impacto de las alertas se citó en el cierre
+  del Sprint 2 como "+17% asistencia / −38% reprobación". Las cifras verificadas
+  contra la fuente son **+12% y −27%** (Bergman & Chan 2021, JHR 56(1)).
+
+### Pendiente declarado
+
+- **Push en dispositivo físico:** la tubería está probada contra el proveedor
+  simulado y el registro de dispositivos es real, pero ningún teléfono ha
+  recibido todavía un aviso. Requiere build de EAS.
+- **Home de la familia con avisos:** compila y consume un contrato verificado
+  por pruebas, pero no se ha ejecutado en un dispositivo ni en un emulador.
+- **Staging:** sigue bloqueado por las tres cuentas de nube.
+
 ## [0.3.0] — 2026-08-24 — Sprint 2: La app de familias
 
 Objetivo: que quien entre a la app móvil sea una **madre o un padre**, no un
