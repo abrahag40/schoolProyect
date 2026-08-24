@@ -31,7 +31,9 @@ Toda propuesta, recomendación, advertencia o decisión DEBE:
   - **Regla vigente:** ningún desarrollo fuera del plan. Toda petición nueva pasa por el mecanismo de 3 salidas (entra y algo sale / se cierra el sprint / va al backlog). Callarse y ejecutar fuera del plan es la falta.
   - **Sprint 0 ACEPTADO por el CEO y commiteado** (rama `sprint-0-fundaciones`, tag `v0.1.0`). **Cambio C1 trazado en el plan v1.1** (24-ago-2026): épica E9 Plataforma ZaharDev (wizard Activate, panel de clientes, dashboard MRR, portal del socio), esquema `plataforma` + reglas BI-ready (ADR-008), nube Vercel+Render+Neon (ADR-009, runbook en docs/operacion/INFRA.md — pendiente: el CEO crea las 3 cuentas).
   - **Sprint activo: SPRINT 2 — entregado** (rama `sprint-2-familias`, tag `v0.3.0`). Entregado: acceso de tutores y `GET /mis-hijos`, home de la familia en móvil, biometría y sesión persistente, tubería de notificaciones con puerto `Mensajero`, **deuda del token pagada** (cookie httpOnly + logout), corrección de validación 500→400, y el **pre-diseño D10** que venía pendiente. **Pendiente:** validar push en dispositivo físico (requiere build de EAS) y desplegar a staging (cuentas de nube del CEO).
-  - Sprints cerrados: S0 `v0.1.0` · S1 `v0.2.0` · S2 `v0.3.0`. Ramas mergeadas a `main` al ser aceptadas.
+  - Sprints cerrados con ceremonia completa: S0 `v0.1.0` · S1 `v0.2.0` · S2 `v0.3.0`. Ramas mergeadas a `main` al ser aceptadas.
+  - **Impedimento abierto desde S0 (escalado al CEO en el cierre de S2):** sin cuentas de nube no hay staging. Van 3 sprints y 6 migraciones sin desplegar; el riesgo crece solo. Pasos en [docs/operacion/INFRA.md](docs/operacion/INFRA.md).
+  - **Propuesta en gate: Sprint 3 — operación diaria** (horarios, pase de lista móvil, asistencia append-only y alertas automáticas por umbral sobre la tubería del S2), más validación de push en Android y ensayo de despliegue local como mitigación del impedimento.
   - El estado real del repo se genera con `pnpm estado` (nunca se escribe a mano — §7).
 
 ## Protocolo de cierre de sprint (obligatorio, instrucción del CEO 24-ago-2026)
