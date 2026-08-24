@@ -33,6 +33,35 @@ Toda propuesta, recomendación, advertencia o decisión DEBE:
   - **Sprint activo: SPRINT 1 — entregado en su mayor parte** (rama `sprint-1-comunidad`, tag `v0.2.0`). Entregado: cohortes multi-vertical, personas y familias multi-pagador, roles múltiples, consentimientos por finalidad, bitácora append-only, esquema `plataforma` + guard + `GET /plataforma/panel`. **Pendiente del sprint:** pre-diseño D10 (matriz de 8 pantallas y wireframes) y despliegue a staging (bloqueado por cuentas de nube del CEO).
   - El estado real del repo se genera con `pnpm estado` (nunca se escribe a mano — §7).
 
+## Protocolo de cierre de sprint (obligatorio, instrucción del CEO 24-ago-2026)
+
+Al terminar CADA sprint se ejecuta esta secuencia y se entrega al CEO. Ningún
+sprint se da por cerrado sin ella.
+
+**Precisión metodológica que ordena las ceremonias** (Guía Scrum 2020): el
+*Daily Scrum* es un evento **diario, dentro** del sprint, de 15 minutos y para
+quienes construyen — inspecciona el avance hacia el Sprint Goal. Lo que
+corresponde al **cierre** son la *Sprint Review* (inspeccionar el incremento
+con el sponsor y adaptar el backlog) y la *Retrospectiva* (mejorar el proceso).
+Aquí se hacen las tres cosas: el estado del día, la Review con el CEO y la
+Retro. Llamarlo todo "daily" mezclaría eventos con propósitos distintos.
+
+1. **Estado medido, nunca recordado** — `pnpm estado` + métricas de git
+   (volumen del sprint, pruebas, deuda declarada que vencía). Los números salen
+   del repo; si el documento y el código difieren, manda el código.
+2. **Sprint Review con el CEO** — qué se comprometió, qué se entregó, qué NO y
+   por qué. Con demo verificable, no con narración.
+3. **Retrospectiva** — qué funcionó, qué falló y qué se cambia. Los defectos se
+   nombran; la deuda que venció y no se pagó se reporta como incumplimiento,
+   no se recicla en silencio.
+4. **Cierre en git** — commit, tag SemVer, push, y merge a `main` cuando el CEO
+   acepta.
+5. **Documentación** — CHANGELOG (entrada del release), `CLAUDE.md` (sprint
+   activo), decisiones § nuevas y ADRs si hubo decisiones estructurales.
+6. **Propuesta del siguiente sprint** — Sprint Goal, alcance, y las opciones
+   con su trade-off cuando alteren el orden del Plan Maestro. Cambiar el orden
+   o el alcance es decisión del CEO en gate (§8), nunca del equipo.
+
 ## Reglas de ingeniería vigentes en este repo
 
 Las decisiones numeradas viven en [docs/decisiones.md](docs/decisiones.md) y se citan desde el código (`§4`, `§26`…). Las de arquitectura, en [docs/adr/](docs/adr/). Las que más se pisan en el día a día:
