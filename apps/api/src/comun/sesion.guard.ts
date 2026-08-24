@@ -1,5 +1,6 @@
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common';
 import { verificarToken, type Sesion } from './sesion.js';
+import { leerCookie, NOMBRE_COOKIE } from './cookie-sesion.js';
 
 export interface PeticionConSesion extends Request {
   sesion?: Sesion;
@@ -21,13 +22,21 @@ export class GuardSesion implements CanActivate {
       sesion?: Sesion;
     }>();
 
+    // Dos formas de presentar la sesion, una por superficie:
+    //   - Cookie httpOnly  -> la web (invisible para JavaScript, anti-XSS).
+    //   - Bearer            -> la app movil (token en el llavero del sistema).
+    // Se busca primero la cookie porque es la unica que el navegador manda
+    // sola; si un cliente envia ambas, gana la cookie.
+    const deCookie = leerCookie(peticion.headers['cookie'], NOMBRE_COOKIE);
     const encabezado = peticion.headers['authorization'];
-    if (!encabezado?.startsWith('Bearer ')) {
+    const token = deCookie ?? (encabezado?.startsWith('Bearer ') ? encabezado.slice(7) : undefined);
+
+    if (!token) {
       throw new UnauthorizedException('Inicia sesion para continuar.');
     }
 
     try {
-      peticion.sesion = await verificarToken(encabezado.slice('Bearer '.length));
+      peticion.sesion = await verificarToken(token);
       return true;
     } catch {
       // Mensaje generico a proposito: distinguir "token invalido" de "token

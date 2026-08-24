@@ -21,6 +21,10 @@ export default function PaginaLogin() {
       const respuesta = await fetch(`${API}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        // credentials: 'include' es lo que permite al navegador GUARDAR la
+        // cookie httpOnly que emite el servidor, y reenviarla despues. Sin
+        // esto el login respondería 200 y la sesión no existiría.
+        credentials: 'include',
         body: JSON.stringify({
           escuela: datos.get('escuela'),
           email: datos.get('email'),
@@ -36,13 +40,12 @@ export default function PaginaLogin() {
         return;
       }
 
-      const sesion = await respuesta.json();
-      // DEUDA DECLARADA (dueno: equipo, vence en S1): el token vive en
-      // sessionStorage, accesible desde JavaScript y por tanto expuesto a XSS.
-      // La solucion correcta es cookie httpOnly + SameSite emitida por la API.
-      // Se difiere a S1 con el resto de la sesion; queda anotada aqui y en el
-      // CHANGELOG para que no se pierda.
-      sessionStorage.setItem('azahar.sesion', JSON.stringify(sesion));
+      // DEUDA PAGADA (Sprint 2): la sesion viaja en una cookie httpOnly que el
+      // servidor emitio en la respuesta. El navegador la guarda y la reenvia
+      // solo; JavaScript no puede leerla, asi que un script inyectado tampoco.
+      // Aqui no se guarda NADA: si hiciera falta saber quien inicio sesion, se
+      // le pregunta al servidor, que es quien tiene la verdad.
+      await respuesta.json();
       router.push('/panel');
     } catch {
       setError('No pudimos contactar al servidor. Revisa tu conexion.');
@@ -85,6 +88,11 @@ export default function PaginaLogin() {
             defaultValue="colegio-azahar"
             ayuda="El identificador que te dimos, por ejemplo colegio-azahar."
           />
+          {/*
+            La web es el portal del PERSONAL de la escuela; la app movil es la
+            de las familias. Una cuenta de tutora aqui recibiria 403, que es
+            justamente lo que debe pasar.
+          */}
           <CampoTexto
             etiqueta="Correo"
             name="email"

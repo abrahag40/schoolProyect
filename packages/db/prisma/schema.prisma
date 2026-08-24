@@ -186,9 +186,10 @@ model Usuario {
   activo       Boolean  @default(true)
   creadoEn     DateTime @default(now()) @db.Timestamptz(6)
 
-  tenant Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  roles  UsuarioRol[]
-  tutor  Tutor?
+  tenant       Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  roles        UsuarioRol[]
+  tutor        Tutor?
+  dispositivos DispositivoPush[]
 
   /// Unico DENTRO de la escuela: la misma persona puede ser tutora en un
   /// colegio y entrenadora en una academia.
@@ -462,6 +463,46 @@ enum Rol {
   COBRANZA
   DOCENTE
   STAFF
+  /// Madre, padre o tutor con acceso a la app. Es un rol como los demas y no
+  /// un tipo de cuenta aparte: la misma persona puede ser tutora de su hijo Y
+  /// docente en la escuela, y entra una sola vez.
+  TUTOR
+
+  @@schema("public")
+}
+
+/// Dispositivo donde una persona recibe notificaciones (AZ-M5.3, cimiento).
+///
+/// Es una tabla y no una columna en Usuario porque una familia real usa varios
+/// telefonos: la madre en el suyo, el padre en el suyo. Notificar "al usuario"
+/// y no "a sus dispositivos" dejaria a uno de los dos sin enterarse.
+model DispositivoPush {
+  id         String    @id @default(uuid()) @db.Uuid
+  tenantId   String    @map("tenant_id") @db.Uuid
+  usuarioId  String    @map("usuario_id") @db.Uuid
+  /// Token que emite el servicio de notificaciones para ESTE dispositivo.
+  /// Cambia cuando el sistema operativo lo rota; por eso se re-registra en
+  /// cada arranque en lugar de guardarse una sola vez.
+  token      String    @unique
+  plataforma Plataforma
+  /// Ultima vez que el dispositivo se reporto vivo. Sirve para dejar de
+  /// enviar a telefonos que ya no existen (los tokens muertos degradan la
+  /// reputacion del canal).
+  vistoEn    DateTime  @default(now()) @map("visto_en") @db.Timestamptz(6)
+  creadoEn   DateTime  @default(now()) @map("creado_en") @db.Timestamptz(6)
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([usuarioId])
+  @@map("dispositivo_push")
+  @@schema("public")
+}
+
+enum Plataforma {
+  IOS
+  ANDROID
+  WEB
 
   @@schema("public")
 }

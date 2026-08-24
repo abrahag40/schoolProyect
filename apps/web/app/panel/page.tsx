@@ -60,17 +60,13 @@ export default function PaginaPanel() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const guardada = sessionStorage.getItem('azahar.sesion');
-    if (!guardada) {
-      router.replace('/');
-      return;
-    }
-    const { token } = JSON.parse(guardada) as { token: string };
-
-    fetch(`${API}/mi-escuela`, { headers: { Authorization: `Bearer ${token}` } })
+    // No se consulta ningun almacenamiento local: la sesion vive en una cookie
+    // httpOnly que el navegador envia sola. Si no hay sesion valida, el
+    // servidor responde 401 y de ahi se decide — la verdad la tiene el
+    // servidor, no una copia en el cliente que puede quedar desincronizada.
+    fetch(`${API}/mi-escuela`, { credentials: 'include' })
       .then(async (r) => {
         if (r.status === 401) {
-          sessionStorage.removeItem('azahar.sesion');
           router.replace('/');
           return null;
         }
@@ -81,8 +77,11 @@ export default function PaginaPanel() {
       .catch(() => setError('No pudimos cargar los datos de tu escuela.'));
   }, [router]);
 
-  function salir() {
-    sessionStorage.removeItem('azahar.sesion');
+  async function salir() {
+    // Con cookie httpOnly el cliente NO puede borrarla: se le pide al servidor
+    // que la retire. Antes bastaba con limpiar el almacenamiento local; ahora
+    // cerrar sesion es una operacion real contra la API.
+    await fetch(`${API}/auth/logout`, { method: 'POST', credentials: 'include' }).catch(() => {});
     router.replace('/');
   }
 
