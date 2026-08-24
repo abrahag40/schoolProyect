@@ -5,6 +5,68 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) · Versiona
 Se escribe desde el primer commit, no al final: reconstruir la historia despues
 es caro; anotarla por release es gratis.
 
+## [0.2.0] — 2026-08-24 — Sprint 1: Comunidad y plataforma
+
+Objetivo: que el modelo de datos sea multi-vertical de verdad (no un colegio
+con excepciones), que los consentimientos nazcan como los exige la ley de 2025,
+y que exista el cimiento de la consola de ZaharDev (cambio C1).
+
+### Agregado — operación de las escuelas
+
+- **Cohorte, el átomo multi-vertical (AZ-M3.1, §9):** un grado de primaria, una
+  categoría sub-12 y un nivel B1 de idiomas son la misma entidad. El `Periodo`
+  que las contiene es ciclo escolar, temporada o inscripción continua. La
+  interfaz habla el idioma de cada vertical leyendo el mismo dato.
+- **Personas y familias (AZ-M2):** alumnos, tutores e inscripciones. El vínculo
+  tutor–alumno soporta **multi-pagador con porcentaje** (dos padres que dividen
+  60/40) y separa quién paga de quién puede recoger — el "tercer pagador" que
+  las reseñas del sector piden y ningún competidor modela.
+- **Roles múltiples (AZ-M1.3):** el rol pasó de columna a tabla. Una misma
+  persona administra, da clase y cobra sin necesitar tres cuentas. La migración
+  preserva los roles ya existentes.
+- **Consentimientos por finalidad (AZ-M2.5, §10):** aviso de privacidad
+  versionado (hay que poder probar qué texto exacto aceptó cada tutor) y
+  consentimiento separado por finalidad, con evidencia de canal y fecha. Las
+  voluntarias se pueden rechazar sin perder el servicio educativo.
+- **Bitácora append-only (AZ-M1.4, §12):** reglas de base de datos que hacen
+  que `UPDATE` y `DELETE` sobre la bitácora no tengan efecto — ni siquiera para
+  la aplicación. "Append-only" dejó de ser una convención.
+
+### Agregado — plataforma ZaharDev (C1 / ADR-008)
+
+- **Esquema `plataforma` separado**: clientes, suscripciones, socios,
+  membresías y eventos de negocio. Sin RLS de tenant a propósito (su dueño es
+  ZaharDev), con su propia frontera de aplicación.
+- **Guard de plataforma**: la membresía se resuelve **por correo** y se
+  consulta en cada petición. Ser DUEÑO de una escuela no da acceso a la
+  cartera; dar de baja a un miembro le corta el acceso al instante, sin esperar
+  a que expire su token.
+- **`GET /plataforma/panel`**: MRR, estado de la cartera y clientes. El **socio
+  ve solo su cartera** — no es un filtro de interfaz: la consulta no alcanza
+  clientes de otro socio.
+- **Reglas BI-ready aplicadas (§37):** eventos con las cuatro coordenadas
+  (tenant, actor, `timestamptz`, tipo), dinero en `Decimal` serializado como
+  cadena para no perder centavos, y hechos en columnas tipadas.
+
+### Seguridad
+
+- 10 tablas nuevas nacen con RLS forzado y política de aislamiento; el gate
+  recorre `pg_class` y se pone rojo si alguna falta.
+- Segunda función `SECURITY DEFINER` de superficie mínima
+  (`plataforma.escuelas_de_clientes`) para que la consola lea nombres de
+  escuela sin abrir la tabla ni usar credenciales privilegiadas.
+- 47 pruebas en verde (11 tokens, 15 base de datos, 21 API).
+
+### Pendiente declarado
+
+- **Pre-diseño (D10):** la matriz maestra de las 8 pantallas críticas y sus
+  wireframes no se produjeron en este sprint. Se reprograma con el resto del
+  alcance en la recalibración del CHECKPOINT T1.
+- **Despliegue a staging** (parte de C1): sigue bloqueado por la creación de
+  las cuentas de nube — acción administrativa del CEO (ver `docs/operacion/INFRA.md`).
+- La deuda del token de sesión en `sessionStorage` sigue abierta; vence al
+  cierre de la tanda.
+
 ## [0.1.0] — 2026-08-23 — Sprint 0: Fundaciones
 
 Objetivo del sprint: que el esqueleto ande de punta a punta y que el aislamiento

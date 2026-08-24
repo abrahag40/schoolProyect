@@ -1,13 +1,14 @@
 #!/usr/bin/env node
 /**
- * Datos de demostracion del Sprint 0: DOS escuelas de verticales distintas.
+ * Datos de demostracion.
  *
- * No son dos filas cualquiera: un colegio K-12 y una academia deportiva en la
- * MISMA instalacion es la prueba viva de la tesis multi-vertical del producto
- * (Definicion de Producto, opcion C). Si el modelo solo sirviera para colegios,
- * este seed no se podria escribir.
+ * No son filas cualquiera: son el ARGUMENTO del producto hecho datos. Dos
+ * escuelas de verticales distintas en la MISMA instalacion, con sus periodos y
+ * cohortes propios (ciclo/grado vs temporada/categoria), familias con pago
+ * dividido entre dos tutores, y consentimientos separados por finalidad.
+ * Si el modelo no fuera multi-vertical, este archivo no se podria escribir.
  *
- * Se ejecuta con el rol dueno porque sembrar no es lo que se esta probando.
+ * Corre con el rol dueno: sembrar no es lo que se esta probando.
  */
 import pg from 'pg';
 import { hash } from '@node-rs/argon2';
@@ -19,14 +20,36 @@ if (existsSync(rutaEnv)) process.loadEnvFile(rutaEnv);
 
 const OPCIONES_HASH = { memoryCost: 19_456, timeCost: 2, parallelism: 1 };
 const CONTRASENA_DEMO = 'azahar-demo-2026';
+const CORREO_CEO = 'abrahag40@gmail.com';
 
 const cliente = new pg.Client({ connectionString: process.env.DATABASE_URL_OWNER });
 await cliente.connect();
+const q = (sql, params) => cliente.query(sql, params);
 
 try {
-  await cliente.query('DELETE FROM usuario');
-  await cliente.query('DELETE FROM sede');
-  await cliente.query('DELETE FROM tenant');
+  // Orden inverso al de las dependencias. La bitacora se trunca porque sus
+  // reglas append-only bloquean el DELETE incluso para el dueno (§12).
+  for (const t of [
+    'plataforma.evento',
+    'plataforma.cliente',
+    'plataforma.miembro',
+    'plataforma.socio',
+    'tutor_alumno',
+    'consentimiento',
+    'tutor',
+    'inscripcion',
+    'alumno',
+    'cohorte',
+    'periodo',
+    'aviso_privacidad',
+    'usuario_rol',
+    'usuario',
+    'sede',
+    'tenant',
+  ]) {
+    await q(`DELETE FROM ${t}`);
+  }
+  await q('TRUNCATE evento_auditoria');
 
   const hashDemo = await hash(CONTRASENA_DEMO, OPCIONES_HASH);
 
@@ -40,7 +63,41 @@ try {
         { nombre: 'Campus Norte', cct: '31PPR0001A', rvoe: 'ACUERDO 123/2024' },
         { nombre: 'Campus Sur', cct: '31PPR0002B', rvoe: 'ACUERDO 124/2024' },
       ],
-      usuario: { email: 'directora@colegioazahar.mx', nombre: 'Lucia Mendoza', rol: 'DIRECTOR' },
+      // Un colegio piensa en ciclos escolares y grados.
+      periodo: { nombre: 'Ciclo 2026-2027', tipo: 'CICLO_ESCOLAR', inicio: '2026-08-17' },
+      cohortes: [
+        { nombre: '1o A', tipo: 'GRADO', orden: 1 },
+        { nombre: '2o A', tipo: 'GRADO', orden: 2 },
+        { nombre: '3o A', tipo: 'GRADO', orden: 3 },
+      ],
+      usuarios: [
+        { email: 'directora@colegioazahar.mx', nombre: 'Lucia Mendoza', roles: ['DIRECTOR'] },
+        // El caso que los competidores no modelan: una sola persona con varios
+        // roles. En una escuela chica administra Y da clase Y cobra.
+        {
+          email: 'admin@colegioazahar.mx',
+          nombre: 'Marta Ibarra',
+          roles: ['ADMIN', 'DOCENTE', 'COBRANZA'],
+        },
+      ],
+      alumnos: [
+        { nombre: 'Sofia', apellidos: 'Ramirez Loera', nacimiento: '2018-03-12', cohorte: 0 },
+        { nombre: 'Mateo', apellidos: 'Ramirez Loera', nacimiento: '2016-07-04', cohorte: 2 },
+      ],
+      // Padres separados que dividen la colegiatura 60/40 y una abuela que
+      // recoge pero no paga. Es el "tercer pagador" que el mercado pide.
+      familia: [
+        { nombre: 'Elena', apellidos: 'Loera', parentesco: 'MADRE', paga: 60, recoge: true },
+        { nombre: 'Jorge', apellidos: 'Ramirez', parentesco: 'PADRE', paga: 40, recoge: false },
+        {
+          nombre: 'Carmen',
+          apellidos: 'Vda. de Loera',
+          parentesco: 'ABUELO',
+          paga: null,
+          recoge: true,
+        },
+      ],
+      cliente: { estado: 'ACTIVO', plan: 'base', precio: '2400.00', alumnos: 400, modulos: [] },
     },
     {
       id: '22222222-2222-4222-8222-222222222222',
@@ -50,32 +107,225 @@ try {
       // Una academia no tiene CCT ni RVOE: los campos son opcionales por eso,
       // no por descuido del modelo.
       sedes: [{ nombre: 'Cancha Principal', cct: null, rvoe: null }],
-      usuario: { email: 'coach@academiaazahar.mx', nombre: 'Rene Palacios', rol: 'DUENO' },
+      // Una academia piensa en temporadas y categorias por edad.
+      periodo: { nombre: 'Temporada Otono 2026', tipo: 'TEMPORADA', inicio: '2026-09-01' },
+      cohortes: [
+        { nombre: 'Sub-10', tipo: 'CATEGORIA', orden: 10 },
+        { nombre: 'Sub-12', tipo: 'CATEGORIA', orden: 12 },
+      ],
+      usuarios: [{ email: 'coach@academiaazahar.mx', nombre: 'Rene Palacios', roles: ['DUENO'] }],
+      alumnos: [
+        { nombre: 'Diego', apellidos: 'Fuentes Ortiz', nacimiento: '2015-11-20', cohorte: 1 },
+      ],
+      familia: [
+        { nombre: 'Paola', apellidos: 'Ortiz', parentesco: 'MADRE', paga: 100, recoge: true },
+      ],
+      cliente: {
+        estado: 'CORTESIA',
+        plan: 'base',
+        precio: '890.00',
+        alumnos: 150,
+        modulos: ['AZ-A3'],
+      },
     },
   ];
 
+  // --- Plataforma: el socio y el CEO ---------------------------------------
+  const idSocio = '33333333-3333-4333-8333-333333333333';
+  await q(
+    `INSERT INTO plataforma.socio (id, nombre, email, porcentaje_comision, activo, creado_en)
+     VALUES ($1, 'Distribuidora Bajio', 'socio@bajio.mx', 15.00, true, now())`,
+    [idSocio],
+  );
+  await q(
+    `INSERT INTO plataforma.miembro (id, email, nombre, rol, socio_id, activo, creado_en) VALUES
+       (gen_random_uuid(), $1, 'Abraham (ZaharDev)', 'CEO', NULL, true, now()),
+       (gen_random_uuid(), 'socio@bajio.mx', 'Distribuidora Bajio', 'SOCIO', $2, true, now())`,
+    [CORREO_CEO, idSocio],
+  );
+
   for (const e of escuelas) {
-    await cliente.query(
+    await q(
       `INSERT INTO tenant (id, nombre, slug, vertical, activo, "creadoEn")
        VALUES ($1, $2, $3, $4::"Vertical", true, now())`,
       [e.id, e.nombre, e.slug, e.vertical],
     );
+
+    const sedeIds = [];
     for (const s of e.sedes) {
-      await cliente.query(
+      const { rows } = await q(
         `INSERT INTO sede (id, tenant_id, nombre, cct, rvoe, activa, "creadaEn")
-         VALUES (gen_random_uuid(), $1, $2, $3, $4, true, now())`,
+         VALUES (gen_random_uuid(), $1, $2, $3, $4, true, now()) RETURNING id`,
         [e.id, s.nombre, s.cct, s.rvoe],
       );
+      sedeIds.push(rows[0].id);
     }
-    await cliente.query(
-      `INSERT INTO usuario (id, tenant_id, email, password_hash, nombre, rol, activo, "creadoEn")
-       VALUES (gen_random_uuid(), $1, $2, $3, $4, $5::"Rol", true, now())`,
-      [e.id, e.usuario.email, hashDemo, e.usuario.nombre, e.usuario.rol],
+
+    for (const u of e.usuarios) {
+      const { rows } = await q(
+        `INSERT INTO usuario (id, tenant_id, email, password_hash, nombre, activo, "creadoEn")
+         VALUES (gen_random_uuid(), $1, $2, $3, $4, true, now()) RETURNING id`,
+        [e.id, u.email, hashDemo, u.nombre],
+      );
+      for (const rol of u.roles) {
+        await q(
+          `INSERT INTO usuario_rol (id, tenant_id, usuario_id, rol, creado_en)
+           VALUES (gen_random_uuid(), $1, $2, $3::"Rol", now())`,
+          [e.id, rows[0].id, rol],
+        );
+      }
+    }
+
+    const { rows: per } = await q(
+      `INSERT INTO periodo (id, tenant_id, nombre, tipo, inicio, activo, creado_en)
+       VALUES (gen_random_uuid(), $1, $2, $3::"TipoPeriodo", $4::date, true, now()) RETURNING id`,
+      [e.id, e.periodo.nombre, e.periodo.tipo, e.periodo.inicio],
     );
-    console.log(`[seed] ${e.nombre} (${e.vertical}) — ${e.usuario.email}`);
+
+    const cohorteIds = [];
+    for (const c of e.cohortes) {
+      const { rows } = await q(
+        `INSERT INTO cohorte (id, tenant_id, periodo_id, sede_id, nombre, tipo, orden, activa, creada_en)
+         VALUES (gen_random_uuid(), $1, $2, $3, $4, $5::"TipoCohorte", $6, true, now()) RETURNING id`,
+        [e.id, per[0].id, sedeIds[0], c.nombre, c.tipo, c.orden],
+      );
+      cohorteIds.push(rows[0].id);
+    }
+
+    // Aviso de privacidad versionado: los consentimientos apuntan a la version
+    // exacta que el tutor acepto (LFPDPPP 2025).
+    const { rows: aviso } = await q(
+      `INSERT INTO aviso_privacidad (id, tenant_id, version, contenido, publicado_en)
+       VALUES (gen_random_uuid(), $1, 1, $2, now()) RETURNING id`,
+      [e.id, `Aviso de privacidad de ${e.nombre}, version 1 (demo).`],
+    );
+
+    const alumnoIds = [];
+    for (const a of e.alumnos) {
+      const { rows } = await q(
+        `INSERT INTO alumno (id, tenant_id, nombre, apellidos, fecha_nacimiento, activo, creado_en)
+         VALUES (gen_random_uuid(), $1, $2, $3, $4::date, true, now()) RETURNING id`,
+        [e.id, a.nombre, a.apellidos, a.nacimiento],
+      );
+      alumnoIds.push(rows[0].id);
+      await q(
+        `INSERT INTO inscripcion (id, tenant_id, alumno_id, cohorte_id, estado, alta_en)
+         VALUES (gen_random_uuid(), $1, $2, $3, 'ACTIVA', now())`,
+        [e.id, rows[0].id, cohorteIds[a.cohorte]],
+      );
+    }
+
+    for (const t of e.familia) {
+      const { rows } = await q(
+        `INSERT INTO tutor (id, tenant_id, nombre, apellidos, email, creado_en)
+         VALUES (gen_random_uuid(), $1, $2, $3, $4, now()) RETURNING id`,
+        [e.id, t.nombre, t.apellidos, `${t.nombre.toLowerCase()}@ejemplo.mx`],
+      );
+      // Cada tutor se vincula a TODOS los alumnos de su escuela demo (son
+      // hermanos en el caso del colegio: el descuento por hermanos de S4
+      // necesitara exactamente esta forma).
+      for (const alumnoId of alumnoIds) {
+        await q(
+          `INSERT INTO tutor_alumno
+             (id, tenant_id, tutor_id, alumno_id, parentesco, es_pagador, porcentaje_pago,
+              es_contacto_emergencia, puede_recoger, creado_en)
+           VALUES (gen_random_uuid(), $1, $2, $3, $4::"Parentesco", $5, $6, $7, $8, now())`,
+          [e.id, rows[0].id, alumnoId, t.parentesco, t.paga !== null, t.paga, t.recoge, t.recoge],
+        );
+      }
+      // Necesarias otorgadas; voluntarias con respuestas distintas — que es
+      // exactamente el punto: son separables (§10).
+      for (const [finalidad, otorgado] of [
+        ['GESTION_ESCOLAR', true],
+        ['COBRANZA', true],
+        ['COMUNICACION_OPERATIVA', true],
+        ['IMAGENES', t.recoge], // demo: unos aceptan fotos, otros no
+        ['COMUNICACION_COMERCIAL', false],
+      ]) {
+        await q(
+          `INSERT INTO consentimiento
+             (id, tenant_id, aviso_id, tutor_id, finalidad, otorgado, canal, otorgado_en)
+           VALUES (gen_random_uuid(), $1, $2, $3, $4::"Finalidad", $5, 'PAPEL', now())`,
+          [e.id, aviso[0].id, rows[0].id, finalidad, otorgado],
+        );
+      }
+    }
+
+    // La escuela como CLIENTE de ZaharDev. La academia llega por el socio.
+    const porSocio = e.vertical === 'ACADEMIA_DEPORTIVA' ? idSocio : null;
+    await q(
+      `INSERT INTO plataforma.cliente
+         (id, tenant_id, estado, plan, precio_mensual, moneda, alumnos_maximos,
+          modulos_activos, cortesia_hasta, socio_id, alta_en)
+       VALUES (gen_random_uuid(), $1, $2::plataforma."EstadoCliente", $3, $4, 'MXN', $5, $6,
+               $7, $8, now())`,
+      [
+        e.id,
+        e.cliente.estado,
+        e.cliente.plan,
+        e.cliente.precio,
+        e.cliente.alumnos,
+        e.cliente.modulos,
+        e.cliente.estado === 'CORTESIA' ? new Date(Date.now() + 30 * 864e5) : null,
+        porSocio,
+      ],
+    );
+    await q(
+      `INSERT INTO plataforma.evento (id, tenant_id, actor_email, tipo, ocurrido_en, monto_mxn)
+       VALUES (gen_random_uuid(), $1, $2, 'cliente.alta', now(), $3)`,
+      [e.id, CORREO_CEO, e.cliente.precio],
+    );
+
+    console.log(
+      `[seed] ${e.nombre} (${e.vertical}) — ${e.cohortes.length} cohortes, ` +
+        `${e.alumnos.length} alumnos, ${e.familia.length} tutores, cliente ${e.cliente.estado}`,
+    );
   }
 
-  console.log(`[seed] listo. Contrasena de ambas cuentas demo: ${CONTRASENA_DEMO}`);
+  // --- Espacio propio de ZaharDev ------------------------------------------
+  // El CEO necesita una cuenta con la cual iniciar sesion, y esa cuenta debe
+  // vivir en SU propio espacio — jamas dentro de una escuela cliente (lo
+  // contrario mezclaria al proveedor con su cliente y, peor, haria que una
+  // cuenta compartible pudiera heredar acceso a la consola).
+  // Este tenant NO tiene fila en plataforma.cliente: ZaharDev no se factura a
+  // si misma, y por eso tampoco aparece en la cartera.
+  const idZahar = '44444444-4444-4444-8444-444444444444';
+  await q(
+    `INSERT INTO tenant (id, nombre, slug, vertical, activo, "creadoEn")
+     VALUES ($1, 'ZaharDev', 'zahardev', 'TALLER', true, now())`,
+    [idZahar],
+  );
+  const { rows: sedeZahar } = await q(
+    `INSERT INTO sede (id, tenant_id, nombre, activa, "creadaEn")
+     VALUES (gen_random_uuid(), $1, 'Oficina', true, now()) RETURNING id`,
+    [idZahar],
+  );
+  const { rows: usrZahar } = await q(
+    `INSERT INTO usuario (id, tenant_id, email, password_hash, nombre, activo, "creadoEn")
+     VALUES (gen_random_uuid(), $1, $2, $3, 'Abraham', true, now()) RETURNING id`,
+    [idZahar, CORREO_CEO, hashDemo],
+  );
+  await q(
+    `INSERT INTO usuario_rol (id, tenant_id, usuario_id, rol, creado_en)
+     VALUES (gen_random_uuid(), $1, $2, 'DUENO', now())`,
+    [idZahar, usrZahar[0].id],
+  );
+  // La cuenta del socio vive tambien aqui: entra al sistema y ve SU cartera.
+  const { rows: usrSocio } = await q(
+    `INSERT INTO usuario (id, tenant_id, email, password_hash, nombre, activo, "creadoEn")
+     VALUES (gen_random_uuid(), $1, 'socio@bajio.mx', $2, 'Distribuidora Bajio', true, now())
+     RETURNING id`,
+    [idZahar, hashDemo],
+  );
+  await q(
+    `INSERT INTO usuario_rol (id, tenant_id, usuario_id, rol, sede_id, creado_en)
+     VALUES (gen_random_uuid(), $1, $2, 'STAFF', $3, now())`,
+    [idZahar, usrSocio[0].id, sedeZahar[0].id],
+  );
+  console.log(`[seed] ZaharDev (espacio propio) — cuentas de plataforma con acceso al sistema`);
+
+  console.log(`[seed] plataforma: CEO ${CORREO_CEO} + socio Distribuidora Bajio (15%)`);
+  console.log(`[seed] listo. Contrasena de todas las cuentas demo: ${CONTRASENA_DEMO}`);
 } finally {
   await cliente.end();
 }

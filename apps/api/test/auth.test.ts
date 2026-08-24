@@ -26,9 +26,26 @@ let owner: pg.Client;
 beforeAll(async () => {
   owner = new pg.Client({ connectionString: process.env.DATABASE_URL_OWNER });
   await owner.connect();
-  await owner.query('DELETE FROM usuario');
-  await owner.query('DELETE FROM sede');
-  await owner.query('DELETE FROM tenant');
+  for (const t of [
+    'plataforma.evento',
+    'plataforma.cliente',
+    'plataforma.miembro',
+    'plataforma.socio',
+    'tutor_alumno',
+    'consentimiento',
+    'tutor',
+    'inscripcion',
+    'alumno',
+    'cohorte',
+    'periodo',
+    'aviso_privacidad',
+    'usuario_rol',
+    'usuario',
+    'sede',
+    'tenant',
+  ]) {
+    await owner.query(`DELETE FROM ${t}`);
+  }
 
   const h = await hash(CONTRASENA, { memoryCost: 19_456, timeCost: 2, parallelism: 1 });
   await owner.query(
@@ -44,10 +61,25 @@ beforeAll(async () => {
     [ID_COLEGIO, ID_ACADEMIA],
   );
   await owner.query(
-    `INSERT INTO usuario (id, tenant_id, email, password_hash, nombre, rol, activo, "creadoEn") VALUES
-       (gen_random_uuid(),$1,'admin@prueba.mx',$3,'Admin Colegio','DIRECTOR',true,now()),
-       (gen_random_uuid(),$2,'admin@prueba.mx',$3,'Admin Academia','DUENO',true,now())`,
+    `INSERT INTO usuario (id, tenant_id, email, password_hash, nombre, activo, "creadoEn") VALUES
+       (gen_random_uuid(),$1,'admin@prueba.mx',$3,'Admin Colegio',true,now()),
+       (gen_random_uuid(),$2,'admin@prueba.mx',$3,'Admin Academia',true,now())`,
     [ID_COLEGIO, ID_ACADEMIA, h],
+  );
+  // Roles multiples: la persona del colegio administra Y da clase (AZ-M1.3).
+  await owner.query(
+    `INSERT INTO usuario_rol (id, tenant_id, usuario_id, rol, creado_en)
+     SELECT gen_random_uuid(), u.tenant_id, u.id, r.rol::"Rol", now()
+       FROM usuario u
+       CROSS JOIN LATERAL (VALUES ('ADMIN'), ('DOCENTE')) AS r(rol)
+      WHERE u.tenant_id = $1`,
+    [ID_COLEGIO],
+  );
+  await owner.query(
+    `INSERT INTO usuario_rol (id, tenant_id, usuario_id, rol, creado_en)
+     SELECT gen_random_uuid(), u.tenant_id, u.id, 'DUENO', now()
+       FROM usuario u WHERE u.tenant_id = $1`,
+    [ID_ACADEMIA],
   );
 
   app = await NestFactory.create(ModuloApp, { logger: false });

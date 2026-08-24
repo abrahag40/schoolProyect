@@ -11,7 +11,12 @@ import { SignJWT, jwtVerify } from 'jose';
 export interface Sesion {
   usuarioId: string;
   tenantId: string;
-  rol: string;
+  /// Roles del usuario en ESTA escuela. Plural desde el diseno (AZ-M1.3): en
+  /// una escuela chica la misma persona administra, da clase y cobra.
+  roles: string[];
+  /// Correo, necesario para resolver la membresia de plataforma (C1). No es
+  /// una credencial: la identidad ya la establecio el token.
+  email: string;
 }
 
 function clave(): Uint8Array {
@@ -23,7 +28,7 @@ function clave(): Uint8Array {
 }
 
 export async function emitirToken(sesion: Sesion): Promise<string> {
-  return new SignJWT({ tenantId: sesion.tenantId, rol: sesion.rol })
+  return new SignJWT({ tenantId: sesion.tenantId, roles: sesion.roles, email: sesion.email })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(sesion.usuarioId)
     .setIssuedAt()
@@ -39,6 +44,10 @@ export async function verificarToken(token: string): Promise<Sesion> {
   return {
     usuarioId: payload.sub,
     tenantId: payload.tenantId,
-    rol: typeof payload.rol === 'string' ? payload.rol : 'STAFF',
+    // Sin roles el usuario no puede nada: deny-by-default tambien aqui. Un
+    // token viejo (emitido antes de los roles multiples) queda sin permisos en
+    // vez de heredar uno por omision.
+    roles: Array.isArray(payload.roles) ? (payload.roles as string[]) : [],
+    email: typeof payload.email === 'string' ? payload.email : '',
   };
 }

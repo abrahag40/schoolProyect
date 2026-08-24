@@ -66,35 +66,55 @@ try {
   }
 
   // Permisos de datos, nunca de esquema: el rol de app no puede alterar tablas.
-  await cliente.query(`GRANT USAGE ON SCHEMA public TO "${usuarioApp}"`);
-  await cliente.query(
-    `GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO "${usuarioApp}"`,
-  );
-  await cliente.query(`GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO "${usuarioApp}"`);
-  // Sin esto, cada tabla nueva nacería inaccesible para la app y el fallo
-  // aparecería en el sprint siguiente, lejos de su causa.
-  await cliente.query(
-    `ALTER DEFAULT PRIVILEGES IN SCHEMA public
-       GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO "${usuarioApp}"`,
-  );
-  await cliente.query(
-    `ALTER DEFAULT PRIVILEGES IN SCHEMA public
-       GRANT USAGE, SELECT ON SEQUENCES TO "${usuarioApp}"`,
-  );
+  //
+  // Dos esquemas con la MISMA credencial pero fronteras distintas (ADR-008):
+  //   public     -> lo protege RLS a nivel de fila.
+  //   plataforma -> lo protege el guard de plataforma del API.
+  // Que compartan rol es deliberado: un segundo rol daria una falsa sensacion
+  // de aislamiento (la app puede cambiar de conexion cuando quiera). La
+  // frontera real de plataforma es de aplicacion, y se prueba como tal.
+  for (const esquema of ['public', 'plataforma']) {
+    const { rows } = await cliente.query(
+      'SELECT 1 FROM information_schema.schemata WHERE schema_name = $1',
+      [esquema],
+    );
+    if (rows.length === 0) continue; // aun no existe (migracion pendiente)
+
+    await cliente.query(`GRANT USAGE ON SCHEMA ${esquema} TO "${usuarioApp}"`);
+    await cliente.query(
+      `GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA ${esquema} TO "${usuarioApp}"`,
+    );
+    await cliente.query(
+      `GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA ${esquema} TO "${usuarioApp}"`,
+    );
+    // Sin esto, cada tabla nueva naceria inaccesible para la app y el fallo
+    // apareceria en el sprint siguiente, lejos de su causa.
+    await cliente.query(
+      `ALTER DEFAULT PRIVILEGES IN SCHEMA ${esquema}
+         GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO "${usuarioApp}"`,
+    );
+    await cliente.query(
+      `ALTER DEFAULT PRIVILEGES IN SCHEMA ${esquema}
+         GRANT USAGE, SELECT ON SEQUENCES TO "${usuarioApp}"`,
+    );
+  }
 
   // Funciones SECURITY DEFINER de superficie minima (p.ej. resolver la escuela
   // por slug en el login). Se otorgan una por una a proposito: un GRANT masivo
   // sobre ALL FUNCTIONS haria que cualquier funcion privilegiada futura quedara
   // expuesta al rol de aplicacion sin que nadie lo decidiera.
-  const funcionesPermitidas = ['resolver_escuela_por_slug(text)'];
-  for (const firma of funcionesPermitidas) {
+  const funcionesPermitidas = [
+    { esquema: 'public', firma: 'resolver_escuela_por_slug(text)' },
+    { esquema: 'plataforma', firma: 'escuelas_de_clientes()' },
+  ];
+  for (const { esquema, firma } of funcionesPermitidas) {
     const { rows } = await cliente.query(
-      `SELECT 1 FROM pg_proc WHERE proname = $1 AND pronamespace = 'public'::regnamespace`,
-      [firma.split('(')[0]],
+      `SELECT 1 FROM pg_proc WHERE proname = $1 AND pronamespace = $2::regnamespace`,
+      [firma.split('(')[0], esquema],
     );
     if (rows.length > 0) {
-      await cliente.query(`GRANT EXECUTE ON FUNCTION ${firma} TO "${usuarioApp}"`);
-      console.log(`[db] EXECUTE otorgado sobre ${firma}`);
+      await cliente.query(`GRANT EXECUTE ON FUNCTION ${esquema}.${firma} TO "${usuarioApp}"`);
+      console.log(`[db] EXECUTE otorgado sobre ${esquema}.${firma}`);
     }
   }
   console.log(`[db] permisos otorgados a ${usuarioApp} (incluye tablas futuras)`);

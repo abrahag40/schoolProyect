@@ -13,6 +13,8 @@ import { crearCliente, conTenant, sinTenant, type PrismaClient } from '../src/in
 
 const ID_COLEGIO = '11111111-1111-4111-8111-111111111111';
 const ID_ACADEMIA = '22222222-2222-4222-8222-222222222222';
+const ID_PERIODO_COLEGIO = '1a111111-1111-4111-8111-111111111111';
+const ID_PERIODO_ACADEMIA = '2a222222-2222-4222-8222-222222222222';
 
 let owner: pg.Client;
 let cliente: PrismaClient;
@@ -24,9 +26,25 @@ beforeAll(async () => {
   owner = new pg.Client({ connectionString: process.env.DATABASE_URL_OWNER });
   await owner.connect();
 
+  // El orden importa: las hijas antes que las padres. Borrar tenant primero
+  // funcionaria por CASCADE, pero dejarlo explicito hace visible el grafo de
+  // dependencias a quien agregue una tabla nueva.
+  await owner.query('DELETE FROM tutor_alumno');
+  await owner.query('DELETE FROM consentimiento');
+  await owner.query('DELETE FROM tutor');
+  await owner.query('DELETE FROM inscripcion');
+  await owner.query('DELETE FROM alumno');
+  await owner.query('DELETE FROM cohorte');
+  await owner.query('DELETE FROM periodo');
+  await owner.query('DELETE FROM aviso_privacidad');
+  await owner.query('DELETE FROM usuario_rol');
   await owner.query('DELETE FROM usuario');
   await owner.query('DELETE FROM sede');
   await owner.query('DELETE FROM tenant');
+  // La bitacora se limpia con TRUNCATE y no con DELETE porque las reglas
+  // append-only bloquean el DELETE — incluso para el dueno. Que preparar el
+  // escenario cueste este rodeo es justamente la prueba de que la regla muerde.
+  await owner.query('TRUNCATE evento_auditoria');
 
   await owner.query(
     `INSERT INTO tenant (id, nombre, slug, vertical, activo, "creadoEn") VALUES
@@ -41,10 +59,38 @@ beforeAll(async () => {
     [ID_COLEGIO, ID_ACADEMIA],
   );
   await owner.query(
-    `INSERT INTO usuario (id, tenant_id, email, password_hash, nombre, rol, activo, "creadoEn")
+    `INSERT INTO usuario (id, tenant_id, email, password_hash, nombre, activo, "creadoEn")
      VALUES
-       (gen_random_uuid(), $1, 'director@colegio.mx', 'hash', 'Directora Colegio', 'DIRECTOR', true, now()),
-       (gen_random_uuid(), $2, 'director@colegio.mx', 'hash', 'Coach Academia', 'DIRECTOR', true, now())`,
+       (gen_random_uuid(), $1, 'director@colegio.mx', 'hash', 'Directora Colegio', true, now()),
+       (gen_random_uuid(), $2, 'director@colegio.mx', 'hash', 'Coach Academia', true, now())`,
+    [ID_COLEGIO, ID_ACADEMIA],
+  );
+
+  // Escenario multi-vertical: el colegio agrupa por GRADO dentro de un ciclo
+  // escolar; la academia por CATEGORIA dentro de una temporada. Misma
+  // estructura de datos, dos mundos distintos (§9).
+  await owner.query(
+    `INSERT INTO periodo (id, tenant_id, nombre, tipo, inicio, activo, creado_en) VALUES
+       ($1, $3, 'Ciclo 2026-2027', 'CICLO_ESCOLAR', '2026-08-01', true, now()),
+       ($2, $4, 'Temporada Otono 2026', 'TEMPORADA', '2026-09-01', true, now())`,
+    [ID_PERIODO_COLEGIO, ID_PERIODO_ACADEMIA, ID_COLEGIO, ID_ACADEMIA],
+  );
+  await owner.query(
+    `INSERT INTO cohorte (id, tenant_id, periodo_id, sede_id, nombre, tipo, orden, activa, creada_en)
+     SELECT gen_random_uuid(), $1, $2, s.id, '3o A', 'GRADO', 3, true, now()
+       FROM sede s WHERE s.tenant_id = $1 LIMIT 1`,
+    [ID_COLEGIO, ID_PERIODO_COLEGIO],
+  );
+  await owner.query(
+    `INSERT INTO cohorte (id, tenant_id, periodo_id, sede_id, nombre, tipo, orden, activa, creada_en)
+     SELECT gen_random_uuid(), $1, $2, s.id, 'Sub-12', 'CATEGORIA', 12, true, now()
+       FROM sede s WHERE s.tenant_id = $1 LIMIT 1`,
+    [ID_ACADEMIA, ID_PERIODO_ACADEMIA],
+  );
+  await owner.query(
+    `INSERT INTO alumno (id, tenant_id, nombre, apellidos, activo, creado_en) VALUES
+       (gen_random_uuid(), $1, 'Sofia', 'Ramirez', true, now()),
+       (gen_random_uuid(), $2, 'Diego', 'Fuentes', true, now())`,
     [ID_COLEGIO, ID_ACADEMIA],
   );
 
@@ -128,6 +174,76 @@ describe('lectura aislada', () => {
   });
 });
 
+describe('modelo multi-vertical (§9)', () => {
+  it('la misma estructura sirve a un colegio y a una academia', async () => {
+    const delColegio = await conTenant(
+      ID_COLEGIO,
+      (tx) => tx.cohorte.findMany({ include: { periodo: true } }),
+      cliente,
+    );
+    const deLaAcademia = await conTenant(
+      ID_ACADEMIA,
+      (tx) => tx.cohorte.findMany({ include: { periodo: true } }),
+      cliente,
+    );
+
+    // Un grado dentro de un ciclo escolar...
+    expect(delColegio[0]!.tipo).toBe('GRADO');
+    expect(delColegio[0]!.periodo.tipo).toBe('CICLO_ESCOLAR');
+    // ...y una categoria dentro de una temporada. Sin ramas en el modelo.
+    expect(deLaAcademia[0]!.tipo).toBe('CATEGORIA');
+    expect(deLaAcademia[0]!.periodo.tipo).toBe('TEMPORADA');
+  });
+
+  it('los alumnos tambien quedan aislados por escuela', async () => {
+    const delColegio = await conTenant(ID_COLEGIO, (tx) => tx.alumno.findMany(), cliente);
+    const deLaAcademia = await conTenant(ID_ACADEMIA, (tx) => tx.alumno.findMany(), cliente);
+    expect(delColegio.map((a) => a.nombre)).toEqual(['Sofia']);
+    expect(deLaAcademia.map((a) => a.nombre)).toEqual(['Diego']);
+  });
+});
+
+describe('bitacora append-only (§12)', () => {
+  it('un evento registrado no se puede modificar ni borrar, ni por la aplicacion', async () => {
+    await conTenant(
+      ID_COLEGIO,
+      (tx) =>
+        tx.eventoAuditoria.create({
+          data: { tenantId: ID_COLEGIO, tipo: 'prueba.creado', entidad: 'prueba' },
+        }),
+      cliente,
+    );
+
+    // Las reglas DO INSTEAD NOTHING de la migracion hacen que estas operaciones
+    // no fallen ruidosamente: simplemente no tienen efecto. Se verifica el
+    // EFECTO (§14), no el codigo de retorno.
+    await conTenant(
+      ID_COLEGIO,
+      (tx) =>
+        tx.eventoAuditoria.updateMany({
+          where: { tipo: 'prueba.creado' },
+          data: { tipo: 'alterado' },
+        }),
+      cliente,
+    );
+    await conTenant(
+      ID_COLEGIO,
+      (tx) => tx.eventoAuditoria.deleteMany({ where: { tipo: 'prueba.creado' } }),
+      cliente,
+    );
+
+    const sobrevivientes = await conTenant(
+      ID_COLEGIO,
+      (tx) => tx.eventoAuditoria.findMany({ where: { tipo: 'prueba.creado' } }),
+      cliente,
+    );
+    expect(sobrevivientes, 'la historia se pudo reescribir').toHaveLength(1);
+  });
+});
+
+// NOTA DE ORDEN: los bloques que LEEN el escenario van antes del que borra
+// sedes (el DELETE en cascada se lleva cohortes e inscripciones). Vitest corre
+// en el orden de declaracion; el orden aqui es una dependencia real, no estilo.
 describe('escritura aislada', () => {
   it('no se puede crear una sede a nombre de otra escuela', async () => {
     await expect(
@@ -158,6 +274,30 @@ describe('escritura aislada', () => {
        VALUES (gen_random_uuid(), $1, 'Campus Norte', true, now())`,
       [ID_COLEGIO],
     );
+  });
+});
+
+describe('esquema plataforma (ADR-008)', () => {
+  it('existe y esta separado del esquema operativo', async () => {
+    const { rows } = await owner.query(
+      `SELECT table_name FROM information_schema.tables WHERE table_schema = 'plataforma'`,
+    );
+    expect(rows.map((r) => r.table_name).sort()).toEqual(['cliente', 'evento', 'miembro', 'socio']);
+  });
+
+  it('NO lleva RLS de tenant, y eso es deliberado', async () => {
+    // Documenta la decision como prueba: los datos de ZaharDev sobre sus
+    // clientes no pertenecen a ninguna escuela, asi que no se filtran por
+    // tenant. Su frontera es el guard de plataforma del API, que se prueba
+    // aparte en apps/api. Si alguien "arregla" esto agregando RLS aqui, el
+    // test lo detiene y lo manda a leer el ADR.
+    const { rows } = await owner.query(
+      `SELECT relname, relrowsecurity FROM pg_class
+        WHERE relnamespace = 'plataforma'::regnamespace AND relkind = 'r'`,
+    );
+    for (const t of rows) {
+      expect(t.relrowsecurity, `${t.relname} tiene RLS: revisar ADR-008`).toBe(false);
+    }
   });
 });
 
