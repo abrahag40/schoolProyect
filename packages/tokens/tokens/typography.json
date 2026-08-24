@@ -1,0 +1,34 @@
+{
+  "font": {
+    "$description": "Escala tipografica extraida de la plantilla. Familia: Public Sans (SIL OFL 1.1 + CC0 — libre, verificada en github.com/uswds/public-sans). Valores en px para tener paridad exacta entre web y React Native.",
+    "family": {
+      "$type": "fontFamily",
+      "sans": { "$value": ["Public Sans", "system-ui", "sans-serif"] },
+      "mono": { "$value": ["ui-monospace", "SFMono-Regular", "monospace"] }
+    },
+    "weight": {
+      "$type": "fontWeight",
+      "regular": { "$value": 400 },
+      "medium": { "$value": 500 },
+      "semibold": { "$value": 600 },
+      "bold": { "$value": 700 },
+      "extrabold": { "$value": 800 }
+    },
+    "size": {
+      "$type": "dimension",
+      "xs": { "$value": "11px" },
+      "sm": { "$value": "12px" },
+      "base": { "$value": "14px", "$description": "Base del sistema (la plantilla usa 0.875rem)." },
+      "lg": { "$value": "16px" },
+      "xl": { "$value": "20px" },
+      "2xl": { "$value": "24px" },
+      "3xl": { "$value": "30px" },
+      "4xl": { "$value": "38px" }
+    },
+    "lineHeight": {
+      "$type": "dimension",
+      "tight": { "$value": "1.2" },
+      "base": { "$value": "1.5" }
+    }
+  }
+}

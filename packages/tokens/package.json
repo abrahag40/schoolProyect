@@ -1,0 +1,28 @@
+{
+  "name": "@azahar/tokens",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Design tokens de Azahar en formato W3C DTCG. Fuente unica para web y movil (D12, ADR-006).",
+  "type": "module",
+  "main": "./dist/tokens.js",
+  "types": "./dist/tokens.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/tokens.d.ts",
+      "default": "./dist/tokens.js"
+    },
+    "./css": "./dist/tokens.css"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "node build.mjs",
+    "test": "node --test test/*.test.mjs",
+    "lint": "echo 'sin lint propio (paquete de datos)'",
+    "typecheck": "echo 'sin typecheck propio (paquete de datos)'"
+  },
+  "devDependencies": {
+    "style-dictionary": "5.5.2"
+  }
+}

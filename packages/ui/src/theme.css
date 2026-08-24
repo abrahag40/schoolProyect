@@ -1,0 +1,99 @@
+/**
+ * Tema de Azahar: mapea los tokens generados a variables semanticas.
+ *
+ * Por que existe esta capa y no se usan los tokens crudos en los componentes:
+ * un boton no debe saber si esta en tema claro u oscuro. Pide --superficie y
+ * el tema decide. Cambiar de tema es cambiar este archivo, no 40 componentes.
+ *
+ * Los tres estados del tema (regla del proyecto):
+ *   1. :root                      -> claro, por defecto
+ *   2. prefers-color-scheme: dark -> sigue al sistema, salvo eleccion explicita
+ *   3. [data-theme]               -> la eleccion del usuario gana siempre
+ */
+@import '@azahar/tokens/css';
+
+:root {
+  --fondo: var(--color-light-bg);
+  --superficie: var(--color-light-surface);
+  --superficie-alt: var(--color-light-surface-alt);
+  --titulo: var(--color-light-heading);
+  --texto: var(--color-light-text);
+  --texto-tenue: var(--color-light-muted);
+  --borde: var(--color-light-border);
+  --texto-primario: var(--color-light-text-primary);
+  --accion-fondo: var(--color-light-action-bg);
+  --accion-texto: var(--color-light-on-action);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --fondo: var(--color-dark-bg);
+    --superficie: var(--color-dark-surface);
+    --superficie-alt: var(--color-dark-surface-alt);
+    --titulo: var(--color-dark-heading);
+    --texto: var(--color-dark-text);
+    --texto-tenue: var(--color-dark-muted);
+    --borde: var(--color-dark-border);
+    --texto-primario: var(--color-dark-text-primary);
+    --accion-fondo: var(--color-dark-action-bg);
+    --accion-texto: var(--color-dark-on-action);
+  }
+}
+
+:root[data-theme='dark'] {
+  --fondo: var(--color-dark-bg);
+  --superficie: var(--color-dark-surface);
+  --superficie-alt: var(--color-dark-surface-alt);
+  --titulo: var(--color-dark-heading);
+  --texto: var(--color-dark-text);
+  --texto-tenue: var(--color-dark-muted);
+  --borde: var(--color-dark-border);
+  --texto-primario: var(--color-dark-text-primary);
+  --accion-fondo: var(--color-dark-action-bg);
+  --accion-texto: var(--color-dark-on-action);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  /* Fondo explicito: sin el, la pagina hereda el del host y el tema se rompe. */
+  background: var(--fondo);
+  color: var(--texto);
+  font-family: var(--font-family-sans);
+  font-size: var(--font-size-base);
+  line-height: var(--font-line-height-base);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  color: var(--titulo);
+  line-height: var(--font-line-height-tight);
+  margin: 0;
+}
+
+/**
+ * Foco visible global. La plantilla de referencia NO lo tiene (su input
+ * enfocado se ve igual que en reposo): es un incumplimiento de WCAG 2.2
+ * SC 2.4.7 y una de las dos correcciones que si adoptamos su estilo.
+ */
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: var(--focus-ring-width) solid var(--texto-primario);
+  outline-offset: var(--focus-ring-offset);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

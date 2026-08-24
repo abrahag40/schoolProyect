@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "Azahar",
+    "slug": "azahar",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "azahar",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "mx.zahardev.azahar"
+    },
+    "android": {
+      "package": "mx.zahardev.azahar",
+      "edgeToEdgeEnabled": true
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "static"
+    },
+    "plugins": ["expo-router", "expo-secure-store"],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

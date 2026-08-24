@@ -1,0 +1,46 @@
+{
+  "radius": {
+    "$description": "Geometria. Radios y sombra tomados de los valores computados del DOM de la plantilla.",
+    "$type": "dimension",
+    "sm": { "$value": "6px", "$description": "Checkbox, chips pequenos." },
+    "md": { "$value": "8px", "$description": "Botones, inputs, selects." },
+    "lg": { "$value": "12px", "$description": "Cards." },
+    "pill": { "$value": "999px", "$description": "Badges." }
+  },
+  "space": {
+    "$type": "dimension",
+    "0": { "$value": "0px" },
+    "1": { "$value": "4px" },
+    "2": { "$value": "8px" },
+    "3": { "$value": "12px" },
+    "4": { "$value": "16px" },
+    "5": { "$value": "24px" },
+    "6": { "$value": "32px" },
+    "7": { "$value": "48px" }
+  },
+  "size": {
+    "$type": "dimension",
+    "touch-target": {
+      "$value": "44px",
+      "$description": "Minimo de area tactil. Apple HIG 44pt / Material 48dp; se toma 44 como piso comun. Requisito del DoD UX."
+    },
+    "sidebar": { "$value": "280px" }
+  },
+  "shadow": {
+    "$type": "shadow",
+    "card": {
+      "$value": {
+        "color": "rgba(27,46,94,0.12)",
+        "offsetX": "0px",
+        "offsetY": "8px",
+        "blur": "24px",
+        "spread": "0px"
+      }
+    }
+  },
+  "focus": {
+    "$description": "Anillo de foco visible. La plantilla NO lo tiene (input focus sin cambio visual) — WCAG 2.2 SC 2.4.7 lo exige. Correccion propia obligatoria.",
+    "ring-width": { "$type": "dimension", "$value": "2px" },
+    "ring-offset": { "$type": "dimension", "$value": "2px" }
+  }
+}

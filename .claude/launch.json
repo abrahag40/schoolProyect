@@ -1,0 +1,21 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      // La web de administracion. Requiere que la API este arriba (config
+      // "api"): sin ella el login no puede resolver la escuela.
+      "name": "web",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@azahar/web", "dev"],
+      "port": 3010
+    },
+    {
+      // Proceso de larga vida a proposito (ADR-003): aloja los crons de
+      // cobranza y los webhooks de pasarela que llegan en S5.
+      "name": "api",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--filter", "@azahar/api", "dev"],
+      "port": 3333
+    }
+  ]
+}

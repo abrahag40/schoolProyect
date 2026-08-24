@@ -1,0 +1,26 @@
+{
+  "name": "@azahar/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3010",
+    "build": "next build",
+    "start": "next start -p 3010",
+    "lint": "echo 'lint de next pendiente de configurar en S1'",
+    "typecheck": "tsc --noEmit",
+    "test": "echo 'e2e en S1 (Playwright)'"
+  },
+  "dependencies": {
+    "@azahar/tokens": "workspace:*",
+    "@azahar/ui": "workspace:*",
+    "next": "16.3.2",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "typescript": "5.9.3"
+  }
+}

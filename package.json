@@ -1,0 +1,42 @@
+{
+  "name": "azahar",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Proyecto Azahar — plataforma SaaS multi-tenant de gestion escolar (ZaharDev)",
+  "packageManager": "pnpm@10.18.3",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "lint": "turbo run lint && node scripts/check-tokens.mjs",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "format": "prettier --write \"**/*.{ts,tsx,js,mjs,json,md,yml,yaml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,mjs,json,md,yml,yaml}\"",
+    "estado": "bash scripts/estado.sh",
+    "db:up": "docker compose -f docker-compose.dev.yml up -d && node scripts/wait-for-db.mjs",
+    "db:down": "docker compose -f docker-compose.dev.yml down",
+    "db:reset": "docker compose -f docker-compose.dev.yml down -v && pnpm db:up && pnpm db:migrate",
+    "db:migrate": "pnpm --filter @azahar/db migrate:deploy",
+    "db:studio": "pnpm --filter @azahar/db studio",
+    "tokens:build": "pnpm --filter @azahar/tokens build",
+    "db:seed": "pnpm --filter @azahar/db seed"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "prettier": "3.9.6",
+    "turbo": "2.10.11",
+    "typescript": "5.9.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "esbuild",
+      "prisma"
+    ],
+    "overrides": {}
+  }
+}

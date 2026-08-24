@@ -1,0 +1,59 @@
+{
+  "color": {
+    "$description": "Paleta de Azahar. Origen: auditoria hands-on del DOM de la plantilla Light Able (23-ago-2026, D12/ADR-006). Se adopta la IDENTIDAD del estilo elegido por el CEO; NO se adopta su codigo (licencia) ni sus defectos de accesibilidad. Hallazgo del gate automatizado (test/contraste.test.mjs): el azul de marca #04A9F5 solo alcanza 2.63:1 contra blanco, por lo que ni como texto ni como fondo de boton con texto blanco cumple WCAG 2.2 AA — de ahi la variante -strong.",
+    "$type": "color",
+    "brand": {
+      "primary": {
+        "$value": "#04A9F5",
+        "$description": "Azul de marca, tal cual la plantilla. Uso permitido: rellenos decorativos grandes, gradientes, fondos de card destacada y, en tema OSCURO, fondo de accion con texto oscuro encima. Prohibido como texto sobre blanco y como fondo de boton con texto blanco."
+      },
+      "primary-strong": {
+        "$value": "#0777B6",
+        "$description": "Variante accesible del primario, misma familia de tono. Uso: texto y links sobre superficie clara, fondo de botones primarios con texto blanco, bordes de controles. Contrastes verificados por test: 4.86:1 contra blanco."
+      },
+      "secondary": { "$value": "#39465F" }
+    },
+    "semantic": {
+      "success": { "$value": "#1DE9B6" },
+      "danger": { "$value": "#F44236" },
+      "warning": { "$value": "#F4C22B" },
+      "info": { "$value": "#3EBFEA" },
+      "$description": "Colores de estado de la plantilla. Regla de uso (DoD UX): el color NUNCA es el unico portador de significado — todo estado lleva ademas icono o texto (WCAG 2.2 SC 1.4.1). Los tonos claros (success, warning) solo se usan como relleno con texto oscuro encima o como franja/indicador, jamas como texto sobre blanco."
+    },
+    "light": {
+      "$description": "Tema claro (default).",
+      "bg": { "$value": "#F4F7FA" },
+      "surface": { "$value": "#FFFFFF" },
+      "surface-alt": { "$value": "#F3F5F7" },
+      "heading": { "$value": "#1D2630" },
+      "text": { "$value": "#39465F" },
+      "muted": { "$value": "#5B6B79" },
+      "border": { "$value": "#DBE0E5" },
+      "text-primary": { "$value": "{color.brand.primary-strong}" },
+      "action-bg": {
+        "$value": "{color.brand.primary-strong}",
+        "$description": "Fondo del boton primario en tema claro."
+      },
+      "on-action": {
+        "$value": "#FFFFFF",
+        "$description": "Texto sobre action-bg. Par verificado 4.86:1."
+      }
+    },
+    "dark": {
+      "$description": "Tema oscuro. La plantilla ya venia tokenizada para dark; el sistema nace con ambos temas (requisito del artefacto y de la app movil). En oscuro SI se usa el azul de marca puro como fondo de accion, con texto oscuro encima: ese par alcanza 6.74:1 y ademas conserva mejor la identidad.",
+      "bg": { "$value": "#131920" },
+      "surface": { "$value": "#1B232D" },
+      "surface-alt": { "$value": "#19212A" },
+      "heading": { "$value": "#FAFAFA" },
+      "text": { "$value": "#BFBFBF" },
+      "muted": { "$value": "#8B98A5" },
+      "border": { "$value": "#303F50" },
+      "text-primary": {
+        "$value": "{color.brand.primary}",
+        "$description": "Sobre fondo oscuro el primario original si pasa AA (6.74:1 contra #131920)."
+      },
+      "action-bg": { "$value": "{color.brand.primary}" },
+      "on-action": { "$value": "#131920" }
+    }
+  }
+}

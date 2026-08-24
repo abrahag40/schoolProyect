@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "types": ["node"],
+    // NestJS se apoya en metadatos de decoradores para inyectar dependencias.
+    // Sin emitDecoratorMetadata el contenedor no sabe que construir y la app
+    // falla en arranque, no en compilacion: por eso queda fijado aqui y
+    // documentado (§ del registro de decisiones).
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
+    // Los decoradores de Nest usan patrones que TS marca como no usados.
+    "noUnusedParameters": false
+  },
+  "include": ["src/**/*.ts"]
+}

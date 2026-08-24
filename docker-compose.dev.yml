@@ -1,0 +1,29 @@
+# Postgres 16 local para desarrollo y para el gate real-DB (DoD Seguridad).
+# Por que 16 y no 14 (el cliente local del equipo): RLS con FORCE y politicas
+# deny-by-default se comportan igual, pero fijamos la misma mayor que produccion
+# para que el gate pruebe lo que se despliega (leccion Zentor: probar contra
+# Postgres real, nunca contra mock).
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: azahar-db-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: azahar_owner
+      POSTGRES_PASSWORD: azahar_dev_pw
+      POSTGRES_DB: azahar
+    ports:
+      # 5434 y no 5432/5433: la maquina de desarrollo ya corre otros proyectos
+      # de ZaharDev en esos puertos (verificado 23-ago-2026). Cada proyecto fija
+      # el suyo para poder tenerlos todos arriba a la vez sin negociar puertos.
+      - '5434:5432'
+    volumes:
+      - azahar_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U azahar_owner -d azahar']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  azahar_pgdata:

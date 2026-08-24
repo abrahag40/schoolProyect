@@ -1,0 +1,30 @@
+node_modules/
+dist/
+build/
+.next/
+out/
+coverage/
+.turbo/
+*.tsbuildinfo
+
+# Entorno: NUNCA se commitea un .env con secretos reales (DoD Seguridad).
+.env
+.env.local
+.env.*.local
+
+# Expo
+.expo/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Generados
+packages/tokens/dist/
+packages/db/generated/
+
+# Sistema
+.DS_Store
+*.log
+npm-debug.log*

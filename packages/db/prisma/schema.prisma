@@ -1,0 +1,93 @@
+// Esquema de datos de Azahar — Sprint 0 (AZ-M1.1: multi-tenant con sedes).
+//
+// Regla estructural §3: TODA tabla de negocio lleva tenantId y politica RLS.
+// El aislamiento no depende de que el desarrollador recuerde filtrar: la base
+// lo impone. La capa de aplicacion filtra ademas (defensa en profundidad).
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+// Prisma 7 saco la URL del esquema: vive en prisma.config.ts (migraciones) y en
+// el driver adapter (runtime). Nos conviene: son credenciales distintas a
+// proposito — migrar exige DDL (rol dueno), operar no (rol azahar_app).
+datasource db {
+  provider = "postgresql"
+}
+
+/// Escuela u organizacion cliente. Es la raiz del aislamiento: nada existe
+/// fuera de un Tenant. NO lleva tenantId porque ella misma ES el tenant.
+model Tenant {
+  id        String   @id @default(uuid()) @db.Uuid
+  nombre    String
+  /// Identificador legible para URLs y subdominios de envio (S6+).
+  slug      String   @unique
+  /// Vertical operativa. Determina como se agrupan los alumnos (AZ-M1.2):
+  /// un colegio usa grados; una academia, categorias; un instituto, niveles.
+  vertical  Vertical @default(COLEGIO)
+  activo    Boolean  @default(true)
+  creadoEn  DateTime @default(now())
+  sedes     Sede[]
+  usuarios  Usuario[]
+
+  @@map("tenant")
+}
+
+/// Plantel o campus. Una escuela puede tener varias (requisito del CEO, H6).
+model Sede {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  nombre    String
+  /// Clave del Centro de Trabajo (SEP). Opcional: solo aplica a instituciones
+  /// incorporadas; una academia deportiva no la tiene.
+  cct       String?
+  /// Numero de acuerdo RVOE. Dato maestro fiscal necesario para el complemento
+  /// IEDU (A1). Se captura desde el Sprint 0 aunque la facturacion llegue en
+  /// R2: capturarlo despues obligaria a cada escuela a recapturar (principio 4).
+  rvoe      String?
+  activa    Boolean  @default(true)
+  creadaEn  DateTime @default(now())
+  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@map("sede")
+}
+
+/// Persona con acceso al sistema. En Sprint 0 cubre al staff; las familias y
+/// alumnos entran en el Sprint 1 (AZ-M2).
+model Usuario {
+  id           String   @id @default(uuid()) @db.Uuid
+  tenantId     String   @map("tenant_id") @db.Uuid
+  email        String
+  /// Hash Argon2id. La columna jamas guarda la contrasena en claro.
+  passwordHash String   @map("password_hash")
+  nombre       String
+  rol          Rol      @default(STAFF)
+  activo       Boolean  @default(true)
+  creadoEn     DateTime @default(now())
+  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  /// El email es unico DENTRO de la escuela, no globalmente: la misma persona
+  /// puede ser tutor en un colegio y entrenador en una academia (multi-tenant
+  /// real, no multi-instancia).
+  @@unique([tenantId, email])
+  @@index([tenantId])
+  @@map("usuario")
+}
+
+enum Vertical {
+  COLEGIO
+  UNIVERSIDAD
+  ACADEMIA_DEPORTIVA
+  ESCUELA_IDIOMAS
+  TALLER
+}
+
+enum Rol {
+  DUENO
+  DIRECTOR
+  ADMIN
+  COBRANZA
+  STAFF
+}

@@ -1,0 +1,89 @@
+# Pipeline de Azahar — rojo/verde binario.
+#
+# Regla §6: NUNCA continue-on-error. Un gate que "no frena" no es un gate; es
+# un reporte que nadie lee. Si algo se excluye, se documenta aqui con su porque
+# y su fecha de resolucion — no se esconde.
+#
+# Se ejecuta solo en pull_request (no en push a main) y con paths-ignore para
+# documentacion: ahorra minutos sin sacrificar cobertura, porque main solo se
+# toca por PR y la proteccion de rama exige estos checks.
+name: CI
+
+on:
+  pull_request:
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # El rol de aplicacion, igual que en desarrollo: las pruebas DEBEN correr con
+  # NOBYPASSRLS o el gate de aislamiento seria teatro (ADR-004).
+  DATABASE_URL: postgresql://azahar_app:azahar_app_pw@localhost:5434/azahar?schema=public
+  DATABASE_URL_OWNER: postgresql://azahar_owner:azahar_dev_pw@localhost:5434/azahar?schema=public
+  AUTH_SECRET: secreto-de-pruebas-de-al-menos-32-caracteres
+
+jobs:
+  calidad:
+    name: Calidad (formato, lint, tipos, pruebas)
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: azahar_owner
+          POSTGRES_PASSWORD: azahar_dev_pw
+          POSTGRES_DB: azahar
+        ports:
+          - 5434:5432
+        # Sin healthcheck, los pasos siguientes corren contra una base que aun
+        # no acepta conexiones y fallan por una carrera, no por un defecto real.
+        options: >-
+          --health-cmd "pg_isready -U azahar_owner -d azahar"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
+      - name: Compilar tokens
+        run: pnpm tokens:build
+      - name: Migrar base (crea rol restringido + RLS)
+        run: pnpm db:migrate
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - name: Pruebas (incluye el gate de aislamiento multi-tenant)
+        run: pnpm test
+      - run: pnpm build
+
+  seguridad-dependencias:
+    name: SCA (dependencias vulnerables)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: OSV-Scanner
+        # Version fijada a proposito: una accion flotante es una via de
+        # supply-chain — se actualiza cuando alguien la revisa, no sola.
+        uses: google/osv-scanner-action/osv-scanner-action@v2.2.4
+        with:
+          scan-args: |-
+            --lockfile=./pnpm-lock.yaml
+
+  seguridad-codigo:
+    name: SAST (patrones inseguros)
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep
+    steps:
+      - uses: actions/checkout@v4
+      - name: Semgrep
+        run: semgrep ci --config p/owasp-top-ten --config p/typescript --config p/secrets
+        env:
+          SEMGREP_RULES: p/owasp-top-ten p/typescript p/secrets

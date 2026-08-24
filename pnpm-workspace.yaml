@@ -1,0 +1,6 @@
+# Workspaces del monorepo Azahar (Sprint 0, ADR-003).
+# apps/*     = superficies desplegables (web, api, mobile)
+# packages/* = codigo compartido (tokens, ui, shared, core, db)
+packages:
+  - 'apps/*'
+  - 'packages/*'
