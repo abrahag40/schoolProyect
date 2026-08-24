@@ -12,8 +12,12 @@ const OPCIONES_HASH = { memoryCost: 19_456, timeCost: 2, parallelism: 1 } as con
 
 export interface ResultadoLogin {
   token: string;
-  usuario: { id: string; nombre: string; rol: string };
+  usuario: { id: string; nombre: string; roles: string[] };
   escuela: { id: string; nombre: string; vertical: string };
+  /// Solo presente si la persona ademas es miembro de plataforma (C1). La web
+  /// la usa para mostrar el acceso a la consola; la frontera REAL es el guard
+  /// del servidor, no este campo.
+  plataforma?: { rol: string; nombre: string };
 }
 
 @Injectable()
@@ -52,9 +56,14 @@ export class ServicioAuth {
     );
     if (!escuela || !escuela.activo) throw credencialesInvalidas;
 
+    const correo = email.toLowerCase().trim();
     const usuario = await conTenant(
       escuela.id,
-      (tx) => tx.usuario.findFirst({ where: { email: email.toLowerCase().trim(), activo: true } }),
+      (tx) =>
+        tx.usuario.findFirst({
+          where: { email: correo, activo: true },
+          include: { roles: true },
+        }),
       cliente,
     );
     if (!usuario) throw credencialesInvalidas;
@@ -62,10 +71,25 @@ export class ServicioAuth {
     const coincide = await verificarHash(usuario.passwordHash, contrasena).catch(() => false);
     if (!coincide) throw credencialesInvalidas;
 
+    const roles = usuario.roles.map((r) => r.rol as string);
+
+    // Membresia de plataforma (C1): se resuelve por CORREO contra el esquema
+    // plataforma, jamas deduciendola de un rol dentro de la escuela. Un DUENO
+    // de escuela es dueno de SU escuela, no de ZaharDev.
+    const miembro = await cliente.miembroPlataforma.findFirst({
+      where: { email: correo, activo: true },
+    });
+
     return {
-      token: await emitirToken({ usuarioId: usuario.id, tenantId: escuela.id, rol: usuario.rol }),
-      usuario: { id: usuario.id, nombre: usuario.nombre, rol: usuario.rol },
+      token: await emitirToken({
+        usuarioId: usuario.id,
+        tenantId: escuela.id,
+        roles,
+        email: correo,
+      }),
+      usuario: { id: usuario.id, nombre: usuario.nombre, roles },
       escuela: { id: escuela.id, nombre: escuela.nombre, vertical: escuela.vertical },
+      ...(miembro ? { plataforma: { rol: miembro.rol as string, nombre: miembro.nombre } } : {}),
     };
   }
 }

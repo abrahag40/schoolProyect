@@ -30,8 +30,37 @@ Toda propuesta, recomendación, advertencia o decisión DEBE:
 - **PLAN MAESTRO v1.0 — OFICIALIZADO por el CEO el 23-ago-2026. ES LA FUENTE DE LA VERDAD: https://claude.ai/code/artifact/8bab40f8-e83a-4587-8514-a8c3fa41bfc4** — Product Goal, épicas E1–E8 con triple justificación, Sprints 0–5 especificados en 10 campos + S6–S12 en resolución media (rolling-wave §19), R2/R3/cartera, DoD 3 capas, DoR, ADR-001..007, decisiones §1–§25, gobernanza, métricas y bitácora D1–D13.
   - **Regla vigente:** ningún desarrollo fuera del plan. Toda petición nueva pasa por el mecanismo de 3 salidas (entra y algo sale / se cierra el sprint / va al backlog). Callarse y ejecutar fuera del plan es la falta.
   - **Sprint 0 ACEPTADO por el CEO y commiteado** (rama `sprint-0-fundaciones`, tag `v0.1.0`). **Cambio C1 trazado en el plan v1.1** (24-ago-2026): épica E9 Plataforma ZaharDev (wizard Activate, panel de clientes, dashboard MRR, portal del socio), esquema `plataforma` + reglas BI-ready (ADR-008), nube Vercel+Render+Neon (ADR-009, runbook en docs/operacion/INFRA.md — pendiente: el CEO crea las 3 cuentas).
-  - **Sprint activo: SPRINT 1** (alcance ampliado por C1: + esquema `plataforma`, + primer despliegue a staging).
+  - **Sprint activo: SPRINT 1 — entregado en su mayor parte** (rama `sprint-1-comunidad`, tag `v0.2.0`). Entregado: cohortes multi-vertical, personas y familias multi-pagador, roles múltiples, consentimientos por finalidad, bitácora append-only, esquema `plataforma` + guard + `GET /plataforma/panel`. **Pendiente del sprint:** pre-diseño D10 (matriz de 8 pantallas y wireframes) y despliegue a staging (bloqueado por cuentas de nube del CEO).
   - El estado real del repo se genera con `pnpm estado` (nunca se escribe a mano — §7).
+
+## Protocolo de cierre de sprint (obligatorio, instrucción del CEO 24-ago-2026)
+
+Al terminar CADA sprint se ejecuta esta secuencia y se entrega al CEO. Ningún
+sprint se da por cerrado sin ella.
+
+**Precisión metodológica que ordena las ceremonias** (Guía Scrum 2020): el
+*Daily Scrum* es un evento **diario, dentro** del sprint, de 15 minutos y para
+quienes construyen — inspecciona el avance hacia el Sprint Goal. Lo que
+corresponde al **cierre** son la *Sprint Review* (inspeccionar el incremento
+con el sponsor y adaptar el backlog) y la *Retrospectiva* (mejorar el proceso).
+Aquí se hacen las tres cosas: el estado del día, la Review con el CEO y la
+Retro. Llamarlo todo "daily" mezclaría eventos con propósitos distintos.
+
+1. **Estado medido, nunca recordado** — `pnpm estado` + métricas de git
+   (volumen del sprint, pruebas, deuda declarada que vencía). Los números salen
+   del repo; si el documento y el código difieren, manda el código.
+2. **Sprint Review con el CEO** — qué se comprometió, qué se entregó, qué NO y
+   por qué. Con demo verificable, no con narración.
+3. **Retrospectiva** — qué funcionó, qué falló y qué se cambia. Los defectos se
+   nombran; la deuda que venció y no se pagó se reporta como incumplimiento,
+   no se recicla en silencio.
+4. **Cierre en git** — commit, tag SemVer, push, y merge a `main` cuando el CEO
+   acepta.
+5. **Documentación** — CHANGELOG (entrada del release), `CLAUDE.md` (sprint
+   activo), decisiones § nuevas y ADRs si hubo decisiones estructurales.
+6. **Propuesta del siguiente sprint** — Sprint Goal, alcance, y las opciones
+   con su trade-off cuando alteren el orden del Plan Maestro. Cambiar el orden
+   o el alcance es decisión del CEO en gate (§8), nunca del equipo.
 
 ## Reglas de ingeniería vigentes en este repo
 

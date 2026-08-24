@@ -1,79 +1,448 @@
-// Esquema de datos de Azahar — Sprint 0 (AZ-M1.1: multi-tenant con sedes).
+// Esquema de datos de Azahar.
 //
-// Regla estructural §3: TODA tabla de negocio lleva tenantId y politica RLS.
-// El aislamiento no depende de que el desarrollador recuerde filtrar: la base
-// lo impone. La capa de aplicacion filtra ademas (defensa en profundidad).
+// DOS ESQUEMAS, DOS FRONTERAS (ADR-008):
+//   public     -> operacion de las escuelas. RLS forzado por tenant.
+//   plataforma -> negocio de ZaharDev sobre sus clientes. Sin RLS de tenant
+//                 (su dueno somos nosotros), tras un guard de plataforma.
+// La unica costura entre mundos es plataforma.cliente.tenantId -> public.tenant.id,
+// y es unidireccional a proposito.
+//
+// REGLAS BI-READY (§37, ADR-008) aplicadas en todo este archivo:
+//   - Los hechos son eventos append-only, nunca filas que se editan.
+//   - Todo evento lleva cuatro coordenadas: tenant, actor, cuando (timestamptz
+//     con zona explicita) y tipo estable.
+//   - Lo que se va a agregar o graficar es columna tipada; JSON solo para
+//     carga util accesoria.
+//   - El dinero es Decimal (§4). Jamas punto flotante.
 
 generator client {
   provider = "prisma-client-js"
   output   = "../generated/prisma"
 }
 
-// Prisma 7 saco la URL del esquema: vive en prisma.config.ts (migraciones) y en
-// el driver adapter (runtime). Nos conviene: son credenciales distintas a
-// proposito — migrar exige DDL (rol dueno), operar no (rol azahar_app).
 datasource db {
   provider = "postgresql"
+  schemas  = ["public", "plataforma"]
 }
 
-/// Escuela u organizacion cliente. Es la raiz del aislamiento: nada existe
-/// fuera de un Tenant. NO lleva tenantId porque ella misma ES el tenant.
+// ===========================================================================
+// PLATAFORMA — ZaharDev y sus clientes (C1 / ADR-008)
+// ===========================================================================
+
+/// Persona con acceso a la consola de plataforma. La membresia es explicita y
+/// por correo: NUNCA se deduce de un rol dentro de una escuela.
+/// Precedente que obliga a esta regla: en Zentor una cuenta demo compartible
+/// abria la consola cross-tenant. Una cuenta demo jamas es de plataforma.
+model MiembroPlataforma {
+  id       String        @id @default(uuid()) @db.Uuid
+  email    String        @unique
+  nombre   String
+  rol      RolPlataforma
+  socioId  String?       @map("socio_id") @db.Uuid
+  activo   Boolean       @default(true)
+  creadoEn DateTime      @default(now()) @map("creado_en") @db.Timestamptz(6)
+  socio    Socio?        @relation(fields: [socioId], references: [id])
+
+  @@map("miembro")
+  @@schema("plataforma")
+}
+
+/// Vendedor o distribuidor con cartera propia. El piso intermedio de la
+/// piramide CEO -> socio -> escuela.
+model Socio {
+  id                 String              @id @default(uuid()) @db.Uuid
+  nombre             String
+  email              String              @unique
+  /// Porcentaje de comision sobre la suscripcion. Decimal, no float: es dinero.
+  porcentajeComision Decimal             @map("porcentaje_comision") @db.Decimal(5, 2)
+  activo             Boolean             @default(true)
+  creadoEn           DateTime            @default(now()) @map("creado_en") @db.Timestamptz(6)
+  clientes           Cliente[]
+  miembros           MiembroPlataforma[]
+
+  @@map("socio")
+  @@schema("plataforma")
+}
+
+/// La escuela vista como CLIENTE de ZaharDev (no como espacio de datos).
+/// Aqui vive lo que la escuela no debe ver ni administrar: su plan, su precio
+/// negociado, su estado de cuenta y de quien es la cartera.
+model Cliente {
+  id       String @id @default(uuid()) @db.Uuid
+  /// Llave hacia el mundo operativo. Es la unica costura entre esquemas.
+  tenantId String @unique @map("tenant_id") @db.Uuid
+
+  estado         EstadoCliente @default(CORTESIA)
+  plan           String        @default("base")
+  /// Precio mensual negociado. Puede diferir del de lista: el CEO cierra tratos.
+  precioMensual  Decimal       @map("precio_mensual") @db.Decimal(10, 2)
+  moneda         String        @default("MXN")
+  alumnosMaximos Int           @default(200) @map("alumnos_maximos")
+  /// Modulos add-on habilitados (AZ-A*). Afecta lo que la escuela ve.
+  modulosActivos String[]      @default([]) @map("modulos_activos")
+  cortesiaHasta  DateTime?     @map("cortesia_hasta") @db.Timestamptz(6)
+  socioId        String?       @map("socio_id") @db.Uuid
+  altaEn         DateTime      @default(now()) @map("alta_en") @db.Timestamptz(6)
+  socio          Socio?        @relation(fields: [socioId], references: [id])
+
+  @@index([estado])
+  @@index([socioId])
+  @@map("cliente")
+  @@schema("plataforma")
+}
+
+/// Bitacora de negocio de ZaharDev: altas, cambios de plan, cortesias,
+/// suspensiones. Append-only — es la tabla de hechos del dashboard ejecutivo.
+model EventoPlataforma {
+  id          String   @id @default(uuid()) @db.Uuid
+  /// Las cuatro coordenadas (§37): a que cliente, quien, cuando y que.
+  tenantId    String?  @map("tenant_id") @db.Uuid
+  actorEmail  String   @map("actor_email")
+  tipo        String
+  ocurridoEn  DateTime @default(now()) @map("ocurrido_en") @db.Timestamptz(6)
+  /// Detalle accesorio. Lo que se agrega o grafica vive en columnas, no aqui.
+  datos       Json?
+  /// Importe involucrado cuando aplica (cambio de precio, cortesia valorizada).
+  montoMxn    Decimal? @map("monto_mxn") @db.Decimal(10, 2)
+
+  @@index([tenantId, ocurridoEn])
+  @@index([tipo, ocurridoEn])
+  @@map("evento")
+  @@schema("plataforma")
+}
+
+enum RolPlataforma {
+  CEO
+  SOCIO
+  SOPORTE
+
+  @@schema("plataforma")
+}
+
+enum EstadoCliente {
+  CORTESIA
+  ACTIVO
+  SUSPENDIDO
+  CANCELADO
+
+  @@schema("plataforma")
+}
+
+// ===========================================================================
+// PUBLIC — operacion de cada escuela (RLS forzado)
+// ===========================================================================
+
+/// Escuela u organizacion. Raiz del aislamiento: nada existe fuera de un Tenant.
 model Tenant {
-  id        String   @id @default(uuid()) @db.Uuid
-  nombre    String
-  /// Identificador legible para URLs y subdominios de envio (S6+).
-  slug      String   @unique
-  /// Vertical operativa. Determina como se agrupan los alumnos (AZ-M1.2):
-  /// un colegio usa grados; una academia, categorias; un instituto, niveles.
-  vertical  Vertical @default(COLEGIO)
-  activo    Boolean  @default(true)
-  creadoEn  DateTime @default(now())
-  sedes     Sede[]
-  usuarios  Usuario[]
+  id       String   @id @default(uuid()) @db.Uuid
+  nombre   String
+  slug     String   @unique
+  vertical Vertical @default(COLEGIO)
+  activo   Boolean  @default(true)
+  creadoEn DateTime @default(now()) @db.Timestamptz(6)
+
+  sedes            Sede[]
+  usuarios         Usuario[]
+  periodos         Periodo[]
+  cohortes         Cohorte[]
+  alumnos          Alumno[]
+  tutores          Tutor[]
+  avisosPrivacidad AvisoPrivacidad[]
 
   @@map("tenant")
+  @@schema("public")
 }
 
-/// Plantel o campus. Una escuela puede tener varias (requisito del CEO, H6).
+/// Plantel o campus.
 model Sede {
-  id        String   @id @default(uuid()) @db.Uuid
-  tenantId  String   @map("tenant_id") @db.Uuid
-  nombre    String
-  /// Clave del Centro de Trabajo (SEP). Opcional: solo aplica a instituciones
-  /// incorporadas; una academia deportiva no la tiene.
-  cct       String?
-  /// Numero de acuerdo RVOE. Dato maestro fiscal necesario para el complemento
-  /// IEDU (A1). Se captura desde el Sprint 0 aunque la facturacion llegue en
-  /// R2: capturarlo despues obligaria a cada escuela a recapturar (principio 4).
-  rvoe      String?
-  activa    Boolean  @default(true)
-  creadaEn  DateTime @default(now())
-  tenant    Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id       String   @id @default(uuid()) @db.Uuid
+  tenantId String   @map("tenant_id") @db.Uuid
+  nombre   String
+  /// Clave del Centro de Trabajo (SEP). Solo aplica a incorporadas.
+  cct      String?
+  /// Acuerdo RVOE. Dato maestro del complemento IEDU (A1), capturado desde S0
+  /// aunque la facturacion llegue en R2: recapturar despues seria un retrabajo
+  /// por cada escuela (principio 4, captura unica).
+  rvoe     String?
+  activa   Boolean  @default(true)
+  creadaEn DateTime @default(now()) @db.Timestamptz(6)
+
+  tenant   Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  cohortes Cohorte[]
+  roles    UsuarioRol[]
 
   @@index([tenantId])
   @@map("sede")
+  @@schema("public")
 }
 
-/// Persona con acceso al sistema. En Sprint 0 cubre al staff; las familias y
-/// alumnos entran en el Sprint 1 (AZ-M2).
+/// Persona con acceso al sistema (staff, y en R3 tambien tutores).
 model Usuario {
   id           String   @id @default(uuid()) @db.Uuid
   tenantId     String   @map("tenant_id") @db.Uuid
   email        String
-  /// Hash Argon2id. La columna jamas guarda la contrasena en claro.
   passwordHash String   @map("password_hash")
   nombre       String
-  rol          Rol      @default(STAFF)
   activo       Boolean  @default(true)
-  creadoEn     DateTime @default(now())
-  tenant       Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  creadoEn     DateTime @default(now()) @db.Timestamptz(6)
 
-  /// El email es unico DENTRO de la escuela, no globalmente: la misma persona
-  /// puede ser tutor en un colegio y entrenador en una academia (multi-tenant
-  /// real, no multi-instancia).
+  tenant Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  roles  UsuarioRol[]
+  tutor  Tutor?
+
+  /// Unico DENTRO de la escuela: la misma persona puede ser tutora en un
+  /// colegio y entrenadora en una academia.
   @@unique([tenantId, email])
   @@index([tenantId])
   @@map("usuario")
+  @@schema("public")
+}
+
+/// Rol de una persona, opcionalmente acotado a una sede.
+///
+/// Tabla y no columna (AZ-M1.3): en una escuela chica el administrador tambien
+/// da clases y cobra. Modelarlo como un solo rol obliga a mentir o a crear dos
+/// cuentas — deseo documentado en el corpus de resenas del sector.
+model UsuarioRol {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  usuarioId String   @map("usuario_id") @db.Uuid
+  rol       Rol
+  /// Rol acotado a una sede (p. ej. coordinadora del Campus Norte). Null = toda
+  /// la escuela.
+  sedeId    String?  @map("sede_id") @db.Uuid
+  creadoEn  DateTime @default(now()) @map("creado_en") @db.Timestamptz(6)
+
+  usuario Usuario @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  sede    Sede?   @relation(fields: [sedeId], references: [id], onDelete: Cascade)
+
+  @@unique([usuarioId, rol, sedeId])
+  @@index([tenantId])
+  @@map("usuario_rol")
+  @@schema("public")
+}
+
+/// Ventana temporal de operacion. Su TIPO es lo que hace multi-vertical al
+/// producto: un colegio piensa en ciclos, una academia en temporadas, un
+/// instituto de idiomas en cohortes continuas.
+model Periodo {
+  id       String      @id @default(uuid()) @db.Uuid
+  tenantId String      @map("tenant_id") @db.Uuid
+  nombre   String
+  tipo     TipoPeriodo
+  inicio   DateTime    @db.Date
+  fin      DateTime?   @db.Date
+  activo   Boolean     @default(true)
+  creadoEn DateTime    @default(now()) @map("creado_en") @db.Timestamptz(6)
+
+  tenant   Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  cohortes Cohorte[]
+
+  @@index([tenantId, activo])
+  @@map("periodo")
+  @@schema("public")
+}
+
+/// EL ATOMO MULTI-VERTICAL (§9). Un grado de primaria, una categoria sub-12,
+/// un nivel B1 de ingles o un taller de robotica son la misma cosa: un grupo de
+/// alumnos que comparte periodo, sede y responsable.
+///
+/// Modelar esto como "grado escolar" y adaptarlo despues obligaria a reescribir
+/// el nucleo — la limitacion estructural que hoy tienen los competidores.
+model Cohorte {
+  id        String      @id @default(uuid()) @db.Uuid
+  tenantId  String      @map("tenant_id") @db.Uuid
+  periodoId String      @map("periodo_id") @db.Uuid
+  sedeId    String      @map("sede_id") @db.Uuid
+  nombre    String
+  tipo      TipoCohorte
+  /// Para ordenar en la interfaz (1o, 2o, 3o...). No es identidad.
+  orden     Int         @default(0)
+  activa    Boolean     @default(true)
+  creadaEn  DateTime    @default(now()) @map("creada_en") @db.Timestamptz(6)
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  periodo      Periodo       @relation(fields: [periodoId], references: [id], onDelete: Cascade)
+  sede         Sede          @relation(fields: [sedeId], references: [id], onDelete: Cascade)
+  inscripciones Inscripcion[]
+
+  @@index([tenantId, periodoId])
+  @@map("cohorte")
+  @@schema("public")
+}
+
+/// Alumno. Datos generales unicamente: lo medico y psicopedagogico es dato
+/// sensible de menor y vive en el add-on A2, con consentimiento expreso previo
+/// (LFPDPPP 2025). Separarlos no es burocracia: quien no contrata A2 no toca
+/// ese riesgo.
+model Alumno {
+  id              String    @id @default(uuid()) @db.Uuid
+  tenantId        String    @map("tenant_id") @db.Uuid
+  nombre          String
+  apellidos       String
+  /// Fecha de nacimiento: fuente unica de la edad para los defaults por franja
+  /// etaria (A8/A9). Ventaja estructural sobre cualquier red social: la escuela
+  /// ya validó esta edad.
+  fechaNacimiento DateTime? @map("fecha_nacimiento") @db.Date
+  curp            String?
+  /// Matricula interna de la escuela.
+  matricula       String?
+  activo          Boolean   @default(true)
+  creadoEn        DateTime  @default(now()) @map("creado_en") @db.Timestamptz(6)
+
+  tenant        Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  inscripciones Inscripcion[]
+  tutores       TutorAlumno[]
+
+  @@index([tenantId])
+  @@index([tenantId, activo])
+  @@map("alumno")
+  @@schema("public")
+}
+
+/// Alumno inscrito en una cohorte. Es un HECHO con fecha: la matricula de un
+/// periodo se reconstruye contando inscripciones, no leyendo un contador.
+model Inscripcion {
+  id        String            @id @default(uuid()) @db.Uuid
+  tenantId  String            @map("tenant_id") @db.Uuid
+  alumnoId  String            @map("alumno_id") @db.Uuid
+  cohorteId String            @map("cohorte_id") @db.Uuid
+  estado    EstadoInscripcion @default(ACTIVA)
+  altaEn    DateTime          @default(now()) @map("alta_en") @db.Timestamptz(6)
+  bajaEn    DateTime?         @map("baja_en") @db.Timestamptz(6)
+
+  alumno  Alumno  @relation(fields: [alumnoId], references: [id], onDelete: Cascade)
+  cohorte Cohorte @relation(fields: [cohorteId], references: [id], onDelete: Cascade)
+
+  @@unique([alumnoId, cohorteId])
+  @@index([tenantId, estado])
+  @@map("inscripcion")
+  @@schema("public")
+}
+
+/// Adulto responsable de uno o mas alumnos. Puede o no tener acceso al sistema.
+model Tutor {
+  id        String   @id @default(uuid()) @db.Uuid
+  tenantId  String   @map("tenant_id") @db.Uuid
+  nombre    String
+  apellidos String
+  email     String?
+  telefono  String?
+  /// Si tiene acceso a la app. Null = registrado pero sin cuenta todavia.
+  usuarioId String?  @unique @map("usuario_id") @db.Uuid
+  creadoEn  DateTime @default(now()) @map("creado_en") @db.Timestamptz(6)
+
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  usuario         Usuario?         @relation(fields: [usuarioId], references: [id])
+  alumnos         TutorAlumno[]
+  consentimientos Consentimiento[]
+
+  @@index([tenantId])
+  @@map("tutor")
+  @@schema("public")
+}
+
+/// Vinculo tutor-alumno. Aqui vive el MULTI-PAGADOR (AZ-M2.2): dos padres
+/// separados que dividen la colegiatura, o una abuela que paga y no recoge.
+/// Los competidores modelan un solo "responsable de pago" y por eso sus
+/// usuarios piden a gritos incluir al tercer pagador en el recibo.
+model TutorAlumno {
+  id                  String     @id @default(uuid()) @db.Uuid
+  tenantId            String     @map("tenant_id") @db.Uuid
+  tutorId             String     @map("tutor_id") @db.Uuid
+  alumnoId            String     @map("alumno_id") @db.Uuid
+  parentesco          Parentesco @default(TUTOR)
+  esPagador           Boolean    @default(false) @map("es_pagador")
+  /// Reparto del cargo entre pagadores. Suma 100 entre los pagadores de un
+  /// alumno; la validacion vive en el dominio (packages/core, S4).
+  porcentajePago      Decimal?   @map("porcentaje_pago") @db.Decimal(5, 2)
+  esContactoEmergencia Boolean   @default(false) @map("es_contacto_emergencia")
+  puedeRecoger        Boolean    @default(false) @map("puede_recoger")
+  creadoEn            DateTime   @default(now()) @map("creado_en") @db.Timestamptz(6)
+
+  tutor  Tutor  @relation(fields: [tutorId], references: [id], onDelete: Cascade)
+  alumno Alumno @relation(fields: [alumnoId], references: [id], onDelete: Cascade)
+
+  @@unique([tutorId, alumnoId])
+  @@index([tenantId])
+  @@index([alumnoId, esPagador])
+  @@map("tutor_alumno")
+  @@schema("public")
+}
+
+/// Aviso de privacidad de la escuela, VERSIONADO.
+///
+/// Versionado y no editable (LFPDPPP 2025): hay que poder demostrar que texto
+/// exacto acepto cada tutor y cuando. Editar el aviso vigente borraria la
+/// prueba de los consentimientos ya otorgados.
+model AvisoPrivacidad {
+  id          String    @id @default(uuid()) @db.Uuid
+  tenantId    String    @map("tenant_id") @db.Uuid
+  version     Int
+  contenido   String
+  publicadoEn DateTime  @default(now()) @map("publicado_en") @db.Timestamptz(6)
+  vigenteAl   DateTime? @map("vigente_al") @db.Timestamptz(6)
+
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  consentimientos Consentimiento[]
+
+  @@unique([tenantId, version])
+  @@map("aviso_privacidad")
+  @@schema("public")
+}
+
+/// Consentimiento de un tutor para UNA finalidad concreta.
+///
+/// Por finalidad separada (§10): la ley de 2025 elimino la excepcion de "fines
+/// compatibles". Las finalidades voluntarias (comunidad, gamificacion,
+/// imagenes) deben poder rechazarse SIN perder el servicio educativo, y eso
+/// solo es posible si cada una es una fila con su propia evidencia.
+model Consentimiento {
+  id         String    @id @default(uuid()) @db.Uuid
+  tenantId   String    @map("tenant_id") @db.Uuid
+  avisoId    String    @map("aviso_id") @db.Uuid
+  tutorId    String    @map("tutor_id") @db.Uuid
+  /// Null = consentimiento general del tutor; con valor = referido a un alumno.
+  alumnoId   String?   @map("alumno_id") @db.Uuid
+  finalidad  Finalidad
+  otorgado   Boolean
+  /// Evidencia del acto (§10): por donde y cuando se manifesto. Sin esto, el
+  /// consentimiento es una casilla sin valor probatorio.
+  canal      CanalConsentimiento
+  otorgadoEn DateTime  @default(now()) @map("otorgado_en") @db.Timestamptz(6)
+  /// Revocacion: no se borra la fila, se marca. El historico es la prueba.
+  revocadoEn DateTime? @map("revocado_en") @db.Timestamptz(6)
+
+  aviso AvisoPrivacidad @relation(fields: [avisoId], references: [id])
+  tutor Tutor           @relation(fields: [tutorId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, finalidad])
+  @@index([tutorId, finalidad])
+  @@map("consentimiento")
+  @@schema("public")
+}
+
+/// Bitacora de auditoria de la escuela. Append-only (§12).
+///
+/// Es a la vez el registro legal de quien hizo que y la tabla de hechos de la
+/// operacion: por eso lleva las cuatro coordenadas de §37 en columnas tipadas,
+/// no enterradas en un JSON.
+model EventoAuditoria {
+  id         String   @id @default(uuid()) @db.Uuid
+  tenantId   String   @map("tenant_id") @db.Uuid
+  /// Quien. Null solo para procesos del sistema (crons), nunca para acciones
+  /// de una persona.
+  actorId    String?  @map("actor_id") @db.Uuid
+  tipo       String
+  entidad    String
+  entidadId  String?  @map("entidad_id") @db.Uuid
+  ocurridoEn DateTime @default(now()) @map("ocurrido_en") @db.Timestamptz(6)
+  datos      Json?
+
+  @@index([tenantId, ocurridoEn])
+  @@index([tenantId, entidad, entidadId])
+  @@map("evento_auditoria")
+  @@schema("public")
 }
 
 enum Vertical {
@@ -82,6 +451,8 @@ enum Vertical {
   ACADEMIA_DEPORTIVA
   ESCUELA_IDIOMAS
   TALLER
+
+  @@schema("public")
 }
 
 enum Rol {
@@ -89,5 +460,68 @@ enum Rol {
   DIRECTOR
   ADMIN
   COBRANZA
+  DOCENTE
   STAFF
+
+  @@schema("public")
+}
+
+enum TipoPeriodo {
+  CICLO_ESCOLAR
+  TEMPORADA
+  CONTINUO
+
+  @@schema("public")
+}
+
+enum TipoCohorte {
+  GRADO
+  CATEGORIA
+  NIVEL
+  TALLER
+
+  @@schema("public")
+}
+
+enum EstadoInscripcion {
+  ACTIVA
+  BAJA
+  EGRESADO
+
+  @@schema("public")
+}
+
+enum Parentesco {
+  MADRE
+  PADRE
+  TUTOR
+  ABUELO
+  OTRO
+
+  @@schema("public")
+}
+
+/// Finalidades del tratamiento. Las NECESARIAS sostienen el servicio
+/// contratado; las VOLUNTARIAS deben poder rechazarse sin perderlo (§10).
+enum Finalidad {
+  // Necesarias
+  GESTION_ESCOLAR
+  COBRANZA
+  COMUNICACION_OPERATIVA
+  // Voluntarias
+  EXPEDIENTE_SALUD
+  IMAGENES
+  COMUNIDAD
+  COMUNICACION_COMERCIAL
+
+  @@schema("public")
+}
+
+enum CanalConsentimiento {
+  APP
+  WEB
+  PAPEL
+  IMPORTACION
+
+  @@schema("public")
 }
