@@ -1,0 +1,16 @@
+# Lo que NO entra al contexto de build del API.
+# node_modules fuera: la etapa de build instala fresco con el lockfile —
+# arrastrar los binarios de macOS a una imagen Linux romperia en runtime.
+node_modules
+**/node_modules
+.git
+.next
+.expo
+.turbo
+coverage
+apps/mobile/dist
+apps/web/.next
+*.log
+.env
+.env.*
+!.env.example

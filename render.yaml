@@ -1,0 +1,33 @@
+# Blueprint de Render para el API de Azahar (ADR-009).
+# La web va en Vercel y la base en Neon; este archivo solo declara el API.
+#
+# LECCION HEREDADA (Zentor, jul-2026): este servicio se crea en un workspace de
+# Render PROPIO ("Azahar"), jamas compartido con otro producto. Los minutos de
+# build son por workspace: cuando Zentor y Zenix compartian uno, se agotaron
+# (505/500) y NADA se desplego durante 3 dias. Ademas Render no permite
+# transferir servicios entre workspaces ni libera subdominios de servicios
+# borrados: elegir bien a la primera es gratis, corregirlo despues no.
+services:
+  - type: web
+    name: azahar-api
+    runtime: docker
+    dockerfilePath: ./apps/api/Dockerfile
+    dockerContext: .
+    plan: free
+    region: oregon
+    healthCheckPath: /salud
+    autoDeploy: true # cada merge a la rama conectada despliega solo
+    envVars:
+      # Secretos con sync:false: viven en el dashboard de Render, jamas aqui.
+      - key: DATABASE_URL
+        sync: false # Neon POOLED con el rol azahar_app (NOBYPASSRLS) — runtime
+      - key: DATABASE_URL_OWNER
+        sync: false # Neon DIRECTA con el owner — SOLO migraciones del entrypoint
+      - key: AUTH_SECRET
+        sync: false # openssl rand -base64 32
+      - key: NEXT_PUBLIC_WEB_ORIGIN
+        sync: false # URL de la web en Vercel — unico origen que acepta CORS
+      - key: NODE_ENV
+        value: production
+      - key: API_PORT
+        value: '3333'

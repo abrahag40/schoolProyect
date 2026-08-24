@@ -114,3 +114,19 @@ true)` dentro de una transaccion, nunca como ajuste de sesion. _(Motivo: con
   conocer el fallo que lo puso ahi.
 - **§35** — Los puertos de Azahar son propios (web 3010, api 3333, base 5434) y
   estan documentados. La maquina de desarrollo corre varios proyectos a la vez.
+
+### Nuevas del cambio C1 (24-ago-2026)
+
+- **§36** — Los datos de ZaharDev sobre sus clientes (suscripciones, precios,
+  cartera de socios, salud de cuenta) viven en el esquema `plataforma`, fuera
+  del RLS de tenants, tras un guard de plataforma propio. Una cuenta demo
+  JAMAS es de plataforma (bug real cazado en Zentor: la demo compartible abria
+  la consola cross-tenant).
+- **§37** — Reglas BI-ready obligatorias para toda tabla nueva (ADR-008):
+  hechos como eventos append-only; cuatro coordenadas en todo evento
+  (tenant_id, actor, timestamptz UTC, tipo estable); dimensiones con claves
+  estables; hechos consultables en columnas tipadas, no JSON; la analitica
+  jamas sobre el primario OLTP.
+- **§38** — Cada producto de ZaharDev vive en su propio workspace de nube. Los
+  minutos de build compartidos entre productos ya costaron 3 dias sin deploys
+  (Zentor/Zenix, jul-2026).
