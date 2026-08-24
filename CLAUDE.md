@@ -29,7 +29,8 @@ Toda propuesta, recomendación, advertencia o decisión DEBE:
 - Marketing y Captación v1.0 (D11: módulo AZ-A11 DIFERIDO a cartera por gates, investigación documentada; D12 APROBADA: tokens propios sin comprar Light Able; D13 APROBADA: sin canal tel/SMS comercial): https://claude.ai/code/artifact/f81d59c8-880e-40a3-9002-c5e9b7c83255
 - **PLAN MAESTRO v1.0 — OFICIALIZADO por el CEO el 23-ago-2026. ES LA FUENTE DE LA VERDAD: https://claude.ai/code/artifact/8bab40f8-e83a-4587-8514-a8c3fa41bfc4** — Product Goal, épicas E1–E8 con triple justificación, Sprints 0–5 especificados en 10 campos + S6–S12 en resolución media (rolling-wave §19), R2/R3/cartera, DoD 3 capas, DoR, ADR-001..007, decisiones §1–§25, gobernanza, métricas y bitácora D1–D13.
   - **Regla vigente:** ningún desarrollo fuera del plan. Toda petición nueva pasa por el mecanismo de 3 salidas (entra y algo sale / se cierra el sprint / va al backlog). Callarse y ejecutar fuera del plan es la falta.
-  - **Sprint activo: SPRINT 0 — Fundaciones. Sprint Goal CUMPLIDO** (23-ago-2026), pendiente de aceptación del CEO en Sprint Review.
+  - **Sprint 0 ACEPTADO por el CEO y commiteado** (rama `sprint-0-fundaciones`, tag `v0.1.0`). **Cambio C1 trazado en el plan v1.1** (24-ago-2026): épica E9 Plataforma ZaharDev (wizard Activate, panel de clientes, dashboard MRR, portal del socio), esquema `plataforma` + reglas BI-ready (ADR-008), nube Vercel+Render+Neon (ADR-009, runbook en docs/operacion/INFRA.md — pendiente: el CEO crea las 3 cuentas).
+  - **Sprint activo: SPRINT 1** (alcance ampliado por C1: + esquema `plataforma`, + primer despliegue a staging).
   - El estado real del repo se genera con `pnpm estado` (nunca se escribe a mano — §7).
 
 ## Reglas de ingeniería vigentes en este repo
