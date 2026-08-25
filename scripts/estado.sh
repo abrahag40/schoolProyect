@@ -44,6 +44,26 @@ printf "paquetes:  "; ls -1 packages 2>/dev/null | tr '\n' ' '; echo
 printf "apps:      "; ls -1 apps 2>/dev/null | tr '\n' ' '; echo
 echo "archivos de prueba: $(find . -path ./node_modules -prune -o \( -name '*.test.ts' -o -name '*.test.mjs' \) -print 2>/dev/null | wc -l | tr -d ' ')"
 echo
+echo "--- Espacio en disco ---"
+# POR QUE ESTA AQUI (retrospectiva del Sprint 4): el disco de la maquina de
+# desarrollo llego al 100% sin que nadie lo notara. Eso colgo a Docker, corrompio
+# su almacen de imagenes y costo una sesion entera de diagnostico antes de
+# descubrir que la causa no era el codigo. Un numero que se mide gratis y evita
+# repetir ese dia.
+libre=$(df -h /System/Volumes/Data 2>/dev/null | tail -1 | awk '{print $4}')
+uso=$(df -h /System/Volumes/Data 2>/dev/null | tail -1 | awk '{print $5}' | tr -d '%')
+if [ -z "$libre" ]; then
+  libre=$(df -h / | tail -1 | awk '{print $4}')
+  uso=$(df -h / | tail -1 | awk '{print $5}' | tr -d '%')
+fi
+if [ "${uso:-0}" -ge 95 ] 2>/dev/null; then
+  echo "  libre: ${libre}  (uso ${uso}%)  <-- CRITICO: Docker deja de funcionar y corrompe su almacen"
+elif [ "${uso:-0}" -ge 85 ] 2>/dev/null; then
+  echo "  libre: ${libre}  (uso ${uso}%)  <-- atencion"
+else
+  echo "  libre: ${libre}  (uso ${uso}%)"
+fi
+echo
 echo "--- Servicios locales ---"
 for par in "3333:api" "3010:web" "5434:postgres"; do
   puerto="${par%%:*}"; nombre="${par##*:}"
