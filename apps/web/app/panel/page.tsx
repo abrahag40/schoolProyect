@@ -58,6 +58,11 @@ const ROL: Record<string, string> = {
 /// la interfaz ofrece un boton que termina en 403 — peor que no ofrecerlo.
 const ROLES_PASE_LISTA = ['DOCENTE', 'DIRECTOR', 'ADMIN', 'DUENO'];
 
+/// Quien administra el dinero. DOCENTE no entra: un maestro pasa lista, no
+/// define cuanto cuesta la colegiatura. Misma lista que el API — si divergen,
+/// la interfaz ofrece un boton que termina en 403.
+const ROLES_COBRANZA = ['DUENO', 'DIRECTOR', 'ADMIN', 'COBRANZA'];
+
 export default function PaginaPanel() {
   const router = useRouter();
   const [resumen, setResumen] = useState<Resumen | null>(null);
@@ -165,6 +170,16 @@ export default function PaginaPanel() {
                 aviso en la app automáticamente.
               </p>
               <Boton onClick={() => router.push('/panel/pase-lista')}>Pasar lista</Boton>
+            </Tarjeta>
+          )}
+
+          {resumen.misRoles.some((r) => ROLES_COBRANZA.includes(r)) && (
+            <Tarjeta titulo="El dinero">
+              <p style={{ color: 'var(--texto-tenue)', margin: 'var(--space-2) 0 var(--space-3)' }}>
+                Define qué cobra tu escuela y genera los cargos del mes. El sistema los reparte
+                entre quienes pagan y respeta los diez días sin recargo que marca la ley.
+              </p>
+              <Boton onClick={() => router.push('/panel/catalogo')}>Catálogo de cargos</Boton>
             </Tarjeta>
           )}
           <div

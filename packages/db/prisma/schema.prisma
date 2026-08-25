@@ -149,6 +149,7 @@ model Tenant {
   tutores          Tutor[]
   avisosPrivacidad AvisoPrivacidad[]
   configuracion    ConfiguracionEscuela?
+  conceptoCargos   ConceptoCargo[]
 
   @@map("tenant")
   @@schema("public")
@@ -271,6 +272,7 @@ model Cohorte {
   inscripciones Inscripcion[]
   asignaciones  AsignacionDocente[]
   asistencias   Asistencia[]
+  conceptos     ConceptoCargo[]
 
   @@index([tenantId, periodoId])
   @@map("cohorte")
@@ -300,6 +302,7 @@ model Alumno {
   inscripciones Inscripcion[]
   tutores       TutorAlumno[]
   asistencias   Asistencia[]
+  cargos        Cargo[]
 
   @@index([tenantId])
   @@index([tenantId, activo])
@@ -343,6 +346,7 @@ model Tutor {
   usuario         Usuario?         @relation(fields: [usuarioId], references: [id])
   alumnos         TutorAlumno[]
   consentimientos Consentimiento[]
+  partesDeCargo   ParteDeCargo[]
 
   @@index([tenantId])
   @@map("tutor")
@@ -476,6 +480,18 @@ model ConfiguracionEscuela {
   /// en las escuelas del noroeste, y el servidor no siempre corre en Mexico.
   zonaHoraria String @default("America/Mexico_City") @map("zona_horaria")
 
+  /// --- Cobranza (S4) ---
+  /// Dia del mes en que vencen los cargos, salvo que el concepto diga otro.
+  diaVencimientoPorOmision Int     @default(5) @map("dia_vencimiento_por_omision")
+  /// Dias que la escuela acepta sin recargo. El dominio NUNCA baja del piso
+  /// legal de 10 dias naturales (Art. 4 del Acuerdo DOF 10-mar-1992) aunque
+  /// aqui se configure menos: la escuela puede ser mas generosa, no mas
+  /// estricta. Por eso la regla vive en el codigo y esta columna solo puede
+  /// ampliarla.
+  diasGraciaSinRecargo     Int     @default(10) @map("dias_gracia_sin_recargo")
+  /// Recargo por mora, en porcentaje sobre el importe. Decimal, no float (§4).
+  recargoPorcentaje        Decimal @default(0) @map("recargo_porcentaje") @db.Decimal(5, 2)
+
   actualizadoEn DateTime @default(now()) @updatedAt @map("actualizado_en") @db.Timestamptz(6)
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
@@ -606,6 +622,168 @@ enum EstadoAsistencia {
   AUSENTE
   RETARDO
   JUSTIFICADA
+
+  @@schema("public")
+}
+
+/// EL CATALOGO: que cobra la escuela (AZ-M4.1). Pantalla 8 de la matriz D10.
+///
+/// Un concepto es "colegiatura de primaria", "inscripcion", "comedor". Su
+/// precio se CONGELA en cada cargo generado: cambiar el monto aqui no reescribe
+/// la historia, porque un recibo emitido no puede cambiar de importe despues.
+model ConceptoCargo {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+
+  /// Clave estable para analitica (§37): se agregan, no se renombran. Es lo que
+  /// permite comparar "colegiatura" entre escuelas y entre ciclos.
+  clave        String
+  nombre       String
+  periodicidad Periodicidad
+  montoBase    Decimal      @map("monto_base") @db.Decimal(10, 2)
+
+  /// Dia del mes en que vence. El piso de diez dias naturales sin recargo NO
+  /// se configura aqui: lo impone el dominio (Art. 4).
+  diaVencimiento Int @default(5) @map("dia_vencimiento")
+
+  /// Alcance. Null = toda la escuela; con valor = solo esa cohorte. Asi una
+  /// primaria y una secundaria en el mismo tenant cobran distinto sin duplicar
+  /// el catalogo entero.
+  cohorteId String? @map("cohorte_id") @db.Uuid
+
+  /// --- Datos fiscales (complemento IEDU) ---
+  /// Se capturan AHORA aunque la facturacion llegue en R2: el complemento exige
+  /// nivel educativo y RVOE, y pedirlos despues obligaria a recapturar escuela
+  /// por escuela (principio 4, captura unica).
+  deducibleIedu  Boolean         @default(false) @map("deducible_iedu")
+  nivelEducativo NivelEducativo? @map("nivel_educativo")
+
+  /// --- Articulo 5, fraccion I: aviso de ajuste de cuotas ---
+  /// Cuando entra en vigor este precio y cuando se le aviso a las familias.
+  /// Sin las dos fechas no se puede demostrar los 60 dias de anticipacion.
+  vigenteDesde DateTime  @map("vigente_desde") @db.Date
+  avisadoEn    DateTime? @map("avisado_en") @db.Date
+
+  activo        Boolean  @default(true)
+  creadoEn      DateTime @default(now()) @map("creado_en") @db.Timestamptz(6)
+  actualizadoEn DateTime @default(now()) @updatedAt @map("actualizado_en") @db.Timestamptz(6)
+
+  tenant  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  cohorte Cohorte? @relation(fields: [cohorteId], references: [id], onDelete: Cascade)
+  cargos  Cargo[]
+
+  @@unique([tenantId, clave])
+  @@index([tenantId, activo])
+  @@map("concepto_cargo")
+  @@schema("public")
+}
+
+/// LO QUE UN ALUMNO DEBE en un periodo (AZ-M4.2).
+///
+/// Hecho con importe congelado: `monto`, `fechaVencimiento` y
+/// `fechaLimiteSinRecargo` se calculan al generar y NO se recalculan al leer.
+/// Si manana la escuela sube la colegiatura o cambia su dia de vencimiento, los
+/// cargos ya emitidos no se mueven — que es justo lo que exige poder demostrar
+/// que se cobro lo que se anuncio.
+model Cargo {
+  id         String @id @default(uuid()) @db.Uuid
+  tenantId   String @map("tenant_id") @db.Uuid
+  alumnoId   String @map("alumno_id") @db.Uuid
+  conceptoId String @map("concepto_id") @db.Uuid
+
+  /// Periodo de cobro en formato AAAA-MM. Columna tipada y estable, no un
+  /// rango de fechas que haya que interpretar en cada consulta (§37).
+  periodo String  @db.VarChar(7)
+  monto   Decimal @db.Decimal(10, 2)
+
+  fechaVencimiento      DateTime @map("fecha_vencimiento") @db.Date
+  /// Ultimo dia en que se acepta el pago SIN recargo (Art. 4). Se congela con
+  /// el cargo: la prueba de que la escuela respeto la ventana es esta columna,
+  /// no la configuracion vigente meses despues.
+  fechaLimiteSinRecargo DateTime @map("fecha_limite_sin_recargo") @db.Date
+
+  estado EstadoCargo @default(PENDIENTE)
+
+  /// Clave de idempotencia (§15): {alumno}:{concepto}:{periodo}. La unicidad la
+  /// impone la base, no la aplicacion: dos administradores generando a la vez
+  /// no pueden duplicar un cargo.
+  clave String
+
+  generadoEn        DateTime  @default(now()) @map("generado_en") @db.Timestamptz(6)
+  /// Quien lo genero. Null solo para procesos del sistema (§37).
+  generadoPor       String?   @map("generado_por") @db.Uuid
+  canceladoEn       DateTime? @map("cancelado_en") @db.Timestamptz(6)
+  /// Cancelar exige decir por que. Un cargo que desaparece sin motivo es un
+  /// agujero en la contabilidad de la escuela.
+  motivoCancelacion String?   @map("motivo_cancelacion")
+
+  alumno   Alumno         @relation(fields: [alumnoId], references: [id], onDelete: Cascade)
+  concepto ConceptoCargo  @relation(fields: [conceptoId], references: [id])
+  partes   ParteDeCargo[]
+
+  @@unique([tenantId, clave])
+  @@index([tenantId, periodo])
+  @@index([tenantId, alumnoId, periodo])
+  @@index([tenantId, estado, fechaVencimiento])
+  @@map("cargo")
+  @@schema("public")
+}
+
+/// A QUIEN le toca cuanto de un cargo (AZ-M4.3).
+///
+/// El reparto se CONGELA al generar y no se recalcula. Si un convenio cambia el
+/// 60/40 a 50/50 en marzo, los cargos de enero y febrero siguen repartidos como
+/// estaban: lo contrario reescribiria retroactivamente lo que cada quien debia.
+///
+/// La suma de las partes es EXACTAMENTE el monto del cargo — invariante
+/// probada en el modulo puro, no confiada al redondeo de la base de datos.
+model ParteDeCargo {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  cargoId  String @map("cargo_id") @db.Uuid
+  tutorId  String @map("tutor_id") @db.Uuid
+
+  porcentaje Decimal @db.Decimal(5, 2)
+  monto      Decimal @db.Decimal(10, 2)
+
+  creadoEn DateTime @default(now()) @map("creado_en") @db.Timestamptz(6)
+
+  cargo Cargo @relation(fields: [cargoId], references: [id], onDelete: Cascade)
+  tutor Tutor @relation(fields: [tutorId], references: [id], onDelete: Cascade)
+
+  @@unique([cargoId, tutorId])
+  @@index([tenantId, tutorId])
+  @@map("parte_de_cargo")
+  @@schema("public")
+}
+
+enum Periodicidad {
+  /// Se genera cada mes: la colegiatura.
+  MENSUAL
+  /// Una sola vez: inscripcion, examen extraordinario, credencial.
+  UNICO
+  /// Una vez por ciclo.
+  ANUAL
+
+  @@schema("public")
+}
+
+enum EstadoCargo {
+  PENDIENTE
+  PAGADO
+  CANCELADO
+
+  @@schema("public")
+}
+
+/// Niveles del complemento IEDU del SAT. Los valores son los que exige el
+/// complemento; inventar otros haria que el CFDI se rechace al timbrar.
+enum NivelEducativo {
+  PREESCOLAR
+  PRIMARIA
+  SECUNDARIA
+  PROFESIONAL_TECNICO
+  BACHILLERATO
 
   @@schema("public")
 }
