@@ -19,7 +19,6 @@
   "scripts": {
     "build": "node build.mjs",
     "test": "node --test test/*.test.mjs",
-    "lint": "echo 'sin lint propio (paquete de datos)'",
     "typecheck": "echo 'sin typecheck propio (paquete de datos)'"
   },
   "devDependencies": {

@@ -57,6 +57,13 @@ jobs:
         run: pnpm tokens:build
       - name: Migrar base (crea rol restringido + RLS)
         run: pnpm db:migrate
+      # El cliente de Prisma NO esta versionado (packages/db/generated/ va en
+      # .gitignore), y el lint corre con informacion de tipos: sin generarlo
+      # antes, ESLint no resolveria @azahar/db, veria `any` por todos lados y
+      # se pondria rojo por una causa falsa. Cazado al cablear el gate real en
+      # el Sprint 4.
+      - name: Generar cliente de Prisma (lo necesita el lint con tipos)
+        run: pnpm --filter @azahar/db generate
       - run: pnpm lint
       - run: pnpm typecheck
       - name: Pruebas (incluye el gate de aislamiento multi-tenant)

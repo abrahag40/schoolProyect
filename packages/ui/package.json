@@ -11,9 +11,7 @@
     "./theme.css": "./src/theme.css"
   },
   "scripts": {
-    "lint": "echo 'lint delegado al consumidor (paquete de fuentes)'",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "echo 'sin pruebas propias en S0; los atomos se prueban en apps/web'"
+    "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
     "@azahar/tokens": "workspace:*",

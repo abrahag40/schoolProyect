@@ -35,6 +35,9 @@ try {
     'plataforma.miembro',
     'plataforma.socio',
     'notificacion',
+    'parte_de_cargo',
+    'cargo',
+    'concepto_cargo',
     'asistencia',
     'asignacion_docente',
     'configuracion_escuela',
@@ -109,6 +112,38 @@ try {
           recoge: true,
         },
       ],
+      // Lo que cobra un colegio. La colegiatura lleva bandera de deducible y
+      // nivel educativo porque el complemento IEDU los exige; el comedor no,
+      // porque no es un servicio educativo y no se puede deducir.
+      conceptos: [
+        {
+          clave: 'colegiatura-primaria',
+          nombre: 'Colegiatura de primaria',
+          periodicidad: 'MENSUAL',
+          monto: '2450.00',
+          dia: 5,
+          deducible: true,
+          nivel: 'PRIMARIA',
+        },
+        {
+          clave: 'inscripcion',
+          nombre: 'Inscripción del ciclo',
+          periodicidad: 'UNICO',
+          monto: '4900.00',
+          dia: 15,
+          deducible: false,
+          nivel: null,
+        },
+        {
+          clave: 'comedor',
+          nombre: 'Comedor',
+          periodicidad: 'MENSUAL',
+          monto: '850.00',
+          dia: 5,
+          deducible: false,
+          nivel: null,
+        },
+      ],
       // Companeros de grupo SIN familia registrada en la app: es el estado real
       // de una escuela recien migrada, donde no todos los tutores se han dado
       // de alta. Sirve para que el pase de lista se vea como se ve de verdad y
@@ -160,6 +195,20 @@ try {
       ],
       familia: [
         { nombre: 'Paola', apellidos: 'Ortiz', parentesco: 'MADRE', paga: 100, recoge: true },
+      ],
+      // Una academia deportiva NO emite colegiaturas deducibles: no es un
+      // servicio educativo con RVOE. Que el mismo modelo sirva a las dos sin
+      // ramas es justamente el punto (§9).
+      conceptos: [
+        {
+          clave: 'mensualidad',
+          nombre: 'Mensualidad Sub-12',
+          periodicidad: 'MENSUAL',
+          monto: '890.00',
+          dia: 10,
+          deducible: false,
+          nivel: null,
+        },
       ],
       historial: [
         { alumno: 0, cohorte: 1, diasAtras: 4, estado: 'PRESENTE' },
@@ -248,6 +297,32 @@ try {
        VALUES (gen_random_uuid(), $1, 3, 30, true, 'America/Mexico_City', now())`,
       [e.id],
     );
+
+    // El catalogo de cargos: de aqui sale lo que cada alumno debe cada mes.
+    for (const c of e.conceptos ?? []) {
+      await q(
+        `INSERT INTO concepto_cargo
+           (id, tenant_id, clave, nombre, periodicidad, monto_base, dia_vencimiento,
+            deducible_iedu, nivel_educativo, vigente_desde, avisado_en, activo,
+            creado_en, actualizado_en)
+         VALUES (gen_random_uuid(), $1, $2, $3, $4::"Periodicidad", $5, $6, $7,
+                 $8::"NivelEducativo", $9::date, $10::date, true, now(), now())`,
+        [
+          e.id,
+          c.clave,
+          c.nombre,
+          c.periodicidad,
+          c.monto,
+          c.dia,
+          c.deducible,
+          c.nivel,
+          e.periodo.inicio,
+          // Avisado con mas de 60 dias de anticipacion respecto a la vigencia,
+          // como exige el Articulo 5-I: la demo tiene que ser un ejemplo valido.
+          new Date(new Date(e.periodo.inicio).getTime() - 90 * 864e5).toISOString().slice(0, 10),
+        ],
+      );
+    }
 
     // Quien pasa lista de que grupo. Tabla y no columna: hay co-docencia.
     for (const u of e.usuarios.filter((x) => x.cohortes)) {
@@ -394,7 +469,8 @@ try {
       `[seed] ${e.nombre} (${e.vertical}) — ${e.cohortes.length} cohortes, ` +
         `${e.alumnos.length + (e.companeros ?? []).length} alumnos, ` +
         `${e.familia.length} tutores, ` +
-        `${(e.historial ?? []).length} registros de asistencia, cliente ${e.cliente.estado}`,
+        `${(e.historial ?? []).length} registros de asistencia, ` +
+        `${(e.conceptos ?? []).length} conceptos de cobro, cliente ${e.cliente.estado}`,
     );
   }
 

@@ -8,6 +8,7 @@ import { ModuloPlataforma } from './plataforma/plataforma.module.js';
 import { ModuloFamilia } from './familia/familia.module.js';
 import { ModuloNotificaciones } from './notificaciones/notificaciones.module.js';
 import { ModuloAsistencia } from './asistencia/asistencia.module.js';
+import { ModuloCobranza } from './cobranza/cobranza.module.js';
 
 @Module({
   // Tres mundos con fronteras distintas conviviendo en un proceso:
@@ -22,6 +23,7 @@ import { ModuloAsistencia } from './asistencia/asistencia.module.js';
     ModuloPlataforma,
     ModuloNotificaciones,
     ModuloAsistencia,
+    ModuloCobranza,
   ],
   providers: [
     // Registrado aqui y no en el arranque: asi tambien aplica cuando las

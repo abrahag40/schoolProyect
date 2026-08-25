@@ -10,7 +10,8 @@
   "scripts": {
     "build": "turbo run build",
     "dev": "turbo run dev",
-    "lint": "turbo run lint && node scripts/check-tokens.mjs",
+    "//lint": "--max-warnings 0 a proposito: un gate que tolera advertencias las acumula hasta que nadie las lee. Si algo debe permitirse, se apaga la regla en eslint.config.mjs con su porque, no se deja pasar en silencio. Una sola invocacion desde la raiz y no una por paquete: seis configuraciones divergen y nadie recuerda por que.",
+    "lint": "eslint . --max-warnings 0 && node scripts/check-tokens.mjs",
     "typecheck": "turbo run typecheck",
     "//test": "--concurrency=1: las suites comparten una sola base de datos y se pisan en paralelo. El porque completo esta en turbo.json, tarea \"test\".",
     "test": "turbo run test --concurrency=1",
@@ -27,10 +28,15 @@
     "db:seed": "pnpm --filter @azahar/db seed"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/node": "^22.10.2",
+    "eslint": "10.9.1",
+    "eslint-plugin-react-hooks": "7.1.1",
+    "globals": "17.11.0",
     "prettier": "3.9.6",
     "turbo": "2.10.11",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "typescript-eslint": "8.68.0"
   },
   "pnpm": {
     "onlyBuiltDependencies": [

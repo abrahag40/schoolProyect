@@ -46,6 +46,11 @@ export abstract class Mensajero {
 export class MensajeroSimulado extends Mensajero {
   private readonly log = new Logger('MensajeroSimulado');
 
+  // El puerto devuelve Promise porque el proveedor REAL hace red. Este doble no
+  // espera nada, y esa es justamente su gracia: quitarle `async` obligaria a
+  // envolver el retorno a mano y la firma dejaria de leerse como la del
+  // contrato que implementa.
+  // eslint-disable-next-line @typescript-eslint/require-await
   async enviar(tokens: string[], mensaje: MensajePush): Promise<ResultadoEnvio> {
     const invalidos = tokens.filter((t) => !/^ExponentPushToken\[.+\]$/.test(t));
     const validos = tokens.filter((t) => !invalidos.includes(t));

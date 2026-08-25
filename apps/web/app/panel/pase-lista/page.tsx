@@ -1,10 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Boton, Insignia, Tarjeta } from '@azahar/ui';
-
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3333';
+import { enviarJson, pedirApi } from '../../api';
 
 type Estado = 'PRESENTE' | 'AUSENTE' | 'RETARDO' | 'JUSTIFICADA';
 
@@ -22,6 +21,27 @@ interface AlumnoEnLista {
   nombre: string;
   apellidos: string;
   estado: Estado | null;
+}
+
+/** Lo que responde el API. Declarado aqui para que el compilador vuelva a
+ *  proteger en cuanto el dato cruza la frontera de red (ver app/api.ts). */
+interface RespuestaGrupos {
+  hoy: string;
+  grupos: Grupo[];
+}
+
+interface RespuestaLista {
+  cohorte: { id: string; nombre: string; tipo: string; sede: string };
+  fecha: string;
+  yaRegistrada: boolean;
+  alumnos: AlumnoEnLista[];
+}
+
+interface ResultadoGuardado {
+  fecha: string;
+  guardados: number;
+  resumen: { presentes: number; ausentes: number; retardos: number; justificadas: number };
+  avisosGenerados: number;
 }
 
 /** El vocabulario es el de la escuela, nunca el identificador del sistema. */
@@ -69,55 +89,73 @@ export default function PaginaPaseLista() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`${API}/pase-lista/grupos`, { credentials: 'include' })
-      .then(async (r) => {
-        if (r.status === 401) {
-          router.replace('/');
-          return null;
-        }
-        if (r.status === 403) {
-          setError('El pase de lista es para el personal de la escuela.');
-          return null;
-        }
-        if (!r.ok) throw new Error('respuesta no ok');
-        return r.json();
-      })
-      .then((datos) => {
-        if (!datos) return;
-        setGrupos(datos.grupos);
-        setFecha(datos.hoy);
-        // Con un solo grupo no se le pide elegir: se abre. Un selector de una
-        // opcion es un paso que no decide nada.
-        if (datos.grupos.length === 1) setGrupoId(datos.grupos[0].id);
-      })
-      .catch(() => setError('No pudimos cargar tus grupos.'));
+    // `vigente` evita escribir estado sobre una pantalla que el docente ya
+    // abandono: sin esta guarda, salir mientras carga deja una escritura
+    // huerfana.
+    let vigente = true;
+
+    void (async () => {
+      const { estado, datos } = await pedirApi<RespuestaGrupos>('/pase-lista/grupos');
+      if (!vigente) return;
+
+      if (estado === 401) {
+        router.replace('/');
+        return;
+      }
+      if (estado === 403) {
+        setError('El pase de lista es para el personal de la escuela.');
+        return;
+      }
+      if (!datos) {
+        setError('No pudimos cargar tus grupos.');
+        return;
+      }
+
+      setGrupos(datos.grupos);
+      setFecha(datos.hoy);
+      // Con un solo grupo no se le pide elegir: se abre. Un selector de una
+      // opcion es un paso que no decide nada.
+      if (datos.grupos.length === 1) setGrupoId(datos.grupos[0]!.id);
+    })();
+
+    return () => {
+      vigente = false;
+    };
   }, [router]);
 
-  const cargarLista = useCallback(async () => {
+  useEffect(() => {
     if (!grupoId || !fecha) return;
-    setMensaje(null);
-    const r = await fetch(`${API}/pase-lista/${grupoId}?fecha=${fecha}`, {
-      credentials: 'include',
-    });
-    if (!r.ok) {
-      setError('No pudimos abrir la lista de ese grupo.');
-      return;
-    }
-    const datos = await r.json();
-    setAlumnos(datos.alumnos);
+    let vigente = true;
+
+    void (async () => {
+      const { ok, datos } = await pedirApi<RespuestaLista>(`/pase-lista/${grupoId}?fecha=${fecha}`);
+      if (!vigente) return;
+
+      // El estado se toca DESPUES de la espera, nunca antes. Un setState
+      // sincrono dentro de un efecto encadena renders — defecto real que cazo
+      // el gate de analisis estatico del Sprint 4, no una preferencia de estilo.
+      if (!ok || !datos) {
+        setError('No pudimos abrir la lista de ese grupo.');
+        return;
+      }
+      setMensaje(null);
+      setAlumnos(datos.alumnos);
+    })();
+
+    return () => {
+      vigente = false;
+    };
   }, [grupoId, fecha]);
 
-  useEffect(() => {
-    void cargarLista();
-  }, [cargarLista]);
-
   function marcar(alumnoId: string, estado: Estado) {
-    setAlumnos((previos) => previos!.map((a) => (a.alumnoId === alumnoId ? { ...a, estado } : a)));
+    setAlumnos((previos) =>
+      (previos ?? []).map((a) => (a.alumnoId === alumnoId ? { ...a, estado } : a)),
+    );
     setMensaje(null);
   }
 
   function todosPresentes() {
-    setAlumnos((previos) => previos!.map((a) => ({ ...a, estado: 'PRESENTE' as Estado })));
+    setAlumnos((previos) => (previos ?? []).map((a) => ({ ...a, estado: 'PRESENTE' })));
     setMensaje(null);
   }
 
@@ -126,24 +164,18 @@ export default function PaginaPaseLista() {
     setGuardando(true);
     setMensaje(null);
     try {
-      const r = await fetch(`${API}/pase-lista`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
-        body: JSON.stringify({
-          cohorteId: grupoId,
-          fecha,
-          registros: alumnos
-            .filter((a) => a.estado)
-            .map((a) => ({ alumnoId: a.alumnoId, estado: a.estado })),
-        }),
+      const { ok, datos, error } = await enviarJson<ResultadoGuardado>('/pase-lista', {
+        cohorteId: grupoId,
+        fecha,
+        registros: alumnos
+          .filter((a) => a.estado)
+          .map((a) => ({ alumnoId: a.alumnoId, estado: a.estado })),
       });
-      if (!r.ok) {
-        const cuerpo = await r.json().catch(() => null);
-        setError(cuerpo?.message ?? 'No pudimos guardar la lista.');
+
+      if (!ok || !datos) {
+        setError(error?.message ?? 'No pudimos guardar la lista.');
         return;
       }
-      const resultado = await r.json();
       // Se dice cuantos avisos salieron: el docente debe SABER que la familia
       // fue notificada. Un aviso que se manda a espaldas de quien lo origina
       // es como se pierde la confianza del personal en el sistema.
@@ -153,10 +185,10 @@ export default function PaginaPaseLista() {
       // avisos. Poner "6 familias" seria una cifra falsa en la pantalla del
       // docente — exactamente el tipo de dato que despues nadie vuelve a creer.
       setMensaje(
-        `Lista guardada: ${resultado.resumen.presentes} presentes, ` +
-          `${resultado.resumen.ausentes} faltas.` +
-          (resultado.avisosGenerados > 0
-            ? ` Se enviaron ${resultado.avisosGenerados} aviso(s) a las familias.`
+        `Lista guardada: ${datos.resumen.presentes} presentes, ` +
+          `${datos.resumen.ausentes} faltas.` +
+          (datos.avisosGenerados > 0
+            ? ` Se enviaron ${datos.avisosGenerados} aviso(s) a las familias.`
             : ' Sin avisos nuevos.'),
       );
     } catch {
@@ -377,7 +409,9 @@ export default function PaginaPaseLista() {
                 : `${alumnos.length} alumnos listos para guardar.`}
             </p>
             <Boton
-              onClick={guardar}
+              onClick={() => {
+                void guardar();
+              }}
               cargando={guardando}
               disabled={alumnos.length === 0 || sinMarcar > 0}
               style={{ width: '100%' }}

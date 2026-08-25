@@ -33,10 +33,13 @@ Toda propuesta, recomendación, advertencia o decisión DEBE:
   - **Regla vigente:** ningún desarrollo fuera del plan. Toda petición nueva pasa por el mecanismo de 3 salidas (entra y algo sale / se cierra el sprint / va al backlog). Callarse y ejecutar fuera del plan es la falta.
   - **Sprint 0 ACEPTADO por el CEO y commiteado** (rama `sprint-0-fundaciones`, tag `v0.1.0`). **Cambio C1 trazado en el plan v1.1** (24-ago-2026): épica E9 Plataforma ZaharDev (wizard Activate, panel de clientes, dashboard MRR, portal del socio), esquema `plataforma` + reglas BI-ready (ADR-008), nube Vercel+Render+Neon (ADR-009, runbook en docs/operacion/INFRA.md — pendiente: el CEO crea las 3 cuentas).
   - **Sprint 3 CERRADO con ceremonia completa** (rama `sprint-3-operacion`, tag `v0.4.0`, mergeada a `main`). Sprint Backlog en [docs/sprints/S3-operacion-diaria.md](docs/sprints/S3-operacion-diaria.md). Entregado: pase de lista móvil-primero, asignación docente↔cohorte, motor de avisos automáticos por inasistencia (ADR-010, outbox transaccional), bandeja de avisos de la familia, parámetros de asistencia por escuela, y **ensayo de despliegue** (`pnpm ensayo:despliegue`) que cazó un fallo de instalación limpia que habría tumbado el primer despliegue a la nube.
-  - **Sprint activo: ninguno — esperando gate del CEO sobre la propuesta del Sprint 4.**
-  - Sprints cerrados con ceremonia completa: S0 `v0.1.0` · S1 `v0.2.0` · S2 `v0.3.0` · S3 `v0.4.0`. Ramas mergeadas a `main` al ser aceptadas.
-  - **Impedimento abierto desde S0 (escalado dos veces, sigue abierto):** sin cuentas de nube no hay staging. Van 4 sprints y 7 migraciones sin desplegar. Mitigado parcialmente por el ensayo de despliegue (§42), que NO lo sustituye. Pasos en [docs/operacion/INFRA.md](docs/operacion/INFRA.md).
-  - **INCUMPLIMIENTO ABIERTO (reportado en el cierre de S3):** ESLint sigue sin configurarse en `apps/api`, `apps/web`, `apps/mobile` y `packages/db` — deuda declarada "entra en S1" que lleva TRES sprints vencida. `pnpm lint` imprime verde ejecutando solo el gate de tokens. Un gate que no revisa nada es peor que no tenerlo (§6). Entra como primer elemento del Sprint 4 o se retira del pipeline; no se recicla una tercera vez.
+  - **Sprint 4 CERRADO con ceremonia completa** (rama `sprint-4-cobranza`, tag `v0.5.0`, mergeada a `main`). Sprint Backlog en [docs/sprints/S4-cobranza.md](docs/sprints/S4-cobranza.md). Entregado: **ESLint real (deuda de TRES sprints, pagada)**, catálogo de cargos, generación idempotente, reparto entre pagadores con invariante probada, y las reglas del Acuerdo de PROFECO (Art. 4 y Art. 5-I) escritas en el dominio (ADR-011). 145 pruebas y ensayo de despliegue superado.
+  - **Sprint activo: ninguno — esperando gate del CEO sobre la propuesta del Sprint 5.**
+  - Sprints cerrados con ceremonia completa: S0 `v0.1.0` · S1 `v0.2.0` · S2 `v0.3.0` · S3 `v0.4.0` · S4 `v0.5.0`. Ramas mergeadas a `main` al ser aceptadas.
+  - **Impedimento abierto desde S0 (escalado tres veces, sigue abierto):** sin cuentas de nube no hay staging. Van 5 sprints y 8 migraciones sin desplegar. Mitigado parcialmente por el ensayo de despliegue (§42), que NO lo sustituye. Pasos en [docs/operacion/INFRA.md](docs/operacion/INFRA.md).
+  - **Incumplimiento del S3, RESUELTO en el S4:** ESLint ya corre de verdad sobre todo el monorepo, con información de tipos y con §28 como regla ejecutable. Ver §46.
+  - **Deuda declarada abierta (reportada en el cierre de S4):** no hay pruebas automatizadas en `apps/web` ni `apps/mobile`. Los `echo` que las fingían se retiraron, así que ahora la ausencia es visible en el pipeline en vez de estar disfrazada de verde. Entra al Sprint 5 o se decide explícitamente diferirla en gate.
+  - **Riesgo operativo cazado en S4:** el disco de la máquina de desarrollo llegó al 100%, colgó a Docker y corrompió su almacén de imágenes. `pnpm estado` ahora reporta el espacio libre y avisa a partir del 85%.
   - El estado real del repo se genera con `pnpm estado` (nunca se escribe a mano — §7).
 
 ## Protocolo de cierre de sprint (obligatorio, instrucción del CEO 24-ago-2026)
@@ -79,6 +82,8 @@ Las decisiones numeradas viven en [docs/decisiones.md](docs/decisiones.md) y se 
 - **§30** — El azul de marca `#04A9F5` no se usa como texto sobre claro ni como fondo de botón con texto blanco (2.63:1). Existe `primary-strong` para eso, y un test lo verifica.
 - **§34** — Toda configuración no obvia lleva su porqué en el propio archivo. Antes de "limpiar" un valor raro, lee el comentario.
 - **§41/§42** — Desarrollo usa el MISMO compilador que la imagen de producción (nada de type-stripping), y mientras no exista staging real ningún sprint cierra sin `pnpm ensayo:despliegue` en verde.
+- **§43/§44** — El dinero se calcula en centavos enteros y se guarda como `Decimal`; nunca punto flotante, nunca `number` en un JSON. El reparto de un cargo se congela al generarlo (ADR-011).
+- **§45** — Cuando una ley acota al negocio, el límite vive en el dominio, no en una casilla de configuración: la escuela puede ser más generosa que la ley, nunca más estricta.
 
 Puertos de este proyecto (§35): web 3010, api 3333, base de datos 5434.
 

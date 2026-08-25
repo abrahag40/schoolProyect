@@ -89,7 +89,7 @@ export class ServicioAuth {
       }),
       usuario: { id: usuario.id, nombre: usuario.nombre, roles },
       escuela: { id: escuela.id, nombre: escuela.nombre, vertical: escuela.vertical },
-      ...(miembro ? { plataforma: { rol: miembro.rol as string, nombre: miembro.nombre } } : {}),
+      ...(miembro ? { plataforma: { rol: miembro.rol, nombre: miembro.nombre } } : {}),
     };
   }
 }

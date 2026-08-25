@@ -19,7 +19,6 @@
     "migrate:deploy": "node scripts/ensure-app-role.mjs && prisma migrate deploy && node scripts/ensure-app-role.mjs --grants-only",
     "studio": "prisma studio",
     "test": "node scripts/ensure-app-role.mjs --grants-only && vitest run",
-    "lint": "echo 'ESLint entra en S1 (deuda declarada en CHANGELOG). En S0 el analisis estatico lo cubren TypeScript strict, prettier, el gate de tokens y Semgrep en CI.'",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "seed": "node scripts/seed.mjs"
   },

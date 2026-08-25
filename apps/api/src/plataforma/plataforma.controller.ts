@@ -88,7 +88,7 @@ export class ControladorPlataforma {
         tenantId: c.tenantId,
         escuela: porTenant.get(c.tenantId)?.nombre ?? '(escuela sin nombre)',
         vertical: porTenant.get(c.tenantId)?.vertical ?? 'DESCONOCIDA',
-        estado: c.estado as string,
+        estado: c.estado,
         plan: c.plan,
         precioMensual: c.precioMensual.toFixed(2),
         alumnosMaximos: c.alumnosMaximos,
