@@ -15,6 +15,15 @@ import { registrarDispositivo } from '../notificaciones';
 
 const API = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3333';
 
+interface Aviso {
+  id: string;
+  tipo: string;
+  titulo: string;
+  cuerpo: string;
+  creadaEn: string;
+  leida: boolean;
+}
+
 interface Hijo {
   id: string;
   nombre: string;
@@ -46,6 +55,7 @@ const TIPO_COHORTE: Record<string, string> = {
 export default function PantallaPanel() {
   const c = paleta(useColorScheme());
   const [hijos, setHijos] = useState<Hijo[] | null>(null);
+  const [avisos, setAvisos] = useState<Aviso[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [recargando, setRecargando] = useState(false);
 
@@ -72,6 +82,19 @@ export default function PantallaPanel() {
       }
       if (!r.ok) throw new Error('respuesta no ok');
       setHijos(await r.json());
+
+      // Los avisos se piden APARTE y su fallo no tumba la pantalla: si el
+      // servicio de avisos tuviera un mal minuto, la madre debe seguir viendo
+      // a sus hijos. Degradar una parte es mejor que caerse entera.
+      try {
+        const ra = await fetch(`${API}/mis-avisos`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (ra.ok) setAvisos(await ra.json());
+      } catch {
+        setAvisos([]);
+      }
+
       setError(null);
     } catch {
       setError('No pudimos cargar la información. Revisa tu conexión.');
@@ -88,6 +111,22 @@ export default function PantallaPanel() {
       if (token) await registrarDispositivo(token).catch(() => null);
     })();
   }, [cargar]);
+
+  /**
+   * Marcar leido al tocar. Optimista a proposito: la marca es reversible y de
+   * bajo riesgo, y esperar al servidor para pintar un cambio que el dedo ya
+   * hizo se siente roto en la red de una escuela.
+   */
+  async function marcarLeido(aviso: Aviso) {
+    if (aviso.leida) return;
+    setAvisos((previos) => previos.map((a) => (a.id === aviso.id ? { ...a, leida: true } : a)));
+    const token = await leerToken();
+    if (!token) return;
+    await fetch(`${API}/mis-avisos/${aviso.id}/leido`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${token}` },
+    }).catch(() => null);
+  }
 
   async function salir() {
     await olvidarToken();
@@ -131,6 +170,40 @@ export default function PantallaPanel() {
       <Text style={{ fontSize: 24, fontWeight: '700', color: c.titulo }}>
         {hijos.length === 1 ? 'Tu hija o hijo' : 'Tus hijas e hijos'}
       </Text>
+
+      {/* Los avisos van ARRIBA de las tarjetas: si la escuela tiene algo que
+          decir hoy, es lo primero que la familia debe ver. Debajo de los hijos
+          quedaria abajo del pliegue en un telefono con dos o tres alumnos. */}
+      {avisos.length > 0 && (
+        <View style={{ gap: 8 }}>
+          <Text style={{ fontSize: 16, fontWeight: '600', color: c.titulo }}>Avisos</Text>
+          {avisos.slice(0, 5).map((a) => (
+            <Pressable
+              key={a.id}
+              onPress={() => marcarLeido(a)}
+              accessibilityRole="button"
+              accessibilityLabel={`${a.leida ? 'Aviso leído' : 'Aviso nuevo'}: ${a.titulo}. ${a.cuerpo}`}
+              style={{
+                backgroundColor: c.superficie,
+                borderRadius: 12,
+                padding: 14,
+                gap: 4,
+                // Lo NO leido se marca con una barra lateral Y con la palabra
+                // "Nuevo": el color nunca porta solo el significado.
+                borderLeftWidth: a.leida ? 0 : 4,
+                borderLeftColor: c.accionFondo,
+                minHeight: AREA_TACTIL,
+              }}
+            >
+              <Text style={{ fontWeight: '600', color: c.titulo }}>
+                {a.leida ? '' : 'Nuevo · '}
+                {a.titulo}
+              </Text>
+              <Text style={{ color: c.texto }}>{a.cuerpo}</Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
 
       {hijos.length === 0 && (
         <Text style={{ color: c.tenue }}>

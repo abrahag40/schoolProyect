@@ -130,3 +130,34 @@ true)` dentro de una transaccion, nunca como ajuste de sesion. _(Motivo: con
 - **§38** — Cada producto de ZaharDev vive en su propio workspace de nube. Los
   minutos de build compartidos entre productos ya costaron 3 dias sin deploys
   (Zentor/Zenix, jul-2026).
+
+### Nuevas del Sprint 3 (24-ago-2026)
+
+- **§39** — La asistencia es un **hecho corregible**, no un evento inmutable: la
+  fila `(alumno, cohorte, fecha)` se actualiza, y CADA correccion escribe un
+  `asistencia.corregida` en `evento_auditoria`, que si es append-only (§12).
+  _(Por que se aparta de §37: un docente se equivoca y la justificacion llega
+  dos dias despues. Con solo-agregar, responder "¿falto Sofia el martes?"
+  obligaria a reducir N eventos en cada consulta y en cada reporte. Asi la
+  lectura es una fila y la historia sigue siendo indestructible.)_
+- **§40** — El motor de avisos tiene dos frenos que no se quitan sin gate: un
+  **retardo nunca avisa**, y el aviso acumulado se limita a **uno por alumno por
+  mes** (clave de idempotencia con ano-mes). _(Origen: Rogers & Feller 2018
+  usa recordatorios espaciados a lo largo del ciclo, no diarios. Una familia
+  que silencia la app deja de recibir tambien lo importante — el sobre-aviso no
+  es un exceso de celo, es como se pierde el canal.)_
+- **§41** — El comando de desarrollo usa el **mismo compilador** que la imagen
+  de produccion. Prohibido un runtime de desarrollo distinto (type-stripping de
+  Node, transpiladores parciales). _(Defecto real del 24-ago-2026: con Node
+  25.2.1 el type-stripping no resuelve un import `.js` a su hermano `.ts` y no
+  emite `emitDecoratorMetadata`, asi que la inyeccion de dependencias de Nest
+  fallaria SOLO en desarrollo. Un entorno que difiere del que se despliega
+  produce fallos que no se reproducen donde se investigan.)_
+- **§42** — Mientras no exista staging real, **ningun sprint cierra sin ensayo
+  de despliegue** (`pnpm ensayo:despliegue`): imagen construida, arranque contra
+  base vacia, migracion automatica y verificacion del aislamiento en el esquema
+  desplegado. _(Origen: tres sprints y siete migraciones sin desplegar. El
+  ensayo no sustituye al staging y lo dice en su propia salida — pero convierte
+  la mayoria de las sorpresas del primer deploy en fallos vistos con calma. Ya
+  cazo uno: `ensure-app-role` moria en base vacia por un cast a `regnamespace`
+  sobre un esquema inexistente, es decir, el primer despliegue habria fallado.)_

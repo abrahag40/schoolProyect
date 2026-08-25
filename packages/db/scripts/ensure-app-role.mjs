@@ -108,8 +108,17 @@ try {
     { esquema: 'plataforma', firma: 'escuelas_de_clientes()' },
   ];
   for (const { esquema, firma } of funcionesPermitidas) {
+    // Se busca por JOIN con pg_namespace y NO con `$2::regnamespace`.
+    // DEFECTO REAL cazado el 24-ago-2026 al reconstruir la base desde cero:
+    // el cast regnamespace LANZA error 3F000 si el esquema todavia no existe,
+    // y en una base vacia `plataforma` aun no existe. Resultado: el arranque
+    // moria antes de la primera migracion — es decir, el primer despliegue a
+    // la nube habria fallado. El JOIN simplemente no devuelve filas.
     const { rows } = await cliente.query(
-      `SELECT 1 FROM pg_proc WHERE proname = $1 AND pronamespace = $2::regnamespace`,
+      `SELECT 1
+         FROM pg_proc p
+         JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE p.proname = $1 AND n.nspname = $2`,
       [firma.split('(')[0], esquema],
     );
     if (rows.length > 0) {

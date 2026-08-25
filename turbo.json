@@ -23,6 +23,13 @@
       "inputs": ["src/**", "app/**", "tsconfig*.json"]
     },
     "test": {
+      // DEFECTO REAL cazado el 24-ago-2026: las suites de @azahar/db y
+      // @azahar/api corren contra LA MISMA base y ambas la vacian en su
+      // beforeAll. En paralelo se pisan y el gate de aislamiento se pone rojo
+      // por una carrera, no por un defecto — y peor aun, podria ponerse VERDE
+      // por la misma carrera. Por eso `pnpm test` fuerza --concurrency=1 desde
+      // la raiz. Alternativa descartada: una base por paquete, que multiplica
+      // la infraestructura de CI para ahorrar segundos en una suite de seis.
       "dependsOn": ["^build"],
       "inputs": ["src/**", "test/**", "prisma/**"],
       "env": ["DATABASE_URL", "DATABASE_URL_OWNER"],

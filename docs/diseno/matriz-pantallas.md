@@ -23,9 +23,9 @@ objetivo de diseño, no una descripción: si una pantalla lo supera, se rediseñ
 | 1   | **Home de la familia**           | Madre, padre, tutor | ¿Cómo va mi hijo, qué debo, qué sigue? | Móvil      | 0 (es el arranque)      | Construida (S2) |
 | 2   | **Estado de cuenta y pago**      | Tutor pagador       | Ver lo que debo y pagarlo              | Móvil      | 2 al pago               | Sprint 5        |
 | 3   | **Inscripción / reinscripción**  | Tutor               | Inscribir sin ir a la escuela          | Móvil      | < 10 min, sin laptop    | Sprint 9        |
-| 4   | **Centro de avisos**             | Tutor               | Enterarme a tiempo y llegar al detalle | Móvil      | 1 al contenido          | Sprint 7        |
+| 4   | **Centro de avisos**             | Tutor               | Enterarme a tiempo y llegar al detalle | Móvil      | 1 al contenido          | Parcial (S3)    |
 | 5   | **Panel de morosidad**           | Dirección, cobranza | ¿Quién debe, desde cuándo, cuánto?     | Web        | 1 al detalle de familia | Sprint 5        |
-| 6   | **Pase de lista**                | Docente             | Tomar asistencia de un grupo           | Web móvil  | < 30 s por grupo        | Sprint 3        |
+| 6   | **Pase de lista**                | Docente             | Tomar asistencia de un grupo           | Web móvil  | < 30 s por grupo        | Construida (S3) |
 | 7   | **Alta de escuela (onboarding)** | Staff               | Dejar la escuela lista para operar     | Web        | Guiado por pasos        | Sprint 12       |
 | 8   | **Catálogo de cargos**           | Administración      | Definir qué se cobra y a quién         | Web        | 1 por concepto          | Sprint 4        |
 
@@ -108,7 +108,7 @@ director mira primero); tabla operable con orden y exportación —el estándar 
 reportería que adoptamos dice que si hay que exportar a Excel para trabajar, el
 reporte falló—; y el detalle de familia a un clic, sin perder el contexto.
 
-### 6 · Pase de lista (web móvil) — Sprint 3
+### 6 · Pase de lista (web móvil) — construida
 
 ```
 ┌──────────────────────────────┐
@@ -127,6 +127,27 @@ Objetivo duro: **menos de 30 segundos por grupo**, con el pulgar. Un docente
 que tarda más deja de usarlo y vuelve al papel — y sin asistencia capturada no
 hay alertas automáticas, que es la función con mejor evidencia de impacto
 académico de todo el producto.
+
+**Lo construido se apartó del boceto en dos puntos, y conviene registrarlo:**
+
+1. Los `[✓][✗]` de dos opciones pasaron a **tres con texto** (Asistió · Tarde ·
+   Faltó). El retardo existe en la realidad escolar y forzarlo a "presente" o
+   "ausente" produce datos falsos justo en la variable que alimenta las alertas.
+2. Los controles llevan **símbolo y palabra**, no solo símbolo. Un icono sin
+   texto obliga a aprenderse la convención, y aquí el usuario es alguien con
+   prisa entre clases (WCAG 2.2 SC 1.4.1 lo exige además para el estado).
+
+Lo demás se sostuvo: "Todos presentes" arriba, área táctil de 44 px, guardado
+único al final, y el conteo de pendientes anunciado también por lector de
+pantalla.
+
+### 4 · Centro de avisos — parcial desde el Sprint 3
+
+La bandeja de la familia existe ya como **lectura del registro** que el motor de
+avisos escribe: título, cuerpo y marcar-leído dentro del home. Lo que queda para
+el Sprint 7 es lo que la hace un centro: filtros, detalle, agrupación por hijo y
+los avisos que la escuela escribe a mano. Se construyó ahora porque el push
+puede no llegar y un aviso que solo vive en el push se pierde sin dejar rastro.
 
 ## Reglas comunes a todas las pantallas
 

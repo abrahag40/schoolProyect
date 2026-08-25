@@ -29,6 +29,10 @@ beforeAll(async () => {
   // El orden importa: las hijas antes que las padres. Borrar tenant primero
   // funcionaria por CASCADE, pero dejarlo explicito hace visible el grafo de
   // dependencias a quien agregue una tabla nueva.
+  await owner.query('DELETE FROM notificacion');
+  await owner.query('DELETE FROM asistencia');
+  await owner.query('DELETE FROM asignacion_docente');
+  await owner.query('DELETE FROM configuracion_escuela');
   await owner.query('DELETE FROM tutor_alumno');
   await owner.query('DELETE FROM consentimiento');
   await owner.query('DELETE FROM tutor');
@@ -238,6 +242,106 @@ describe('bitacora append-only (§12)', () => {
       cliente,
     );
     expect(sobrevivientes, 'la historia se pudo reescribir').toHaveLength(1);
+  });
+});
+
+describe('asistencia y avisos aislados (Sprint 3)', () => {
+  /** Los ids que hagan falta, leidos DENTRO del contexto de cada escuela. */
+  async function piezas(tenantId: string) {
+    return conTenant(
+      tenantId,
+      async (tx) => ({
+        alumno: (await tx.alumno.findFirst())!,
+        cohorte: (await tx.cohorte.findFirst())!,
+        usuario: (await tx.usuario.findFirst())!,
+      }),
+      cliente,
+    );
+  }
+
+  it('cada escuela ve unicamente la asistencia de sus alumnos', async () => {
+    for (const tenantId of [ID_COLEGIO, ID_ACADEMIA]) {
+      const { alumno, cohorte, usuario } = await piezas(tenantId);
+      await conTenant(
+        tenantId,
+        (tx) =>
+          tx.asistencia.create({
+            data: {
+              tenantId,
+              alumnoId: alumno.id,
+              cohorteId: cohorte.id,
+              fecha: new Date('2026-09-01T00:00:00.000Z'),
+              estado: 'AUSENTE',
+              registradoPor: usuario.id,
+            },
+          }),
+        cliente,
+      );
+    }
+
+    const delColegio = await conTenant(
+      ID_COLEGIO,
+      (tx) => tx.asistencia.findMany({ include: { alumno: true } }),
+      cliente,
+    );
+    const deLaAcademia = await conTenant(
+      ID_ACADEMIA,
+      (tx) => tx.asistencia.findMany({ include: { alumno: true } }),
+      cliente,
+    );
+
+    expect(delColegio.map((a) => a.alumno.nombre)).toEqual(['Sofia']);
+    expect(deLaAcademia.map((a) => a.alumno.nombre)).toEqual(['Diego']);
+  });
+
+  it('no se puede registrar la falta de un alumno de otra escuela', async () => {
+    // El caso feo: el atacante YA tiene el id del alumno ajeno. Sin RLS, este
+    // INSERT pasaria y una madre de la otra escuela recibiria el aviso.
+    const ajeno = await piezas(ID_ACADEMIA);
+    const propio = await piezas(ID_COLEGIO);
+
+    await expect(
+      conTenant(
+        ID_COLEGIO,
+        (tx) =>
+          tx.asistencia.create({
+            data: {
+              tenantId: ID_ACADEMIA,
+              alumnoId: ajeno.alumno.id,
+              cohorteId: ajeno.cohorte.id,
+              fecha: new Date('2026-09-02T00:00:00.000Z'),
+              estado: 'AUSENTE',
+              registradoPor: propio.usuario.id,
+            },
+          }),
+        cliente,
+      ),
+    ).rejects.toThrow();
+
+    const enAcademia = await conTenant(ID_ACADEMIA, (tx) => tx.asistencia.count(), cliente);
+    expect(enAcademia, 'la escritura cruzada dejo rastro').toBe(1);
+  });
+
+  it('los avisos de una escuela no existen para la otra', async () => {
+    const { usuario } = await piezas(ID_COLEGIO);
+    await conTenant(
+      ID_COLEGIO,
+      (tx) =>
+        tx.notificacion.create({
+          data: {
+            tenantId: ID_COLEGIO,
+            usuarioId: usuario.id,
+            tipo: 'asistencia.falta',
+            titulo: 'Prueba',
+            cuerpo: 'Prueba',
+            clave: 'prueba:aislamiento',
+          },
+        }),
+      cliente,
+    );
+
+    expect(await conTenant(ID_ACADEMIA, (tx) => tx.notificacion.count(), cliente)).toBe(0);
+    expect(await conTenant(ID_COLEGIO, (tx) => tx.notificacion.count(), cliente)).toBe(1);
   });
 });
 

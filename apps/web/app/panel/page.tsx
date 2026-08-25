@@ -52,7 +52,12 @@ const ROL: Record<string, string> = {
   COBRANZA: 'Cobranza',
   DOCENTE: 'Docente',
   STAFF: 'Personal',
+  TUTOR: 'Madre, padre o tutor',
 };
+
+/// Quien ve el acceso al pase de lista. Misma lista que el API: si divergen,
+/// la interfaz ofrece un boton que termina en 403 — peor que no ofrecerlo.
+const ROLES_PASE_LISTA = ['DOCENTE', 'DIRECTOR', 'ADMIN', 'DUENO'];
 
 export default function PaginaPanel() {
   const router = useRouter();
@@ -140,6 +145,15 @@ export default function PaginaPanel() {
 
       {resumen && (
         <div style={{ display: 'grid', gap: 'var(--space-4)' }}>
+          {resumen.misRoles.some((r) => ROLES_PASE_LISTA.includes(r)) && (
+            <Tarjeta titulo="La operación de hoy">
+              <p style={{ color: 'var(--texto-tenue)', margin: 'var(--space-2) 0 var(--space-3)' }}>
+                Toma asistencia de tus grupos. Cuando un alumno acumula faltas, su familia recibe el
+                aviso en la app automáticamente.
+              </p>
+              <Boton onClick={() => router.push('/panel/pase-lista')}>Pasar lista</Boton>
+            </Tarjeta>
+          )}
           <div
             style={{
               display: 'grid',
