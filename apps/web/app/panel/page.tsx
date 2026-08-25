@@ -3,8 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Boton, Insignia, Tarjeta } from '@azahar/ui';
-
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3333';
+import { pedirApi } from '../api';
 
 interface Resumen {
   escuela: { nombre: string; vertical: string } | null;
@@ -69,24 +68,33 @@ export default function PaginaPanel() {
     // httpOnly que el navegador envia sola. Si no hay sesion valida, el
     // servidor responde 401 y de ahi se decide — la verdad la tiene el
     // servidor, no una copia en el cliente que puede quedar desincronizada.
-    fetch(`${API}/mi-escuela`, { credentials: 'include' })
-      .then(async (r) => {
-        if (r.status === 401) {
-          router.replace('/');
-          return null;
-        }
-        if (!r.ok) throw new Error('respuesta no ok');
-        return r.json();
-      })
-      .then((datos) => datos && setResumen(datos))
-      .catch(() => setError('No pudimos cargar los datos de tu escuela.'));
+    //
+    // `vigente` evita escribir estado sobre una pantalla que el usuario ya
+    // abandono: sin esta guarda, salir del panel mientras carga produce un
+    // aviso de React y, peor, una fuga de memoria silenciosa.
+    let vigente = true;
+
+    void (async () => {
+      const { estado, datos } = await pedirApi<Resumen>('/mi-escuela');
+      if (!vigente) return;
+      if (estado === 401) {
+        router.replace('/');
+        return;
+      }
+      if (datos) setResumen(datos);
+      else setError('No pudimos cargar los datos de tu escuela.');
+    })();
+
+    return () => {
+      vigente = false;
+    };
   }, [router]);
 
   async function salir() {
     // Con cookie httpOnly el cliente NO puede borrarla: se le pide al servidor
     // que la retire. Antes bastaba con limpiar el almacenamiento local; ahora
     // cerrar sesion es una operacion real contra la API.
-    await fetch(`${API}/auth/logout`, { method: 'POST', credentials: 'include' }).catch(() => {});
+    await pedirApi('/auth/logout', { method: 'POST' }).catch(() => null);
     router.replace('/');
   }
 
@@ -132,7 +140,12 @@ export default function PaginaPanel() {
             )}
           </div>
         </div>
-        <Boton variante="secundario" onClick={salir}>
+        <Boton
+          variante="secundario"
+          onClick={() => {
+            void salir();
+          }}
+        >
           Salir
         </Boton>
       </header>

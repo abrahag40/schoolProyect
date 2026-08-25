@@ -3,8 +3,7 @@
 import { useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { Boton, CampoTexto, Tarjeta } from '@azahar/ui';
-
-const API = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3333';
+import { enviarJson } from './api';
 
 export default function PaginaLogin() {
   const router = useRouter();
@@ -18,34 +17,23 @@ export default function PaginaLogin() {
 
     const datos = new FormData(evento.currentTarget);
     try {
-      const respuesta = await fetch(`${API}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        // credentials: 'include' es lo que permite al navegador GUARDAR la
-        // cookie httpOnly que emite el servidor, y reenviarla despues. Sin
-        // esto el login respondería 200 y la sesión no existiría.
-        credentials: 'include',
-        body: JSON.stringify({
-          escuela: datos.get('escuela'),
-          email: datos.get('email'),
-          contrasena: datos.get('contrasena'),
-        }),
+      // La sesion viaja en una cookie httpOnly que el cliente NO puede leer, y
+      // el cliente del API la envia sola (credentials: 'include'). Aqui no se
+      // guarda nada: si hiciera falta saber quien inicio sesion, se le pregunta
+      // al servidor, que es quien tiene la verdad.
+      const { ok, error } = await enviarJson('/auth/login', {
+        escuela: datos.get('escuela'),
+        email: datos.get('email'),
+        contrasena: datos.get('contrasena'),
       });
 
-      if (!respuesta.ok) {
-        const cuerpo = await respuesta.json().catch(() => null);
+      if (!ok) {
         // El mensaje del servidor ya esta redactado para una persona: se
         // muestra tal cual en vez de traducir codigos de estado a jerga.
-        setError(cuerpo?.message ?? 'No pudimos entrar. Intenta de nuevo.');
+        setError(error?.message ?? 'No pudimos entrar. Intenta de nuevo.');
         return;
       }
 
-      // DEUDA PAGADA (Sprint 2): la sesion viaja en una cookie httpOnly que el
-      // servidor emitio en la respuesta. El navegador la guarda y la reenvia
-      // solo; JavaScript no puede leerla, asi que un script inyectado tampoco.
-      // Aqui no se guarda NADA: si hiciera falta saber quien inicio sesion, se
-      // le pregunta al servidor, que es quien tiene la verdad.
-      await respuesta.json();
       router.push('/panel');
     } catch {
       setError('No pudimos contactar al servidor. Revisa tu conexion.');
@@ -72,7 +60,9 @@ export default function PaginaLogin() {
         </p>
 
         <form
-          onSubmit={entrar}
+          onSubmit={(evento) => {
+            void entrar(evento);
+          }}
           style={{
             display: 'flex',
             flexDirection: 'column',

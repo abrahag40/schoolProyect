@@ -14,10 +14,6 @@
       "cache": false,
       "persistent": true
     },
-    "lint": {
-      "dependsOn": ["^build"],
-      "inputs": ["src/**", "app/**", "*.mjs", "*.json"]
-    },
     "typecheck": {
       "dependsOn": ["^build"],
       "inputs": ["src/**", "app/**", "tsconfig*.json"]

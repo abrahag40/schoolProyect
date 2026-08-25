@@ -39,7 +39,7 @@ export class GuardPlataforma implements CanActivate {
     peticion.miembroPlataforma = {
       id: miembro.id,
       email: miembro.email,
-      rol: miembro.rol as string,
+      rol: miembro.rol,
       socioId: miembro.socioId,
     };
     return true;

@@ -8,9 +8,7 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "build": "expo export --platform web --output-dir dist",
-    "lint": "echo 'lint de expo pendiente de configurar en S1'",
-    "typecheck": "tsc --noEmit",
-    "test": "echo 'pruebas de RN en S2 (Jest + RNTL)'"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@azahar/tokens": "workspace:*",

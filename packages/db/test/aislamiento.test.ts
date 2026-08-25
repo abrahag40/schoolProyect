@@ -428,7 +428,7 @@ describe('deny-by-default', () => {
     await expect(
       conTenant(
         "11111111-1111-4111-8111-111111111111'; DROP TABLE sede; --",
-        async () => null,
+        () => Promise.resolve(null),
         cliente,
       ),
     ).rejects.toThrow(/invalido/i);

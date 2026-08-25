@@ -7,6 +7,7 @@ const rutaEnv = fileURLToPath(new URL('../../../.env', import.meta.url));
 if (existsSync(rutaEnv)) process.loadEnvFile(rutaEnv);
 
 const { NestFactory } = await import('@nestjs/core');
+const { Logger } = await import('@nestjs/common');
 const { ModuloApp } = await import('./app.module.js');
 
 const app = await NestFactory.create(ModuloApp);
@@ -20,4 +21,7 @@ app.enableCors({
 
 const puerto = Number(process.env.API_PORT ?? 3333);
 await app.listen(puerto);
-console.log(`[api] escuchando en http://localhost:${puerto}`);
+// Por la bitacora de Nest y no por console: el arranque queda en el mismo
+// canal que todo lo demas, con marca de tiempo y contexto. En un contenedor
+// esa diferencia es la que hace legible un log.
+new Logger('api').log(`escuchando en http://localhost:${puerto}`);

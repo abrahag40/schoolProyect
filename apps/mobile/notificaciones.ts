@@ -1,8 +1,7 @@
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
 import { Platform } from 'react-native';
-
-const API = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3333';
+import { enviarJson } from './api';
 
 /**
  * Registro del dispositivo para recibir avisos (AZ-M5.3).
@@ -18,24 +17,24 @@ export async function registrarDispositivo(token: string): Promise<string | null
 
   const { status: actual } = await Notifications.getPermissionsAsync();
   let permiso = actual;
-  if (actual !== 'granted') {
+  if (actual !== Notifications.PermissionStatus.GRANTED) {
     // Solo se pide si no estaba concedido: volver a preguntar cada arranque
     // es la clase de insistencia que hace que la gente desinstale.
     const { status } = await Notifications.requestPermissionsAsync();
     permiso = status;
   }
-  if (permiso !== 'granted') return null;
+  if (permiso !== Notifications.PermissionStatus.GRANTED) return null;
 
   const { data: tokenPush } = await Notifications.getExpoPushTokenAsync();
 
-  await fetch(`${API}/notificaciones/dispositivo`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-    body: JSON.stringify({
+  await enviarJson(
+    '/notificaciones/dispositivo',
+    {
       token: tokenPush,
       plataforma: Platform.OS === 'ios' ? 'IOS' : Platform.OS === 'android' ? 'ANDROID' : 'WEB',
-    }),
-  });
+    },
+    { token },
+  );
 
   return tokenPush;
 }
@@ -49,11 +48,12 @@ export async function registrarDispositivo(token: string): Promise<string | null
  */
 export function configurarPresentacion(): void {
   Notifications.setNotificationHandler({
-    handleNotification: async () => ({
-      shouldShowBanner: true,
-      shouldShowList: true,
-      shouldPlaySound: false,
-      shouldSetBadge: true,
-    }),
+    handleNotification: () =>
+      Promise.resolve({
+        shouldShowBanner: true,
+        shouldShowList: true,
+        shouldPlaySound: false,
+        shouldSetBadge: true,
+      }),
   });
 }

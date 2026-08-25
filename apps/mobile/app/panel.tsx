@@ -12,8 +12,7 @@ import { router } from 'expo-router';
 import { paleta, AREA_TACTIL } from '../tema';
 import { leerToken, olvidarToken } from '../sesion';
 import { registrarDispositivo } from '../notificaciones';
-
-const API = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3333';
+import { pedirApi } from '../api';
 
 interface Aviso {
   id: string;
@@ -65,48 +64,45 @@ export default function PantallaPanel() {
       router.replace('/');
       return;
     }
-    try {
-      const r = await fetch(`${API}/mis-hijos`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (r.status === 401) {
-        await olvidarToken();
-        router.replace('/');
-        return;
-      }
-      if (r.status === 403) {
-        // Una cuenta de staff en la app de familias: no es un error, es una
-        // cuenta que pertenece a la otra superficie.
-        setError('Esta app es para madres, padres y tutores. Entra al portal web con tu cuenta.');
-        return;
-      }
-      if (!r.ok) throw new Error('respuesta no ok');
-      setHijos(await r.json());
+    const { estado, ok, datos } = await pedirApi<Hijo[]>('/mis-hijos', { token });
 
-      // Los avisos se piden APARTE y su fallo no tumba la pantalla: si el
-      // servicio de avisos tuviera un mal minuto, la madre debe seguir viendo
-      // a sus hijos. Degradar una parte es mejor que caerse entera.
-      try {
-        const ra = await fetch(`${API}/mis-avisos`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (ra.ok) setAvisos(await ra.json());
-      } catch {
-        setAvisos([]);
-      }
-
-      setError(null);
-    } catch {
-      setError('No pudimos cargar la información. Revisa tu conexión.');
+    if (estado === 401) {
+      await olvidarToken();
+      router.replace('/');
+      return;
     }
+    if (estado === 403) {
+      // Una cuenta de staff en la app de familias: no es un error, es una
+      // cuenta que pertenece a la otra superficie.
+      setError('Esta app es para madres, padres y tutores. Entra al portal web con tu cuenta.');
+      return;
+    }
+    if (!ok || !datos) {
+      setError('No pudimos cargar la información. Revisa tu conexión.');
+      return;
+    }
+
+    setHijos(datos);
+
+    // Los avisos se piden APARTE y su fallo no tumba la pantalla: si el
+    // servicio de avisos tuviera un mal minuto, la madre debe seguir viendo a
+    // sus hijos. Degradar una parte es mejor que caerse entera.
+    const respuestaAvisos = await pedirApi<Aviso[]>('/mis-avisos', { token }).catch(() => null);
+    setAvisos(respuestaAvisos?.datos ?? []);
+
+    setError(null);
   }, []);
 
   useEffect(() => {
-    void cargar();
-    // El dispositivo se registra en cada arranque porque el sistema operativo
-    // rota los tokens; si falla, la app sigue funcionando sin avisos en vez de
-    // quedarse en blanco.
+    // La carga va dentro de una funcion asincrona y no como llamada directa:
+    // asi el analizador ve la frontera del await y distingue un setState
+    // legitimo —despues de la espera— de uno sincrono que encadenaria renders.
     void (async () => {
+      await cargar();
+
+      // El dispositivo se registra en cada arranque porque el sistema operativo
+      // rota los tokens; si falla, la app sigue funcionando sin avisos en vez
+      // de quedarse en blanco.
       const token = await leerToken();
       if (token) await registrarDispositivo(token).catch(() => null);
     })();
@@ -120,12 +116,7 @@ export default function PantallaPanel() {
   async function marcarLeido(aviso: Aviso) {
     if (aviso.leida) return;
     setAvisos((previos) => previos.map((a) => (a.id === aviso.id ? { ...a, leida: true } : a)));
-    const token = await leerToken();
-    if (!token) return;
-    await fetch(`${API}/mis-avisos/${aviso.id}/leido`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-    }).catch(() => null);
+    await pedirApi(`/mis-avisos/${aviso.id}/leido`, { method: 'POST' }).catch(() => null);
   }
 
   async function salir() {
@@ -139,7 +130,13 @@ export default function PantallaPanel() {
         <Text accessibilityRole="alert" style={{ color: c.texto }}>
           {error}
         </Text>
-        <Boton texto="Salir" onPress={salir} c={c} />
+        <Boton
+          texto="Salir"
+          onPress={() => {
+            void salir();
+          }}
+          c={c}
+        />
       </ScrollView>
     );
   }
@@ -158,10 +155,12 @@ export default function PantallaPanel() {
       refreshControl={
         <RefreshControl
           refreshing={recargando}
-          onRefresh={async () => {
-            setRecargando(true);
-            await cargar();
-            setRecargando(false);
+          onRefresh={() => {
+            void (async () => {
+              setRecargando(true);
+              await cargar();
+              setRecargando(false);
+            })();
           }}
           tintColor={c.accionFondo}
         />
@@ -180,7 +179,9 @@ export default function PantallaPanel() {
           {avisos.slice(0, 5).map((a) => (
             <Pressable
               key={a.id}
-              onPress={() => marcarLeido(a)}
+              onPress={() => {
+                void marcarLeido(a);
+              }}
               accessibilityRole="button"
               accessibilityLabel={`${a.leida ? 'Aviso leído' : 'Aviso nuevo'}: ${a.titulo}. ${a.cuerpo}`}
               style={{
@@ -235,7 +236,13 @@ export default function PantallaPanel() {
         </View>
       ))}
 
-      <Boton texto="Salir" onPress={salir} c={c} />
+      <Boton
+        texto="Salir"
+        onPress={() => {
+          void salir();
+        }}
+        c={c}
+      />
     </ScrollView>
   );
 }

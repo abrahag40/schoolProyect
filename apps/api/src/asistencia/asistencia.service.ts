@@ -179,7 +179,7 @@ export class ServicioAsistencia {
           alumnoId: i.alumno.id,
           nombre: i.alumno.nombre,
           apellidos: i.alumno.apellidos,
-          estado: (porAlumno.get(i.alumno.id) as EstadoAsistencia | undefined) ?? null,
+          estado: porAlumno.get(i.alumno.id) ?? null,
         }))
         // Ordenado por apellido: es como la escuela lee una lista, y el docente
         // busca con la vista, no con un filtro.

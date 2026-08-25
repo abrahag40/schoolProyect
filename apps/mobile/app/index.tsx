@@ -12,8 +12,11 @@ import { router } from 'expo-router';
 import { paleta, AREA_TACTIL } from '../tema';
 import { guardarToken, leerToken, desbloquear } from '../sesion';
 import { configurarPresentacion } from '../notificaciones';
+import { enviarJson } from '../api';
 
-const API = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:3333';
+interface Sesion {
+  token: string;
+}
 
 export default function PantallaLogin() {
   const c = paleta(useColorScheme());
@@ -46,18 +49,22 @@ export default function PantallaLogin() {
     setError(null);
     setEnviando(true);
     try {
-      const r = await fetch(`${API}/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ escuela, email, contrasena }),
-      });
-      if (!r.ok) {
-        const cuerpo = await r.json().catch(() => null);
-        setError(cuerpo?.message ?? 'No pudimos entrar.');
+      // publica: true — es la unica llamada sin sesion. Marcarlo evita que una
+      // peticion autenticada se quede sin token por olvido.
+      const {
+        ok,
+        datos,
+        error: fallo,
+      } = await enviarJson<Sesion>(
+        '/auth/login',
+        { escuela, email, contrasena },
+        { publica: true },
+      );
+      if (!ok || !datos) {
+        setError(fallo?.message ?? 'No pudimos entrar.');
         return;
       }
-      const sesion = await r.json();
-      await guardarToken(sesion.token);
+      await guardarToken(datos.token);
       router.replace('/panel');
     } catch {
       setError('No pudimos contactar al servidor.');
@@ -130,7 +137,9 @@ export default function PantallaLogin() {
       )}
 
       <Pressable
-        onPress={entrar}
+        onPress={() => {
+          void entrar();
+        }}
         disabled={enviando}
         accessibilityRole="button"
         style={{
