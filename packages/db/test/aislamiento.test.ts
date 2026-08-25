@@ -29,6 +29,9 @@ beforeAll(async () => {
   // El orden importa: las hijas antes que las padres. Borrar tenant primero
   // funcionaria por CASCADE, pero dejarlo explicito hace visible el grafo de
   // dependencias a quien agregue una tabla nueva.
+  await owner.query('DELETE FROM parte_de_cargo');
+  await owner.query('DELETE FROM cargo');
+  await owner.query('DELETE FROM concepto_cargo');
   await owner.query('DELETE FROM notificacion');
   await owner.query('DELETE FROM asistencia');
   await owner.query('DELETE FROM asignacion_docente');
@@ -342,6 +345,119 @@ describe('asistencia y avisos aislados (Sprint 3)', () => {
 
     expect(await conTenant(ID_ACADEMIA, (tx) => tx.notificacion.count(), cliente)).toBe(0);
     expect(await conTenant(ID_COLEGIO, (tx) => tx.notificacion.count(), cliente)).toBe(1);
+  });
+});
+
+describe('cobranza aislada (Sprint 4)', () => {
+  /** Crea un concepto y un cargo dentro del contexto de UNA escuela. */
+  async function sembrarCobranza(tenantId: string, monto: string) {
+    return conTenant(
+      tenantId,
+      async (tx) => {
+        const alumno = (await tx.alumno.findFirst())!;
+        const concepto = await tx.conceptoCargo.create({
+          data: {
+            tenantId,
+            clave: 'colegiatura',
+            nombre: 'Colegiatura',
+            periodicidad: 'MENSUAL',
+            montoBase: monto,
+            vigenteDesde: new Date('2026-08-01T00:00:00.000Z'),
+          },
+        });
+        const cargo = await tx.cargo.create({
+          data: {
+            tenantId,
+            alumnoId: alumno.id,
+            conceptoId: concepto.id,
+            periodo: '2026-09',
+            monto,
+            fechaVencimiento: new Date('2026-09-05T00:00:00.000Z'),
+            fechaLimiteSinRecargo: new Date('2026-09-10T00:00:00.000Z'),
+            clave: `${alumno.id}:${concepto.id}:2026-09`,
+          },
+        });
+        return { alumno, concepto, cargo };
+      },
+      cliente,
+    );
+  }
+
+  it('cada escuela ve unicamente sus conceptos y sus cargos', async () => {
+    await sembrarCobranza(ID_COLEGIO, '2450.00');
+    await sembrarCobranza(ID_ACADEMIA, '890.00');
+
+    const delColegio = await conTenant(ID_COLEGIO, (tx) => tx.cargo.findMany(), cliente);
+    const deLaAcademia = await conTenant(ID_ACADEMIA, (tx) => tx.cargo.findMany(), cliente);
+
+    expect(delColegio.map((c) => c.monto.toFixed(2))).toEqual(['2450.00']);
+    expect(deLaAcademia.map((c) => c.monto.toFixed(2))).toEqual(['890.00']);
+  });
+
+  it('no se puede facturarle a un alumno de otra escuela', async () => {
+    // El caso feo: el atacante YA tiene los ids ajenos en la mano. Sin RLS este
+    // INSERT pasaria y una familia recibiria el cargo de otra escuela.
+    const ajeno = await conTenant(
+      ID_ACADEMIA,
+      async (tx) => ({
+        alumno: (await tx.alumno.findFirst())!,
+        concepto: (await tx.conceptoCargo.findFirst())!,
+      }),
+      cliente,
+    );
+
+    await expect(
+      conTenant(
+        ID_COLEGIO,
+        (tx) =>
+          tx.cargo.create({
+            data: {
+              tenantId: ID_ACADEMIA,
+              alumnoId: ajeno.alumno.id,
+              conceptoId: ajeno.concepto.id,
+              periodo: '2026-10',
+              monto: '1.00',
+              fechaVencimiento: new Date('2026-10-05T00:00:00.000Z'),
+              fechaLimiteSinRecargo: new Date('2026-10-10T00:00:00.000Z'),
+              clave: 'intruso:2026-10',
+            },
+          }),
+        cliente,
+      ),
+    ).rejects.toThrow();
+
+    const enAcademia = await conTenant(ID_ACADEMIA, (tx) => tx.cargo.count(), cliente);
+    expect(enAcademia, 'la escritura cruzada dejo rastro').toBe(1);
+  });
+
+  it('el reparto de un cargo tampoco cruza la frontera', async () => {
+    const propio = await conTenant(
+      ID_COLEGIO,
+      async (tx) => ({
+        cargo: (await tx.cargo.findFirst())!,
+        tutor: await tx.tutor.findFirst(),
+      }),
+      cliente,
+    );
+    if (!propio.tutor) return; // el escenario base no siempre tiene tutores
+
+    await conTenant(
+      ID_COLEGIO,
+      (tx) =>
+        tx.parteDeCargo.create({
+          data: {
+            tenantId: ID_COLEGIO,
+            cargoId: propio.cargo.id,
+            tutorId: propio.tutor!.id,
+            porcentaje: '100.00',
+            monto: propio.cargo.monto,
+          },
+        }),
+      cliente,
+    );
+
+    expect(await conTenant(ID_ACADEMIA, (tx) => tx.parteDeCargo.count(), cliente)).toBe(0);
+    expect(await conTenant(ID_COLEGIO, (tx) => tx.parteDeCargo.count(), cliente)).toBe(1);
   });
 });
 

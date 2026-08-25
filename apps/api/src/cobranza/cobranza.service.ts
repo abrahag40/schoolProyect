@@ -324,10 +324,21 @@ export class ServicioCobranza {
         throw new BadRequestException('La escuela no tiene un periodo activo.');
       }
 
+      // Un concepto entra en el periodo si su vigencia empieza EN CUALQUIER DIA
+      // de ese mes, no solo si ya estaba vigente el dia 1.
+      //
+      // DEFECTO REAL cazado en la demo del 25-ago-2026: el ciclo escolar
+      // arranca el 17 de agosto, asi que la colegiatura entra en vigor ese dia
+      // — y comparando contra el dia 1 la generacion de agosto devolvia CERO
+      // cargos, en silencio y sin error. La escuela no habria cobrado su primer
+      // mes. El limite correcto es el ultimo dia del periodo: un aumento que
+      // entra en septiembre sigue quedando fuera de agosto, que es lo que la
+      // regla debe proteger.
+      const ultimoDiaDelPeriodo = fechaDelPeriodo(periodo, 31);
       const conceptos = await tx.conceptoCargo.findMany({
         where: {
           activo: true,
-          vigenteDesde: { lte: new Date(`${fechaDelPeriodo(periodo, 1)}T00:00:00.000Z`) },
+          vigenteDesde: { lte: new Date(`${ultimoDiaDelPeriodo}T00:00:00.000Z`) },
         },
       });
 

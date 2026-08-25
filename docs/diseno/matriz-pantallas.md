@@ -27,7 +27,7 @@ objetivo de diseño, no una descripción: si una pantalla lo supera, se rediseñ
 | 5   | **Panel de morosidad**           | Dirección, cobranza | ¿Quién debe, desde cuándo, cuánto?     | Web        | 1 al detalle de familia | Sprint 5        |
 | 6   | **Pase de lista**                | Docente             | Tomar asistencia de un grupo           | Web móvil  | < 30 s por grupo        | Construida (S3) |
 | 7   | **Alta de escuela (onboarding)** | Staff               | Dejar la escuela lista para operar     | Web        | Guiado por pasos        | Sprint 12       |
-| 8   | **Catálogo de cargos**           | Administración      | Definir qué se cobra y a quién         | Web        | 1 por concepto          | Sprint 4        |
+| 8   | **Catálogo de cargos**           | Administración      | Definir qué se cobra y a quién         | Web        | 1 por concepto          | Construida (S4) |
 
 **Fuera de esta matriz, por decisión:** la consola de ZaharDev (pantallas 9–11
 del cambio C1) es producto interno y se especifica con su épica; no compite por

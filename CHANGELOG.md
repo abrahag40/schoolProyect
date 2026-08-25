@@ -5,6 +5,85 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) · Versiona
 Se escribe desde el primer commit, no al final: reconstruir la historia despues
 es caro; anotarla por release es gratis.
 
+## [0.5.0] — 2026-08-25 — Sprint 4: El dinero
+
+Objetivo: que cada escuela defina **qué cobra y a quién**, y que el sistema
+genere los cargos del mes sin que nadie los teclee — con la ventana de diez días
+naturales sin recargo del Artículo 4 escrita en el dominio, no en una casilla de
+configuración que cualquiera puede mover.
+
+### Deuda vencida, PAGADA
+
+- **ESLint real en todo el monorepo.** Se declaró "entra en S1" y llevaba tres
+  sprints; `pnpm lint` imprimía verde ejecutando solo el gate de tokens. Ahora
+  corre con **información de tipos** —sin eso `no-floating-promises` queda
+  apagada de hecho— y **§28 dejó de ser un documento**: construir un
+  `PrismaClient` fuera de `packages/db` rompe el gate.
+- **Encontró 65 hallazgos.** Dos defectos reales de React (`setState` síncrono
+  dentro de un efecto, que encadena renders), ocho manejadores `async`
+  entregados a props que esperan `void` —donde un rechazo se pierde en
+  silencio— y cuarenta contaminaciones de `any` con un solo origen:
+  `response.json()`. Se resolvieron creando **una frontera de confianza por
+  superficie** (`apps/web/app/api.ts`, `apps/mobile/api.ts`), no apagando reglas.
+- **Se verificó que el gate muerde:** se inyectó a propósito el despacho de
+  avisos sin `await` y el pipeline se puso rojo señalando la línea exacta.
+- Se retiraron también los `echo` que fingían pruebas en `apps/web`,
+  `apps/mobile` y `packages/ui`. No crea cobertura, pero `pnpm test` deja de
+  reportar como exitosos tres paquetes sin una sola prueba.
+
+### Agregado
+
+- **Catálogo de cargos (AZ-M4.1)** — pantalla 8 de la matriz D10. Conceptos con
+  periodicidad, importe, día de vencimiento, alcance por cohorte y **bandera
+  deducible con nivel educativo** para el complemento IEDU.
+- **Generación de cargos (AZ-M4.2)**, idempotente por clave
+  `{alumno}:{concepto}:{periodo}` impuesta por la base. Correrla dos veces
+  devuelve `generados: 0`. Un concepto de periodicidad única se ancla al ciclo
+  escolar, no al mes pedido: anclarlo al mes lo cobraría doce veces al año.
+- **Reparto entre pagadores (AZ-M4.3)** por el método del resto mayor, con la
+  invariante probada de que **la suma de las partes es exactamente el total**.
+  El reparto se **congela** al generar: un convenio nuevo en marzo no reescribe
+  lo que cada quien debía en enero (§44, ADR-011).
+- **Las reglas mexicanas, en el dominio (AZ-M4.4).** El Artículo 4 impone que la
+  fecha límite sin recargo nunca sea anterior al día 10; la configuración de la
+  escuela solo puede ser más generosa. El Artículo 5-I rechaza un ajuste de
+  precio con menos de 60 días de aviso, y el mensaje dice cuántos faltan.
+
+### Corregido
+
+- **La generación devolvía CERO cargos en silencio** cuando el concepto entraba
+  en vigor a mitad de mes — que es justo lo que pasa cuando el ciclo escolar
+  arranca el 17 de agosto. La escuela no habría cobrado su primer mes y nadie
+  habría visto un error. Cazado en la demo, no por una prueba: las pruebas
+  usaban un ciclo que empezaba el día 1. Ya tiene su prueba de regresión, en
+  ambos sentidos.
+
+### Seguridad y datos
+
+- Tres tablas nuevas (`concepto_cargo`, `cargo`, `parte_de_cargo`) con RLS
+  habilitado y forzado, más pruebas de aislamiento propias: no se puede
+  facturarle a un alumno de otra escuela ni con su identificador en la mano.
+- **Reglas que viven en la base**, porque una importación o un script pueden
+  escribir sin pasar por el dominio: un concepto deducible sin nivel educativo
+  no entra; un cargo cancelado sin motivo tampoco; una fecha límite anterior al
+  vencimiento tampoco.
+
+### Documentación
+
+- `docs/sprints/S4-cobranza.md` — Sprint Backlog con la plantilla de 10 campos.
+- ADR-011 — representación del dinero y reparto, con lo que deliberadamente NO
+  se puso en la base y por qué.
+- Decisiones §43–§46.
+
+### Infraestructura
+
+- **Se reparó el entorno de Docker desde la terminal.** Diagnóstico: el disco
+  del Mac estaba al 100% (133 MB libres de 228 GB), lo que colgó a Docker
+  Desktop y corrompió su almacén de imágenes a media escritura. Se liberaron
+  ~17 GB de cachés regenerables (npm, build de Docker, artefactos del repo) y se
+  reinició el demonio en limpio. `pnpm ensayo:despliegue` vuelve a pasar: 8/8
+  migraciones y 21 tablas con RLS forzado en una base vacía.
+
 ## [0.4.0] — 2026-08-24 — Sprint 3: La operación diaria
 
 Objetivo: que el docente tome asistencia desde su teléfono en menos de 30

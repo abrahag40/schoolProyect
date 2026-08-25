@@ -161,3 +161,30 @@ true)` dentro de una transaccion, nunca como ajuste de sesion. _(Motivo: con
   la mayoria de las sorpresas del primer deploy en fallos vistos con calma. Ya
   cazo uno: `ensure-app-role` moria en base vacia por un cast a `regnamespace`
   sobre un esquema inexistente, es decir, el primer despliegue habria fallado.)_
+
+### Nuevas del Sprint 4 (25-ago-2026)
+
+- **§43** — El dinero se calcula en **centavos enteros** dentro del dominio y se
+  guarda como `Decimal` en la base. Jamás punto flotante, jamás `number` en un
+  JSON. El criterio de redondeo es **uno solo** y está escrito: al centavo más
+  cercano, medio hacia arriba. _(`0.1 + 0.2` no es `0.3` en ningún lenguaje con
+  IEEE-754. Dos partes del sistema redondeando distinto es como aparecen las
+  diferencias que nadie sabe explicar, meses después, en el corte del mes.)_
+- **§44** — El reparto de un cargo entre pagadores se **congela** al generarlo,
+  junto con el importe y la fecha límite sin recargo. Cambiar un convenio no
+  reescribe lo ya emitido. _(Recalcular al leer haría que un acuerdo nuevo en
+  marzo cambiara retroactivamente lo que cada quien debía en enero, y volvería
+  imposible demostrar que se cobró lo que se anunció.)_
+- **§45** — Cuando una ley acota al negocio, el límite vive en el **dominio**, no
+  en una casilla de configuración. La escuela puede ser más generosa que la ley;
+  más estricta, nunca. _(Art. 4 del Acuerdo DOF 10-mar-1992: diez días naturales
+  sin recargo. Un parámetro configurable lo respeta hasta que alguien lo mueve —
+  un empleado nuevo, una promoción, una importación — y quien paga la multa es
+  la escuela. El estudio comparativo con WispHub mostró exactamente ese diseño
+  en un motor de cobranza genérico.)_
+- **§46** — Un gate que no revisa nada **se implementa o se retira**; no se
+  recicla en silencio de sprint en sprint. _(ESLint estuvo declarado como deuda
+  "entra en S1" durante tres sprints mientras `pnpm lint` imprimía verde
+  ejecutando solo el gate de tokens. Un check verde que no comprueba nada es
+  peor que su ausencia: da una garantía falsa. Al implementarlo aparecieron 65
+  hallazgos, dos de ellos defectos reales de React.)_
