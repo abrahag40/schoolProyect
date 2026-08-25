@@ -85,6 +85,16 @@ la app sin que nadie lo escriba a mano**.
   por pruebas, pero no se ha ejecutado en un dispositivo ni en un emulador.
 - **Staging:** sigue bloqueado por las tres cuentas de nube.
 
+### Deuda vencida NO pagada (incumplimiento)
+
+- **ESLint sigue sin existir** en `apps/api`, `apps/web`, `apps/mobile` y
+  `packages/db`. Se declaró "entra en S1"; van tres sprints. `pnpm lint`
+  imprime verde porque el único gate real que corre es el de tokens. Un check
+  verde que no revisa nada es peor que no tenerlo: da una garantía falsa
+  (§6). **Corrección de registro:** el cierre del Sprint 2 reportó "cero deuda
+  declarada abierta"; era falso — se contaron las deudas de diseño y sesión, y
+  se pasó por alto ésta.
+
 ## [0.3.0] — 2026-08-24 — Sprint 2: La app de familias
 
 Objetivo: que quien entre a la app móvil sea una **madre o un padre**, no un
