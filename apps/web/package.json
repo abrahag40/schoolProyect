@@ -5,6 +5,9 @@
   "scripts": {
     "dev": "next dev -p 3010",
     "build": "next build",
+    "//test": "Pruebas de extremo a extremo con Playwright. Exigen la base sembrada (pnpm db:seed) y el API arriba en el 3333: la web sola no tiene datos que mostrar. El servidor de Next lo levanta Playwright si no esta corriendo.",
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
     "start": "next start -p 3010",
     "typecheck": "tsc --noEmit"
   },
@@ -16,6 +19,7 @@
     "react-dom": "19.2.8"
   },
   "devDependencies": {
+    "@playwright/test": "1.62.1",
     "@types/node": "^22.10.2",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",

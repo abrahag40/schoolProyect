@@ -47,6 +47,21 @@ recupera además el estado de cuenta (M4.5), que el Plan comprometía en el S4.
   "Paga:" seguido de nada. Ahora los tres números caben, los importes llevan
   separadores de millar y el vacío se dice ("Sin pagador registrado").
 
+### Deuda vencida, PAGADA
+
+- **Pruebas de extremo a extremo en la web (Playwright).** El script de `test`
+  de `apps/web` fue durante cinco sprints un `echo` que decía "e2e en S1" y
+  salía con código 0: `pnpm test` reportaba el paquete como exitoso sin una sola
+  prueba. Ahora corren **6 pruebas a 360 px** que verifican lo único que solo un
+  navegador puede verificar: que la **cookie httpOnly viaje sola** —el mecanismo
+  del Sprint 2, hasta hoy comprobado solo a mano—, que la pantalla se arme con
+  datos reales, y que **no scrollee de lado** en la medida prometida.
+- **Se verificó que el gate muerde:** se reintrodujo a propósito el layout que
+  desbordaba y la prueba se puso roja señalando el defecto exacto.
+- Las pruebas **se preparan solas** (siembran la base, generan los cargos y
+  levantan API y web). Una suite que exige recordar dos comandos previos se
+  rompe el día que alguien no los recuerda, y entonces se culpa a la prueba.
+
 ### Seguridad y datos
 
 - Dos tablas nuevas (`pago`, `aplicacion_de_pago`) con RLS habilitado y forzado,

@@ -209,3 +209,10 @@ true)` dentro de una transaccion, nunca como ajuste de sesion. _(Motivo: con
   llevaban ahí desde el Sprint 1. Además obligaba a mantener una lista de
   excepciones en el linter cuyo tope se alcanzaba cada vez que alguien agregaba
   una prueba.)_
+- **§50** — Las pruebas de extremo a extremo verifican lo que **solo un
+  navegador puede verificar** —que la cookie httpOnly viaje, que la pantalla se
+  arme con datos reales, que no scrollee de lado a 360 px— y no repiten lo que
+  ya cubren las pruebas del API. _(Duplicar cobertura en la capa más lenta y más
+  frágil es como una suite deja de correrse. Y se preparan solas: sembrar y
+  generar datos a mano antes de correrlas es una instrucción que alguien va a
+  olvidar, y entonces se culpa a la prueba en vez de al defecto.)_

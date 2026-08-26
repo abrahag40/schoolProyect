@@ -128,7 +128,7 @@ export default tseslint.config(
 
   // --- Pruebas ---------------------------------------------------------------
   {
-    files: ['**/test/**/*.ts', '**/*.test.ts', '**/*.test.mjs'],
+    files: ['**/test/**/*.ts', '**/e2e/**/*.ts', '**/*.test.ts', '**/*.spec.ts', '**/*.test.mjs'],
     rules: {
       // Las pruebas afirman sobre estructuras que llegan como JSON sin tipar;
       // exigirles el mismo rigor de tipos solo produce castings decorativos.
