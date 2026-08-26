@@ -347,6 +347,7 @@ model Tutor {
   alumnos         TutorAlumno[]
   consentimientos Consentimiento[]
   partesDeCargo   ParteDeCargo[]
+  pagos           Pago[]
 
   @@index([tenantId])
   @@map("tutor")
@@ -702,6 +703,11 @@ model Cargo {
   /// no la configuracion vigente meses despues.
   fechaLimiteSinRecargo DateTime @map("fecha_limite_sin_recargo") @db.Date
 
+  /// Ciclo de vida del cargo: VIGENTE o CANCELADO. **`PAGADO` no se escribe**:
+  /// si algo esta pagado se deriva de la suma de sus aplicaciones de pago, no
+  /// de una columna que habria que mantener sincronizada. El dia que esa
+  /// columna y la suma difieran, nadie sabria cual de las dos creer. El valor
+  /// se conserva en el enum por compatibilidad con los datos ya escritos.
   estado EstadoCargo @default(PENDIENTE)
 
   /// Clave de idempotencia (§15): {alumno}:{concepto}:{periodo}. La unicidad la
@@ -748,8 +754,9 @@ model ParteDeCargo {
 
   creadoEn DateTime @default(now()) @map("creado_en") @db.Timestamptz(6)
 
-  cargo Cargo @relation(fields: [cargoId], references: [id], onDelete: Cascade)
-  tutor Tutor @relation(fields: [tutorId], references: [id], onDelete: Cascade)
+  cargo        Cargo              @relation(fields: [cargoId], references: [id], onDelete: Cascade)
+  tutor        Tutor              @relation(fields: [tutorId], references: [id], onDelete: Cascade)
+  aplicaciones AplicacionDePago[]
 
   @@unique([cargoId, tutorId])
   @@index([tenantId, tutorId])
@@ -784,6 +791,85 @@ enum NivelEducativo {
   SECUNDARIA
   PROFESIONAL_TECNICO
   BACHILLERATO
+
+  @@schema("public")
+}
+
+/// UN PAGO RECIBIDO (AZ-M4.9). Es un asiento, no una edicion del cargo.
+///
+/// El cargo NUNCA cambia de importe cuando alguien paga: se registra el pago y
+/// se aplica. El saldo se deriva de restar lo aplicado. Lo contrario —tocar el
+/// importe del cargo— destruiria la prueba de que se cobro lo que se anuncio,
+/// que es justo lo que el Acuerdo de PROFECO exige poder sostener.
+///
+/// Por que el pagador es un Tutor y no un "alumno" o una "familia": porque el
+/// reparto del Sprint 4 asigna partes a tutores concretos. Cuando el padre paga
+/// su 40%, se sabe exactamente que se salda.
+model Pago {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  tutorId  String @map("tutor_id") @db.Uuid
+
+  monto      Decimal    @db.Decimal(10, 2)
+  fecha      DateTime   @db.Date
+  metodo     MetodoPago
+  /// Folio de la transferencia, del deposito o del recibo de caja. Es lo que
+  /// permite conciliar contra el estado de cuenta del banco.
+  referencia String?
+  nota       String?
+
+  registradoPor String?  @map("registrado_por") @db.Uuid
+  registradoEn  DateTime @default(now()) @map("registrado_en") @db.Timestamptz(6)
+
+  /// Cancelar un pago NO lo borra: un pago que desaparece de la historia es un
+  /// agujero en la caja de la escuela.
+  canceladoEn       DateTime? @map("cancelado_en") @db.Timestamptz(6)
+  motivoCancelacion String?   @map("motivo_cancelacion")
+
+  tutor        Tutor              @relation(fields: [tutorId], references: [id], onDelete: Cascade)
+  aplicaciones AplicacionDePago[]
+
+  @@index([tenantId, fecha])
+  @@index([tenantId, tutorId])
+  @@map("pago")
+  @@schema("public")
+}
+
+/// A QUE se aplico un pago. La costura entre lo que entro y lo que se debia.
+///
+/// Un pago puede saldar varias partes (una transferencia que cubre colegiatura
+/// y comedor) y una parte puede recibir varios pagos (dos abonos parciales).
+/// Por eso es una tabla y no una columna.
+///
+/// INVARIANTES, probadas y no confiadas al cuidado de quien escribe:
+///   - la suma aplicada de un pago nunca excede su importe;
+///   - la suma aplicada a una parte nunca excede lo que esa parte debe.
+model AplicacionDePago {
+  id             String @id @default(uuid()) @db.Uuid
+  tenantId       String @map("tenant_id") @db.Uuid
+  pagoId         String @map("pago_id") @db.Uuid
+  parteDeCargoId String @map("parte_de_cargo_id") @db.Uuid
+
+  monto    Decimal  @db.Decimal(10, 2)
+  creadoEn DateTime @default(now()) @map("creado_en") @db.Timestamptz(6)
+
+  pago  Pago         @relation(fields: [pagoId], references: [id], onDelete: Cascade)
+  parte ParteDeCargo @relation(fields: [parteDeCargoId], references: [id], onDelete: Cascade)
+
+  @@unique([pagoId, parteDeCargoId])
+  @@index([tenantId, parteDeCargoId])
+  @@map("aplicacion_de_pago")
+  @@schema("public")
+}
+
+/// Como llego el dinero. Importa para conciliar: una transferencia se busca por
+/// folio en el banco; el efectivo, en el corte de caja.
+enum MetodoPago {
+  EFECTIVO
+  TRANSFERENCIA
+  DEPOSITO
+  TARJETA
+  OTRO
 
   @@schema("public")
 }

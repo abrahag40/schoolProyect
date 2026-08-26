@@ -213,15 +213,25 @@ export default function PantallaPanel() {
       )}
 
       {hijos.map((h) => (
-        <View
+        // La tarjeta lleva al estado de cuenta: es la pregunta que mas trae de
+        // vuelta a la familia, y esconderla tras un menu la convierte en una
+        // llamada a la escuela.
+        <Pressable
           key={h.id}
-          accessible
+          onPress={() => router.push({ pathname: '/estado-de-cuenta', params: { alumnoId: h.id } })}
+          accessibilityRole="button"
           accessibilityLabel={`${h.nombre} ${h.apellidos}, ${
             h.cohorte
               ? `${TIPO_COHORTE[h.cohorte.tipo] ?? 'Grupo'} ${h.cohorte.nombre}`
               : 'sin grupo'
-          }, ${h.escuela}`}
-          style={{ backgroundColor: c.superficie, borderRadius: 12, padding: 16, gap: 6 }}
+          }, ${h.escuela}. Ver estado de cuenta.`}
+          style={{
+            backgroundColor: c.superficie,
+            borderRadius: 12,
+            padding: 16,
+            gap: 6,
+            minHeight: AREA_TACTIL,
+          }}
         >
           <Text style={{ fontSize: 18, fontWeight: '600', color: c.titulo }}>
             {h.nombre} {h.apellidos}
@@ -233,7 +243,8 @@ export default function PantallaPanel() {
             {h.sede ? ` · ${h.sede}` : ''}
           </Text>
           <Text style={{ color: c.tenue, fontSize: 12 }}>{h.escuela}</Text>
-        </View>
+          <Text style={{ color: c.texto, fontSize: 13, marginTop: 2 }}>Ver estado de cuenta ›</Text>
+        </Pressable>
       ))}
 
       <Boton

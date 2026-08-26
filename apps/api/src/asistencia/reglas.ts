@@ -74,22 +74,12 @@ export function fechaLegible(fecha: string): string {
 }
 
 /**
- * El dia escolar segun la zona horaria de la escuela, en formato YYYY-MM-DD.
- *
- * Mexico tiene varias zonas (Baja California, Sonora, Quintana Roo) y el
- * servidor corre en UTC. Calcular "hoy" con la hora del servidor marcaria la
- * falta del dia equivocado a las escuelas del noroeste despues de las 17:00.
+ * El dia escolar vive en `comun/` desde el Sprint 5: la cobranza tambien lo
+ * necesita, y hacerla importar del modulo de pase de lista habria inventado un
+ * acoplamiento que no describe ninguna relacion real. Se reexporta para no
+ * romper a quien ya lo importaba desde aqui.
  */
-export function fechaEscolar(instante: Date, zonaHoraria: string): string {
-  // 'en-CA' produce exactamente YYYY-MM-DD; es el formato ISO sin rearmar
-  // partes a mano (donde se cuelan los ceros faltantes).
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: zonaHoraria,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(instante);
-}
+export { fechaEscolar } from '../comun/fecha-escolar.js';
 
 /** Primer dia de la ventana movil, inclusivo: 30 dias = hoy y 29 anteriores. */
 export function inicioDeVentana(fecha: string, dias: number): string {

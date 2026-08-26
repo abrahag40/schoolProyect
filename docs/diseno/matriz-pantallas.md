@@ -21,10 +21,10 @@ objetivo de diseño, no una descripción: si una pantalla lo supera, se rediseñ
 | #   | Pantalla                         | Quién la usa        | Trabajo que resuelve                   | Superficie | Pasos                   | Estado          |
 | --- | -------------------------------- | ------------------- | -------------------------------------- | ---------- | ----------------------- | --------------- |
 | 1   | **Home de la familia**           | Madre, padre, tutor | ¿Cómo va mi hijo, qué debo, qué sigue? | Móvil      | 0 (es el arranque)      | Construida (S2) |
-| 2   | **Estado de cuenta y pago**      | Tutor pagador       | Ver lo que debo y pagarlo              | Móvil      | 2 al pago               | Sprint 5        |
+| 2   | **Estado de cuenta y pago**      | Tutor pagador       | Ver lo que debo y pagarlo              | Móvil      | 2 al pago               | Parcial (S5)    |
 | 3   | **Inscripción / reinscripción**  | Tutor               | Inscribir sin ir a la escuela          | Móvil      | < 10 min, sin laptop    | Sprint 9        |
 | 4   | **Centro de avisos**             | Tutor               | Enterarme a tiempo y llegar al detalle | Móvil      | 1 al contenido          | Parcial (S3)    |
-| 5   | **Panel de morosidad**           | Dirección, cobranza | ¿Quién debe, desde cuándo, cuánto?     | Web        | 1 al detalle de familia | Sprint 5        |
+| 5   | **Panel de morosidad**           | Dirección, cobranza | ¿Quién debe, desde cuándo, cuánto?     | Web        | 1 al detalle de familia | Construida (S5) |
 | 6   | **Pase de lista**                | Docente             | Tomar asistencia de un grupo           | Web móvil  | < 30 s por grupo        | Construida (S3) |
 | 7   | **Alta de escuela (onboarding)** | Staff               | Dejar la escuela lista para operar     | Web        | Guiado por pasos        | Sprint 12       |
 | 8   | **Catálogo de cargos**           | Administración      | Definir qué se cobra y a quién         | Web        | 1 por concepto          | Construida (S4) |
@@ -61,7 +61,7 @@ Decisión: **una tarjeta por hijo, no un selector**. Con dos o tres hijos, un
 selector obliga a recordar en quién estás parado; las tarjetas se ven de un
 vistazo. Se revisa si aparecen familias de más de cinco alumnos.
 
-### 2 · Estado de cuenta y pago (móvil) — Sprint 5
+### 2 · Estado de cuenta y pago (móvil) — parcial desde el Sprint 5
 
 ```
 ┌──────────────────────────────┐
@@ -87,7 +87,17 @@ Objetivo duro: **dos toques al pago**. El corpus de reseñas muestra que el
 estado de cuenta confuso es queja recurrente del sector; aquí el desglose es
 parte de la pantalla, no un enlace aparte.
 
-### 5 · Panel de morosidad (web) — Sprint 5
+**Lo construido en el S5 y lo que falta.** El estado de cuenta existe: la cifra
+primero, el desglose a la vista, y la fecha real sin recargo dicha. Con una
+corrección al boceto que la realidad impuso: la cifra que encabeza es **la parte
+de quien pregunta**, no el total del cargo — con padres separados, mostrarle
+$2,450 a quien paga el 60% lo invita a pagar de más.
+
+**El botón "Pagar ahora" NO está**, y es deliberado: la pasarela es el Sprint 6.
+Un botón que no cobra es peor que su ausencia. Hasta entonces la pantalla dice
+cómo pagar, sin prometer lo que todavía no existe.
+
+### 5 · Panel de morosidad (web) — construida
 
 ```
 ┌────────────────────────────────────────────────────────┐
@@ -107,6 +117,20 @@ Decisiones: los tres números **arriba y siempre visibles** (es lo que el
 director mira primero); tabla operable con orden y exportación —el estándar de
 reportería que adoptamos dice que si hay que exportar a Excel para trabajar, el
 reporte falló—; y el detalle de familia a un clic, sin perder el contexto.
+
+**Lo construido en el S5 se apartó del boceto en tres puntos, todos por una
+razón:**
+
+1. **La lectura legal, hecha por el sistema.** Además de días y pesos, cada
+   familia muestra en qué punto del Artículo 7 está: cuántos meses vencidos
+   lleva, si la ley ya permite suspender el servicio y qué condiciones exige.
+   La escuela no debería tener que recordar la ley.
+2. **El pago se registra en la misma pantalla.** Ver quién debe y tener que ir
+   a otra sección a capturar el abono es la fricción que hace que caja siga
+   usando su libreta.
+3. **Tarjetas en vez de tabla, por ahora.** A 360 px una tabla de seis columnas
+   obliga a scrollear de lado. La exportación a Excel sigue pendiente: es E7,
+   Sprint 10.
 
 ### 6 · Pase de lista (web móvil) — construida
 

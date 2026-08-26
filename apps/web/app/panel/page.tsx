@@ -179,7 +179,12 @@ export default function PaginaPanel() {
                 Define qué cobra tu escuela y genera los cargos del mes. El sistema los reparte
                 entre quienes pagan y respeta los diez días sin recargo que marca la ley.
               </p>
-              <Boton onClick={() => router.push('/panel/catalogo')}>Catálogo de cargos</Boton>
+              <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
+                <Boton onClick={() => router.push('/panel/catalogo')}>Catálogo de cargos</Boton>
+                <Boton variante="secundario" onClick={() => router.push('/panel/morosidad')}>
+                  Ver cobranza
+                </Boton>
+              </div>
             </Tarjeta>
           )}
           <div

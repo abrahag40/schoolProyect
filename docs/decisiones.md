@@ -188,3 +188,24 @@ true)` dentro de una transaccion, nunca como ajuste de sesion. _(Motivo: con
   ejecutando solo el gate de tokens. Un check verde que no comprueba nada es
   peor que su ausencia: da una garantía falsa. Al implementarlo aparecieron 65
   hallazgos, dos de ellos defectos reales de React.)_
+
+### Nuevas del Sprint 5 (25-ago-2026)
+
+- **§47** — El saldo se **deriva**, nunca se guarda. Un cargo no cambia de
+  importe cuando alguien paga: se registra el pago, se aplica, y lo que falta es
+  una resta. _(Una columna de saldo hay que mantenerla sincronizada con cada
+  abono, y el día que la columna y la suma difieran nadie sabrá cuál de las dos
+  creer. Lo mismo vale para el estado `PAGADO` del cargo: no se escribe.)_
+- **§48** — Un pago es un **asiento** y se aplica **de lo más viejo a lo más
+  nuevo**. _(El Artículo 7 del Acuerdo DOF 10-mar-1992 cuenta COLEGIATURAS
+  vencidas —meses—, no pesos: saldar el mes corriente y dejar agosto abierto
+  mantiene a la familia en riesgo de suspensión aunque haya pagado lo mismo. Y
+  lo que sobra queda a favor, no se rechaza: una familia que paga por adelantado
+  no se equivocó.)_
+- **§49** — El `tsconfig.json` de cada paquete cubre **todo** su contenido
+  —fuentes, pruebas y archivos de configuración— y la compilación vive en
+  `tsconfig.build.json`. _(Con las pruebas fuera del proyecto, `pnpm typecheck`
+  ni las miraba: al incluirlas en el Sprint 5 aparecieron errores de tipo que
+  llevaban ahí desde el Sprint 1. Además obligaba a mantener una lista de
+  excepciones en el linter cuyo tope se alcanzaba cada vez que alguien agregaba
+  una prueba.)_

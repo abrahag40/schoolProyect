@@ -14,7 +14,7 @@
   },
   "scripts": {
     "generate": "prisma generate",
-    "build": "prisma generate && tsc -p tsconfig.json",
+    "build": "prisma generate && tsc -p tsconfig.build.json",
     "migrate:dev": "node scripts/ensure-app-role.mjs && prisma migrate dev",
     "migrate:deploy": "node scripts/ensure-app-role.mjs && prisma migrate deploy && node scripts/ensure-app-role.mjs --grants-only",
     "studio": "prisma studio",

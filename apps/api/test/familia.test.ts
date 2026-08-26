@@ -17,6 +17,19 @@ const ID_COLEGIO = '51111111-1111-4111-8111-111111111111';
 const ID_ACADEMIA = '52222222-2222-4222-8222-222222222222';
 const CONTRASENA = 'prueba-familia-2026';
 
+/** Lo que devuelve `GET /mis-hijos`. Declarado para que el compilador proteja
+ *  cada afirmacion en vez de arrastrar datos sin tipo. */
+interface HijoRespuesta {
+  id: string;
+  nombre: string;
+  apellidos: string;
+  cohorte: { nombre: string; tipo: string } | null;
+  sede: string | null;
+  escuela: string;
+  parentesco: string;
+  soyPagador: boolean;
+}
+
 let app: INestApplication;
 let base: string;
 let owner: pg.Client;
@@ -153,7 +166,8 @@ async function login(escuela: string, email: string) {
   });
   return {
     estado: r.status,
-    cuerpo: await r.json(),
+    // Tipado en la frontera: de aqui en adelante el compilador protege.
+    cuerpo: (await r.json()) as { token: string },
     // La cookie tal como el navegador la recibiria.
     cookie: r.headers.get('set-cookie') ?? '',
   };
@@ -201,14 +215,14 @@ describe('mis hijos', () => {
     const r = await fetch(`${base}/mis-hijos`, {
       headers: { Authorization: `Bearer ${cuerpo.token}` },
     });
-    const hijos = await r.json();
+    const hijos = (await r.json()) as HijoRespuesta[];
 
     expect(hijos).toHaveLength(2);
-    expect(hijos.map((h: { nombre: string }) => h.nombre).sort()).toEqual(['Ana', 'Luis']);
-    expect(hijos[0].cohorte).toMatchObject({ nombre: '2o B', tipo: 'GRADO' });
-    expect(hijos[0].escuela).toBe('Colegio F');
-    expect(hijos[0].parentesco).toBe('MADRE');
-    expect(hijos[0].soyPagador).toBe(true);
+    expect(hijos.map((h) => h.nombre).sort()).toEqual(['Ana', 'Luis']);
+    expect(hijos[0]!.cohorte).toMatchObject({ nombre: '2o B', tipo: 'GRADO' });
+    expect(hijos[0]!.escuela).toBe('Colegio F');
+    expect(hijos[0]!.parentesco).toBe('MADRE');
+    expect(hijos[0]!.soyPagador).toBe(true);
   });
 
   it('el mismo correo en otra escuela devuelve a OTRA familia', async () => {
@@ -216,11 +230,11 @@ describe('mis hijos', () => {
     const r = await fetch(`${base}/mis-hijos`, {
       headers: { Authorization: `Bearer ${cuerpo.token}` },
     });
-    const hijos = await r.json();
+    const hijos = (await r.json()) as HijoRespuesta[];
     expect(hijos).toHaveLength(1);
-    expect(hijos[0].nombre).toBe('Otro');
+    expect(hijos[0]!.nombre).toBe('Otro');
     // La cohorte habla el idioma de SU vertical.
-    expect(hijos[0].cohorte.tipo).toBe('CATEGORIA');
+    expect(hijos[0]!.cohorte!.tipo).toBe('CATEGORIA');
     // Y no hay rastro de los alumnos de la otra escuela.
     expect(JSON.stringify(hijos)).not.toContain('Perez');
   });
@@ -280,7 +294,8 @@ describe('notificaciones', () => {
     });
 
     const envio = await fetch(`${base}/notificaciones/prueba`, { method: 'POST', headers: auth });
-    expect((await envio.json()).dispositivos).toBe(1);
+    const resumen = (await envio.json()) as { dispositivos: number };
+    expect(resumen.dispositivos).toBe(1);
   });
 
   it('un token con formato invalido se rechaza con 400, no con 500', async () => {
@@ -295,9 +310,9 @@ describe('notificaciones', () => {
     });
 
     expect(r.status).toBe(400);
-    const error = await r.json();
+    const error = (await r.json()) as { detalles: Array<{ campo: string; mensaje: string }> };
     // Y el detalle dice QUE campo y POR QUE, en lenguaje de persona.
     expect(error.detalles[0]).toMatchObject({ campo: 'token' });
-    expect(error.detalles[0].mensaje).toMatch(/no es valido/i);
+    expect(error.detalles[0]!.mensaje).toMatch(/no es valido/i);
   });
 });

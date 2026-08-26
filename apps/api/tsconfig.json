@@ -1,8 +1,7 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "outDir": "dist",
-    "rootDir": "src",
+    "noEmit": true,
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "types": ["node"],
@@ -15,5 +14,9 @@
     // Los decoradores de Nest usan patrones que TS marca como no usados.
     "noUnusedParameters": false
   },
-  "include": ["src/**/*.ts"]
+  // Cubre TODO el paquete: pruebas y archivos de configuracion incluidos.
+  // No emite (de eso se encarga tsconfig.build.json). Asi el editor y el
+  // analisis estatico con tipos resuelven cada archivo sin proyectos de
+  // respaldo — el papercut que aparecia cada vez que se agregaba una prueba.
+  "include": ["src/**/*.ts", "test/**/*.ts", "*.config.ts"]
 }

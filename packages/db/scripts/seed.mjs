@@ -288,13 +288,19 @@ try {
       cohorteIds.push(rows[0].id);
     }
 
-    // Parametros de asistencia. Se siembran explicitos aunque coincidan con los
-    // valores por omision: una escuela sin fila dependeria del default del
-    // codigo, y el dia que ese default cambie, cambiaria bajo sus pies.
+    // Parametros de asistencia y cobranza. Se siembran explicitos aunque
+    // coincidan con los valores por omision: una escuela sin fila dependeria
+    // del default del codigo, y el dia que ese default cambie, cambiaria bajo
+    // sus pies.
+    //
+    // El recargo va en 3.5% para que la demo lo ejercite. Los diez dias de
+    // gracia NO se pueden bajar de ahi por mucho que se configure: el piso lo
+    // impone el dominio (Art. 4 del Acuerdo DOF 10-mar-1992).
     await q(
       `INSERT INTO configuracion_escuela
-         (id, tenant_id, umbral_faltas, ventana_dias, avisar_falta_del_dia, zona_horaria, actualizado_en)
-       VALUES (gen_random_uuid(), $1, 3, 30, true, 'America/Mexico_City', now())`,
+         (id, tenant_id, umbral_faltas, ventana_dias, avisar_falta_del_dia, zona_horaria,
+          dia_vencimiento_por_omision, dias_gracia_sin_recargo, recargo_porcentaje, actualizado_en)
+       VALUES (gen_random_uuid(), $1, 3, 30, true, 'America/Mexico_City', 5, 10, 3.50, now())`,
       [e.id],
     );
 

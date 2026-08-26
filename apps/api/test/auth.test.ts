@@ -19,6 +19,22 @@ const ID_COLEGIO = '31111111-1111-4111-8111-111111111111';
 const ID_ACADEMIA = '32222222-2222-4222-8222-222222222222';
 const CONTRASENA = 'prueba-azahar-2026';
 
+/** Lo que responde el login y `GET /mi-escuela`. Declarado una vez, para que el
+ *  compilador proteja cada afirmacion en vez de arrastrar datos sin tipo. */
+interface SesionRespuesta {
+  token: string;
+  usuario: { id: string; nombre: string; roles: string[] };
+  escuela: { id: string; nombre: string; vertical: string };
+  /// Presente solo cuando el login RECHAZA. El mensaje es generico a proposito.
+  message?: string;
+}
+
+interface EscuelaRespuesta {
+  escuela: { nombre: string; vertical: string } | null;
+  sedes: Array<{ id: string; nombre: string; cct: string | null; rvoe: string | null }>;
+  misRoles: string[];
+}
+
 let app: INestApplication;
 let base: string;
 let owner: pg.Client;
@@ -98,7 +114,8 @@ async function login(escuela: string, email = 'admin@prueba.mx', contrasena = CO
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ escuela, email, contrasena }),
   });
-  return { estado: r.status, cuerpo: await r.json().catch(() => null) };
+  // Tipado en la frontera de red: de aqui en adelante el compilador protege.
+  return { estado: r.status, cuerpo: (await r.json().catch(() => null)) as SesionRespuesta };
 }
 
 describe('salud', () => {
@@ -182,15 +199,15 @@ describe('datos protegidos', () => {
       headers: { Authorization: `Bearer ${academia.cuerpo.token}` },
     });
 
-    const dc = await rc.json();
-    const da = await ra.json();
+    const dc = (await rc.json()) as EscuelaRespuesta;
+    const da = (await ra.json()) as EscuelaRespuesta;
 
-    expect(dc.escuela.nombre).toBe('Colegio Prueba');
+    expect(dc.escuela!.nombre).toBe('Colegio Prueba');
     expect(dc.sedes).toHaveLength(1);
-    expect(dc.sedes[0].nombre).toBe('Campus Unico');
+    expect(dc.sedes[0]!.nombre).toBe('Campus Unico');
 
-    expect(da.escuela.nombre).toBe('Academia Prueba');
-    expect(da.sedes[0].nombre).toBe('Cancha Unica');
+    expect(da.escuela!.nombre).toBe('Academia Prueba');
+    expect(da.sedes[0]!.nombre).toBe('Cancha Unica');
 
     // Ninguna respuesta contiene rastro de la otra escuela.
     expect(JSON.stringify(dc)).not.toContain('Cancha');
@@ -204,17 +221,17 @@ describe('datos protegidos', () => {
     const r = await fetch(`${base}/mi-escuela`, {
       headers: { Authorization: `Bearer ${academia.cuerpo.token}` },
     });
-    const datos = await r.json();
-    expect(datos.sedes[0].cct).toBeNull();
-    expect(datos.sedes[0].rvoe).toBeNull();
+    const datos = (await r.json()) as EscuelaRespuesta;
+    expect(datos.sedes[0]!.cct).toBeNull();
+    expect(datos.sedes[0]!.rvoe).toBeNull();
 
     const colegio = await login('colegio-prueba');
     const r2 = await fetch(`${base}/mi-escuela`, {
       headers: { Authorization: `Bearer ${colegio.cuerpo.token}` },
     });
-    const datos2 = await r2.json();
-    expect(datos2.sedes[0].cct).toBe('31PPR9999Z');
-    expect(datos2.sedes[0].rvoe).toBe('ACUERDO 999/2024');
+    const datos2 = (await r2.json()) as EscuelaRespuesta;
+    expect(datos2.sedes[0]!.cct).toBe('31PPR9999Z');
+    expect(datos2.sedes[0]!.rvoe).toBe('ACUERDO 999/2024');
   });
 
   it('la respuesta no filtra columnas internas (contrato explicito, §31)', async () => {

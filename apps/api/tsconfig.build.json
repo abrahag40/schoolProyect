@@ -1,0 +1,12 @@
+{
+  // Compilacion: SOLO `src`. Separado de tsconfig.json para que las pruebas
+  // puedan estar en el proyecto del editor y del linter sin terminar dentro
+  // de dist. Es lo que usa el Dockerfile.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "dist",
+    "rootDir": "src"
+  },
+  "include": ["src/**/*.ts"]
+}

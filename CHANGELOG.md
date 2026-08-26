@@ -5,6 +5,65 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) · Versiona
 Se escribe desde el primer commit, no al final: reconstruir la historia despues
 es caro; anotarla por release es gratis.
 
+## [0.6.0] — 2026-08-25 — Sprint 5: Estado de cuenta y morosidad
+
+Objetivo: que la familia vea **exactamente lo que debe y por qué**, que la
+escuela vea **quién le debe y desde cuándo** sin exportar a Excel, y que un pago
+registrado a mano se aplique al pagador correcto sin ambigüedad.
+
+**Cambio C2 trazado:** el Plan Maestro especificaba "Cobranza II: dinero real"
+(pago en línea + conciliación + POC Facturama). Se sustituyó porque el pago en
+línea depende de tres cosas inexistentes —decisión de proveedor, cuenta de
+comercio y staging, ya que un webhook no llega a `localhost`—. Este sprint
+recupera además el estado de cuenta (M4.5), que el Plan comprometía en el S4.
+
+### Agregado
+
+- **Estado de cuenta de la familia (AZ-M4.5)** — pantalla 2 de la matriz D10.
+  Cada pagador ve **su parte**, no el total: mostrarle $2,450 a quien paga el
+  60% lo invita a pagar de más. Con desglose a la vista —el "por qué" no puede
+  estar detrás de un enlace— y la fecha real sin recargo dicha, no deducida.
+- **Panel de morosidad (AZ-M4.8)** — pantalla 5. Los tres números arriba y
+  juntos, y **la lectura legal ya hecha**: el panel dice si el Artículo 7 ya
+  permite suspender el servicio, cuántos meses faltan si aún no, y recuerda que
+  hacen falta 15 días de aviso y que el alumno conserva su documentación.
+- **Registro manual de pagos (AZ-M4.9)**, aplicado **de lo más viejo a lo más
+  nuevo**: los meses vencidos —no los pesos— son lo que la ley cuenta. Lo que
+  sobra queda a favor de la familia en vez de rechazarse.
+- **Recargo por mora (AZ-M4.6a)** calculado sobre la fecha límite que ya venía
+  congelada en cada cargo desde el S4. No hay forma de cobrarlo antes: el dato
+  no lo permite.
+
+### Corregido
+
+- **`pnpm typecheck` no miraba las pruebas.** Estaban fuera del `tsconfig` de su
+  paquete, así que nunca se les comprobaron los tipos. Al incluirlas aparecieron
+  errores que llevaban ahí desde el Sprint 1. Ahora cada paquete tiene un
+  proyecto que cubre todo su contenido y la compilación va en
+  `tsconfig.build.json` (§49).
+- **Dos defectos de la pantalla de morosidad, vistos en el navegador y no
+  supuestos:** los importes se desbordaban de sus tarjetas a 360 px —y la página
+  scrolleaba de lado—, y una familia sin pagadores registrados mostraba
+  "Paga:" seguido de nada. Ahora los tres números caben, los importes llevan
+  separadores de millar y el vacío se dice ("Sin pagador registrado").
+
+### Seguridad y datos
+
+- Dos tablas nuevas (`pago`, `aplicacion_de_pago`) con RLS habilitado y forzado,
+  más pruebas de aislamiento: no se puede registrarle un pago a un tutor de otra
+  escuela ni con su identificador en la mano.
+- **El vínculo tutor–alumno se comprueba siempre** en el estado de cuenta: RLS
+  no separa a dos familias de la misma escuela, eso lo hace el `WHERE`.
+- Restricciones en la base: un pago de cero o negativo no entra, y cancelar
+  exige motivo.
+
+### Documentación
+
+- `docs/sprints/S5-estado-de-cuenta.md` — Sprint Backlog con el cambio C2.
+- Decisiones §47–§49.
+- **Revisión del Plan Maestro v1.2**: comprometido contra entregado sprint por
+  sprint, avance por épica, y la brecha de alcance de S3 y S4 reconocida.
+
 ## [0.5.0] — 2026-08-25 — Sprint 4: El dinero
 
 Objetivo: que cada escuela defina **qué cobra y a quién**, y que el sistema

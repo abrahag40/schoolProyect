@@ -55,27 +55,12 @@ export default tseslint.config(
         // projectService resuelve el tsconfig de cada archivo solo. La
         // alternativa (listar seis proyectos a mano) se desincroniza el día
         // que alguien agrega un paquete.
-        projectService: {
-          // Pruebas y archivos de configuración: quedan fuera del tsconfig de
-          // su paquete a propósito (compilarlos metería las pruebas dentro de
-          // dist). Sin este respaldo, ESLint no resolvería sus tipos y las
-          // reglas con información de tipos quedarían apagadas justo ahí.
-          allowDefaultProject: [
-            'apps/api/test/*.ts',
-            'apps/api/vitest.config.ts',
-            'packages/db/test/*.ts',
-            'packages/db/vitest.config.ts',
-            'packages/db/prisma.config.ts',
-          ],
-          defaultProject: 'tsconfig.eslint.json',
-          // El tope por omisión es 8 y aquí caen 9 archivos —los enumerados
-          // arriba, ni uno más—. Se sube a 12 a sabiendas: el nombre de la
-          // opción avisa que el proyecto por omisión es lento, y lo es cuando
-          // barre un repositorio entero. Con una lista cerrada y explícita el
-          // costo es de milisegundos, y la alternativa (mover las pruebas al
-          // tsconfig de compilación) las metería dentro de dist.
-          maximumDefaultProjectFileMatchCount_THIS_WILL_SLOW_DOWN_LINTING: 12,
-        },
+        // Cada paquete tiene un tsconfig que cubre TODO su contenido —fuentes,
+        // pruebas y configuracion— asi que projectService resuelve cualquier
+        // archivo sin proyectos de respaldo. Antes hacia falta enumerar
+        // excepciones y subir un tope, y ese tope se alcanzaba cada vez que
+        // alguien agregaba una prueba: se arreglo de raiz en el Sprint 5.
+        projectService: true,
         tsconfigRootDir: import.meta.dirname,
       },
     },
