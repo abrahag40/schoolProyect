@@ -10,6 +10,7 @@ import { aCentavos, aMonto } from './reglas.js';
 import { fechaEscolar } from '../comun/fecha-escolar.js';
 import {
   aplicarPago,
+  puedeDevolverse,
   recargoAplicable,
   saldoDeParte,
   situacionLegal,
@@ -17,6 +18,7 @@ import {
   type ParteAbierta,
   type SituacionLegal,
 } from './saldos.js';
+import { aplicaAcuerdoProfeco, avisosFiscales, type Vertical } from './marco-legal.js';
 
 const ROLES_COBRANZA = ['DUENO', 'DIRECTOR', 'ADMIN', 'COBRANZA'];
 
@@ -64,6 +66,12 @@ export interface EstadoDeCuenta {
   totalAPagar: string;
   recargoTotal: string;
   saldoAFavor: string;
+  /// Si ese saldo a favor se puede pedir de vuelta hoy, y por que no cuando no
+  /// se puede. La familia tiene derecho a saberlo sin ir a preguntar.
+  devolucionDeSaldo: { permitido: boolean; motivo: string };
+  /// Lo que conviene saber ANTES de pagar (AZ-M4.5b). Hoy es uno solo: el
+  /// efectivo mata la deducibilidad.
+  avisos: string[];
 }
 
 export interface FamiliaMorosa {
@@ -104,6 +112,12 @@ export class ServicioPagos {
   private async recargoPorcentaje(tx: Transaccion): Promise<number> {
     const config = await tx.configuracionEscuela.findFirst();
     return Number(config?.recargoPorcentaje ?? 0);
+  }
+
+  /** Que ley obliga a este tenant (§51). Ante la ausencia del dato, la que protege. */
+  private async verticalDe(tx: Transaccion): Promise<Vertical> {
+    const tenant = await tx.tenant.findFirst({ select: { vertical: true } });
+    return tenant?.vertical ?? 'COLEGIO';
   }
 
   /**
@@ -273,7 +287,7 @@ export class ServicioPagos {
       const cargos = await tx.cargo.findMany({
         where: { alumnoId, estado: { not: 'CANCELADO' } },
         include: {
-          concepto: { select: { nombre: true } },
+          concepto: { select: { nombre: true, deducibleIedu: true, esColegiatura: true } },
           partes: { include: { aplicaciones: true } },
         },
         orderBy: [{ periodo: 'asc' }, { fechaVencimiento: 'asc' }],
@@ -281,6 +295,7 @@ export class ServicioPagos {
 
       let totalCentavos = 0;
       let recargoCentavos = 0;
+      const paraDevolucion: CargoParaMora[] = [];
 
       const detalle: CargoEnEstadoDeCuenta[] = cargos.map((c) => {
         const mia = c.partes.find((p) => p.tutorId === tutor.id);
@@ -300,6 +315,12 @@ export class ServicioPagos {
 
         totalCentavos += miSaldo;
         recargoCentavos += recargo;
+        paraDevolucion.push({
+          periodo: c.periodo,
+          saldoCentavos: miSaldo,
+          fechaLimiteSinRecargo: limite,
+          esColegiatura: c.concepto.esColegiatura,
+        });
 
         return {
           concepto: c.concepto.nombre,
@@ -333,6 +354,15 @@ export class ServicioPagos {
         totalAPagar: aMonto(totalCentavos),
         recargoTotal: aMonto(recargoCentavos),
         saldoAFavor: aMonto(aFavor),
+        devolucionDeSaldo: puedeDevolverse(aFavor, paraDevolucion, hoy),
+        // El aviso se calcula sobre lo que esta familia debe de verdad: si
+        // ninguno de sus cargos es deducible, decirle como pagar para deducir
+        // seria ruido.
+        avisos: avisosFiscales({
+          hayConceptosDeducibles: cargos.some(
+            (c) => c.concepto.deducibleIedu && c.partes.some((p) => p.tutorId === tutor.id),
+          ),
+        }),
       };
     });
   }
@@ -353,11 +383,16 @@ export class ServicioPagos {
 
     return conTenant(sesion.tenantId, async (tx) => {
       const hoy = await this.hoyEscolar(tx);
+      // Si a esta institucion la alcanza el Acuerdo (§51). Sin esto el panel le
+      // decia a una universidad que "la ley permite suspender a partir de 3",
+      // que es una ley que no la obliga.
+      const aplicaElAcuerdo = aplicaAcuerdoProfeco(await this.verticalDe(tx));
 
       const cargos = await tx.cargo.findMany({
         where: { estado: { not: 'CANCELADO' } },
         include: {
           alumno: { select: { id: true, nombre: true, apellidos: true } },
+          concepto: { select: { esColegiatura: true } },
           partes: {
             include: {
               tutor: { select: { id: true, nombre: true, apellidos: true } },
@@ -407,6 +442,7 @@ export class ServicioPagos {
           periodo: c.periodo,
           saldoCentavos: saldo,
           fechaLimiteSinRecargo: limite,
+          esColegiatura: c.concepto.esColegiatura,
         });
         for (const p of c.partes) {
           fila.pagadores.set(p.tutor.id, `${p.tutor.nombre} ${p.tutor.apellidos}`);
@@ -432,7 +468,7 @@ export class ServicioPagos {
                   86_400_000,
               )
             : 0,
-          situacion: situacionLegal(f.cargos, hoy),
+          situacion: situacionLegal(f.cargos, hoy, aplicaElAcuerdo),
         }))
         // Lo mas urgente primero: mas dias de atraso, y a igualdad, mas dinero.
         .sort((a, b) => b.diasDeAtraso - a.diasDeAtraso || aCentavos(b.saldo) - aCentavos(a.saldo));

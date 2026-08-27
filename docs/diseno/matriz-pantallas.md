@@ -18,16 +18,16 @@ prototipo navegable se hace en la Fase 2, sobre lo que aquí quede acordado.
 `Pasos` = interacciones desde el ingreso hasta completar la tarea. Es un
 objetivo de diseño, no una descripción: si una pantalla lo supera, se rediseña.
 
-| #   | Pantalla                         | Quién la usa        | Trabajo que resuelve                   | Superficie | Pasos                   | Estado          |
-| --- | -------------------------------- | ------------------- | -------------------------------------- | ---------- | ----------------------- | --------------- |
-| 1   | **Home de la familia**           | Madre, padre, tutor | ¿Cómo va mi hijo, qué debo, qué sigue? | Móvil      | 0 (es el arranque)      | Construida (S2) |
-| 2   | **Estado de cuenta y pago**      | Tutor pagador       | Ver lo que debo y pagarlo              | Móvil      | 2 al pago               | Parcial (S5)    |
-| 3   | **Inscripción / reinscripción**  | Tutor               | Inscribir sin ir a la escuela          | Móvil      | < 10 min, sin laptop    | Sprint 9        |
-| 4   | **Centro de avisos**             | Tutor               | Enterarme a tiempo y llegar al detalle | Móvil      | 1 al contenido          | Parcial (S3)    |
-| 5   | **Panel de morosidad**           | Dirección, cobranza | ¿Quién debe, desde cuándo, cuánto?     | Web        | 1 al detalle de familia | Construida (S5) |
-| 6   | **Pase de lista**                | Docente             | Tomar asistencia de un grupo           | Web móvil  | < 30 s por grupo        | Construida (S3) |
-| 7   | **Alta de escuela (onboarding)** | Staff               | Dejar la escuela lista para operar     | Web        | Guiado por pasos        | Sprint 12       |
-| 8   | **Catálogo de cargos**           | Administración      | Definir qué se cobra y a quién         | Web        | 1 por concepto          | Construida (S4) |
+| #   | Pantalla                         | Quién la usa        | Trabajo que resuelve                   | Superficie | Pasos                   | Estado             |
+| --- | -------------------------------- | ------------------- | -------------------------------------- | ---------- | ----------------------- | ------------------ |
+| 1   | **Home de la familia**           | Madre, padre, tutor | ¿Cómo va mi hijo, qué debo, qué sigue? | Móvil      | 0 (es el arranque)      | Construida (S2)    |
+| 2   | **Estado de cuenta y pago**      | Tutor pagador       | Ver lo que debo y pagarlo              | Móvil      | 2 al pago               | Parcial (S5)       |
+| 3   | **Inscripción / reinscripción**  | Tutor               | Inscribir sin ir a la escuela          | Móvil      | < 10 min, sin laptop    | Sprint 9           |
+| 4   | **Centro de avisos**             | Tutor               | Enterarme a tiempo y llegar al detalle | Móvil      | 1 al contenido          | Parcial (S3)       |
+| 5   | **Panel de morosidad**           | Dirección, cobranza | ¿Quién debe, desde cuándo, cuánto?     | Web        | 1 al detalle de familia | Construida (S5)    |
+| 6   | **Pase de lista**                | Docente             | Tomar asistencia de un grupo           | Web móvil  | < 30 s por grupo        | Construida (S3)    |
+| 7   | **Alta de escuela (onboarding)** | Staff               | Dejar la escuela lista para operar     | Web        | Guiado por pasos        | Sprint 12          |
+| 8   | **Catálogo de cargos**           | Administración      | Definir qué se cobra y a quién         | Web        | 1 por concepto          | Construida (S4·S5) |
 
 **Fuera de esta matriz, por decisión:** la consola de ZaharDev (pantallas 9–11
 del cambio C1) es producto interno y se especifica con su épica; no compite por
@@ -93,9 +93,17 @@ corrección al boceto que la realidad impuso: la cifra que encabeza es **la part
 de quien pregunta**, no el total del cargo — con padres separados, mostrarle
 $2,450 a quien paga el 60% lo invita a pagar de más.
 
-**El botón "Pagar ahora" NO está**, y es deliberado: la pasarela es el Sprint 6.
-Un botón que no cobra es peor que su ausencia. Hasta entonces la pantalla dice
-cómo pagar, sin prometer lo que todavía no existe.
+**El botón "Pagar ahora" NO está**, y es deliberado: la pasarela es el Sprint 7
+(era el 6 antes del cambio C3). Un botón que no cobra es peor que su ausencia.
+Hasta entonces la pantalla dice cómo pagar, sin prometer lo que todavía no
+existe.
+
+**Dos cosas que la ampliación C3 agregó a esta pantalla.** La primera es una
+frase que hasta ahora era mentira: el saldo a favor "se aplicará al próximo
+cargo". Ahora se aplica de verdad, así que la frase se queda. La segunda es un
+**aviso fiscal** antes de pagar —el efectivo cuesta la deducción—, que ningún
+sistema del sector le dice a la familia y que cuesta una línea de texto. Va como
+`alert` accesible y con barra lateral, nunca solo con color.
 
 ### 5 · Panel de morosidad (web) — construida
 

@@ -216,3 +216,33 @@ true)` dentro de una transaccion, nunca como ajuste de sesion. _(Motivo: con
   frágil es como una suite deja de correrse. Y se preparan solas: sembrar y
   generar datos a mano antes de correrlas es una instrucción que alguien va a
   olvidar, y entonces se culpa a la prueba en vez de al defecto.)_
+- **§51** — Toda regla legal que acote el cobro se declara **por vertical**, y el
+  ámbito vive en el dominio junto con la regla (`marco-legal.ts`), nunca en la
+  pantalla. El Acuerdo DOF 10-mar-1992 alcanza a los particulares con RVOE de
+  educación básica y normal: en nuestro modelo, al vertical `COLEGIO`. A una
+  universidad, una academia o un taller **no** se les impone su ventana de
+  gracia, su aviso de 60 días ni su umbral de suspensión. _(Aplicar la ley "por
+  si acaso" suena prudente y no lo es: le impone al cliente obligaciones que su
+  contrato no tiene y encima le afirma en pantalla que son la ley. Eso es
+  informarle mal sobre su propia obligación legal. El mapeo vertical→ámbito es
+  inferencia nuestra y está marcada como tal en el módulo: el día que exista una
+  academia con RVOE de básica habrá que preguntar por el RVOE del plantel.)_
+- **§52** — El contador del Artículo 7 cuenta **colegiaturas, no adeudos**. Un
+  concepto declara si lo es (`esColegiatura`) y nace en `false`: el sistema no
+  adivina cuál de los cobros mensuales de una escuela es la colegiatura y cuál
+  el comedor. _(De los dos errores posibles, contar de menos cuesta dinero —la
+  escuela no suspende cuando podría— y contar de más cuesta una multa —suspende
+  cuando la ley todavía no se lo permite—. El defecto real: hasta el Sprint 5
+  tres excursiones impagas empujaban a una familia al umbral de suspensión sin
+  deber una sola colegiatura.)_
+- **§53** — Las funcionalidades **legalmente prohibidas no se construyen**, ni
+  desactivadas, ni detrás de una bandera: retener documentos por adeudo (LGE
+  art. 146 y 170-XXII, multa de 1,001 a 7,000 UMA) y exhibir morosos (Acuerdo
+  9.º). Ninguna exportación ni notificación grupal puede identificar a un alumno
+  por su adeudo. _(Una casilla apagada es una invitación encendida: alguien la
+  prende un lunes de corte y la multa la paga el cliente.)_
+- **§54** — Ningún dato de incumplimiento de pago sobrevive **72 meses**
+  (LFPDPPP 2025, art. 10). _(Un alumno pasa seis años en primaria: cualquier
+  "historial completo de pagos" viola la ley por construcción. Se escribe ahora
+  aunque la purga se implemente en el sprint de reportes, porque el dato que hoy
+  se acumula es el que mañana hay que borrar.)_

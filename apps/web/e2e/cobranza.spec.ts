@@ -91,6 +91,43 @@ test.describe('panel de cobranza a 360 px', () => {
   });
 });
 
+test.describe('catálogo de cargos a 360 px', () => {
+  test('cada concepto DICE si cuenta para el Artículo 7, en positivo y en negativo', async ({
+    page,
+  }) => {
+    await entrar(page);
+    await page.goto('/panel/catalogo');
+
+    // Si la marca solo apareciera cuando es cierta, nadie notaría que a su
+    // colegiatura le falta — y el contador de morosidad quedaría en cero sin
+    // que nadie entienda por qué. Por eso se muestra siempre (§52).
+    await expect(page.getByText('Cuenta para el Art. 7', { exact: true }).first()).toBeVisible();
+    await expect(page.getByText('No cuenta para el Art. 7', { exact: true }).first()).toBeVisible();
+
+    // Y el concepto que se cobra por cuenta de un tercero avisa que no consume
+    // el saldo a favor de la familia (AZ-M4.10).
+    await expect(page.getByText('Sin saldo a favor', { exact: true }).first()).toBeVisible();
+
+    const desbordado = await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    );
+    expect(desbordado, 'el catálogo scrollea horizontalmente a 360 px').toBe(false);
+  });
+
+  test('a un colegio se le afirma la ley; el texto sale del dominio, no de la pantalla', async ({
+    page,
+  }) => {
+    // El defecto §51 que la revisión visual cazó en este sprint: la ayuda decía
+    // "por ley, 10 días" a TODOS los tenants, incluidos aquellos a los que el
+    // Acuerdo de PROFECO no alcanza. Ahora la frase depende del marco legal que
+    // resuelve el API.
+    await entrar(page);
+    await page.goto('/panel/catalogo');
+    await expect(page.getByText(/Por ley se aceptan pagos sin recargo/)).toBeVisible();
+    await expect(page.getByText(/no la alcanza el Acuerdo de PROFECO/)).toHaveCount(0);
+  });
+});
+
 test.describe('quién entra a dónde', () => {
   test('una docente no ve la cobranza, y el panel no se la ofrece', async ({ page }) => {
     await entrar(page, 'maestra@colegioazahar.mx');

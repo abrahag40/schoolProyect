@@ -30,6 +30,8 @@ interface EstadoDeCuenta {
   totalAPagar: string;
   recargoTotal: string;
   saldoAFavor: string;
+  devolucionDeSaldo: { permitido: boolean; motivo: string };
+  avisos: string[];
 }
 
 const MESES = [
@@ -160,7 +162,7 @@ export default function PantallaEstadoDeCuenta() {
           {datos.saldoAFavor !== '0.00' && (
             <Text style={{ color: c.texto, marginTop: 4 }}>
               Además tienes <Text style={{ fontWeight: '700' }}>${datos.saldoAFavor}</Text> a favor,
-              que se aplicarán al próximo cargo.
+              que se aplicarán solos al próximo cargo.
             </Text>
           )}
         </View>
@@ -182,7 +184,7 @@ export default function PantallaEstadoDeCuenta() {
             )}
             {datos.saldoAFavor !== '0.00' && (
               <Text style={{ color: c.texto }}>
-                Tienes ${datos.saldoAFavor} a favor que ya se están aplicando.
+                Tienes ${datos.saldoAFavor} a favor. Se aplican solos a los cargos que vienen.
               </Text>
             )}
           </View>
@@ -236,6 +238,27 @@ export default function PantallaEstadoDeCuenta() {
               </View>
             ))}
           </View>
+
+          {/* AZ-M4.5b — lo que conviene saber ANTES de pagar. Ningún sistema
+              revisado en el estudio de cobranza se lo dice a la familia, y
+              cuesta una frase: pagar en efectivo una colegiatura deducible
+              hace perder la deducción entera, con el CFDI bien emitido. */}
+          {datos.avisos.map((aviso) => (
+            <View
+              key={aviso}
+              accessible
+              accessibilityRole="alert"
+              style={{
+                backgroundColor: c.superficie,
+                borderRadius: 12,
+                padding: 14,
+                borderLeftWidth: 4,
+                borderLeftColor: c.accionFondo,
+              }}
+            >
+              <Text style={{ color: c.texto, fontSize: 14 }}>{aviso}</Text>
+            </View>
+          ))}
 
           <Text style={{ color: c.tenue, fontSize: 13 }}>
             Para pagar, comunícate con la escuela. El pago desde la app llega pronto.

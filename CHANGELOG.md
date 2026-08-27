@@ -5,7 +5,7 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) · Versiona
 Se escribe desde el primer commit, no al final: reconstruir la historia despues
 es caro; anotarla por release es gratis.
 
-## [0.6.0] — 2026-08-25 — Sprint 5: Estado de cuenta y morosidad
+## [0.6.0] — 2026-08-27 — Sprint 5: Estado de cuenta, morosidad y saldo a favor
 
 Objetivo: que la familia vea **exactamente lo que debe y por qué**, que la
 escuela vea **quién le debe y desde cuándo** sin exportar a Excel, y que un pago
@@ -16,6 +16,11 @@ registrado a mano se aplique al pagador correcto sin ambigüedad.
 línea depende de tres cosas inexistentes —decisión de proveedor, cuenta de
 comercio y staging, ya que un webhook no llega a `localhost`—. Este sprint
 recupera además el estado de cuenta (M4.5), que el Plan comprometía en el S4.
+
+**Cambio C3 trazado (D14–D17, 26-ago-2026):** tras el estudio de escenarios de
+cobranza, el sprint se amplió con cuatro elementos sin tocar su Sprint Goal, y el
+plan se reestructuró: se inserta un Sprint 6 de cobranza configurable, el pago en
+línea pasa a un Sprint 7 condicionado, y **el MVP se mueve del Sprint 12 al 14**.
 
 ### Agregado
 
@@ -33,9 +38,36 @@ recupera además el estado de cuenta (M4.5), que el Plan comprometía en el S4.
 - **Recargo por mora (AZ-M4.6a)** calculado sobre la fecha límite que ya venía
   congelada en cada cargo desde el S4. No hay forma de cobrarlo antes: el dato
   no lo permite.
+- **El saldo a favor se aplica solo (AZ-M4.10)** — ampliación C3. Cuando la
+  escuela genera el periodo, el dinero que la familia ya entregó por adelantado
+  salda los cargos nuevos, **de lo más viejo a lo más nuevo y nunca hacia
+  atrás**. Con una bandera por concepto —tomada del manual de GES Educativo—
+  para que un cobro por cuenta de un tercero, como una excursión, no consuma ese
+  dinero sin que nadie lo decida. Y con la regla de que un saldo a favor **no se
+  devuelve mientras haya un cargo vencido**.
+- **Advertencia fiscal en el estado de cuenta (AZ-M4.5b)** — ampliación C3. La
+  familia se entera **antes de pagar** de que el efectivo le cuesta la deducción
+  (Decreto DOF 26-dic-2013, art. 1.9). Ningún sistema revisado en el estudio se
+  lo dice; cuesta una frase.
 
 ### Corregido
 
+- **El contador del Artículo 7 contaba adeudos, no colegiaturas (§52).** El panel
+  de morosidad sumaba cualquier cargo vencido, así que tres excursiones impagas
+  en tres meses distintos empujaban a una familia al umbral de suspensión **sin
+  deber una sola colegiatura** — y el panel se lo decía al director como si fuera
+  la ley. Ahora el catálogo declara qué concepto es colegiatura, y la marca nace
+  apagada: contar de menos cuesta dinero, contar de más cuesta una multa.
+- **Le imponíamos el Acuerdo de PROFECO a quien no lo debe (§51).** Desde el
+  Sprint 4 el dominio aplicaba la ventana de gracia, el aviso de 60 días y el
+  umbral de suspensión a **todos** los tenants, incluidas universidades y
+  academias, que su artículo 1.º no alcanza. Ahora el ámbito vive en el dominio
+  (`marco-legal.ts`) junto con la regla, y a una academia el panel le dice que lo
+  que puede hacer por falta de pago lo fija su reglamento, no la ley.
+- **La pantalla del catálogo afirmaba la ley a todo el mundo.** Cazado en la
+  revisión visual, no por las pruebas: el texto de ayuda decía "por ley, 10 días"
+  también a los tenants no cubiertos. El marco legal ahora viaja **ya resuelto**
+  desde el API, para que la regla no viva en dos sitios.
 - **`pnpm typecheck` no miraba las pruebas.** Estaban fuera del `tsconfig` de su
   paquete, así que nunca se les comprobaron los tipos. Al incluirlas aparecieron
   errores que llevaban ahí desde el Sprint 1. Ahora cada paquete tiene un

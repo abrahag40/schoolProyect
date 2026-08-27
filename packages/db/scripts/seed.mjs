@@ -115,6 +115,11 @@ try {
       // Lo que cobra un colegio. La colegiatura lleva bandera de deducible y
       // nivel educativo porque el complemento IEDU los exige; el comedor no,
       // porque no es un servicio educativo y no se puede deducir.
+      //
+      // Las dos banderas del Sprint 5 estan puestas a proposito para que la
+      // demo muestre los dos defectos ya corregidos: SOLO la colegiatura cuenta
+      // para el Articulo 7 (§52), y la excursion no consume saldo a favor
+      // porque se cobra por cuenta del operador que la presta.
       conceptos: [
         {
           clave: 'colegiatura-primaria',
@@ -124,6 +129,8 @@ try {
           dia: 5,
           deducible: true,
           nivel: 'PRIMARIA',
+          esColegiatura: true,
+          aceptaSaldoAFavor: true,
         },
         {
           clave: 'inscripcion',
@@ -133,6 +140,8 @@ try {
           dia: 15,
           deducible: false,
           nivel: null,
+          esColegiatura: false,
+          aceptaSaldoAFavor: true,
         },
         {
           clave: 'comedor',
@@ -142,6 +151,24 @@ try {
           dia: 5,
           deducible: false,
           nivel: null,
+          esColegiatura: false,
+          aceptaSaldoAFavor: true,
+        },
+        {
+          clave: 'excursion-museo',
+          nombre: 'Excursión al museo',
+          periodicidad: 'UNICO',
+          monto: '380.00',
+          dia: 20,
+          deducible: false,
+          nivel: null,
+          // No es colegiatura: tres excursiones impagas NO acercan a la familia
+          // a la suspension del servicio, por mas que sumen dinero.
+          esColegiatura: false,
+          // La escuela solo junta el dinero para el operador. Consumir con esto
+          // el saldo a favor de la familia sin que nadie lo decida la dejaria
+          // sin ese dinero para la colegiatura.
+          aceptaSaldoAFavor: false,
         },
       ],
       // Companeros de grupo SIN familia registrada en la app: es el estado real
@@ -208,6 +235,12 @@ try {
           dia: 10,
           deducible: false,
           nivel: null,
+          // Es la cuota periodica de esta academia, asi que se cuenta para la
+          // mora. Pero el vertical es ACADEMIA_DEPORTIVA: el Acuerdo de PROFECO
+          // no la alcanza (§51) y el panel se lo dice en vez de citarle una ley
+          // que no la obliga.
+          esColegiatura: true,
+          aceptaSaldoAFavor: true,
         },
       ],
       historial: [
@@ -309,10 +342,10 @@ try {
       await q(
         `INSERT INTO concepto_cargo
            (id, tenant_id, clave, nombre, periodicidad, monto_base, dia_vencimiento,
-            deducible_iedu, nivel_educativo, vigente_desde, avisado_en, activo,
-            creado_en, actualizado_en)
+            deducible_iedu, nivel_educativo, es_colegiatura, acepta_saldo_a_favor,
+            vigente_desde, avisado_en, activo, creado_en, actualizado_en)
          VALUES (gen_random_uuid(), $1, $2, $3, $4::"Periodicidad", $5, $6, $7,
-                 $8::"NivelEducativo", $9::date, $10::date, true, now(), now())`,
+                 $8::"NivelEducativo", $9, $10, $11::date, $12::date, true, now(), now())`,
         [
           e.id,
           c.clave,
@@ -322,6 +355,8 @@ try {
           c.dia,
           c.deducible,
           c.nivel,
+          c.esColegiatura ?? false,
+          c.aceptaSaldoAFavor ?? true,
           e.periodo.inicio,
           // Avisado con mas de 60 dias de anticipacion respecto a la vigencia,
           // como exige el Articulo 5-I: la demo tiene que ser un ejemplo valido.

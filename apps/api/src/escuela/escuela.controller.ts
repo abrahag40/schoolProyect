@@ -2,6 +2,11 @@ import { Controller, Get, Req, UseGuards } from '@nestjs/common';
 import { conTenant } from '@azahar/db';
 import { GuardSesion } from '../comun/sesion.guard.js';
 import type { Sesion } from '../comun/sesion.js';
+import {
+  aplicaAcuerdoProfeco,
+  diasDeAvisoExigidos,
+  pisoDeGracia,
+} from '../cobranza/marco-legal.js';
 
 /**
  * Contrato de salida explicito (§31).
@@ -20,6 +25,20 @@ export interface ResumenEscuela {
   totales: { alumnos: number; tutores: number; usuarios: number };
   /// Roles de quien pregunta, para que la interfaz muestre lo que puede hacer.
   misRoles: string[];
+  /// QUE LEY OBLIGA A ESTA ESCUELA, ya resuelto (§51).
+  ///
+  /// Viaja resuelto y no como "vertical" a secas por una razon de diseno: si la
+  /// interfaz tradujera vertical -> ley, la regla legal viviria en dos sitios y
+  /// el dia que cambie habria que acordarse del segundo. §45 dice que el limite
+  /// legal vive en el dominio; esto es el dominio contandole a la pantalla que
+  /// puede afirmar sin mentir.
+  marcoLegal: {
+    aplicaAcuerdoProfeco: boolean;
+    /// Dias que la ley obliga a aceptar sin recargo. Cero = no hay piso legal.
+    pisoSinRecargo: number;
+    /// Dias de aviso que la ley exige para subir un precio. Cero = lo fija el contrato.
+    avisoDeAjuste: number;
+  };
 }
 
 @Controller('mi-escuela')
@@ -52,8 +71,15 @@ export class ControladorEscuela {
           })
         : [];
 
+      const vertical = escuela?.vertical ?? 'COLEGIO';
+
       return {
         escuela: escuela && { nombre: escuela.nombre, vertical: escuela.vertical },
+        marcoLegal: {
+          aplicaAcuerdoProfeco: aplicaAcuerdoProfeco(vertical),
+          pisoSinRecargo: pisoDeGracia(vertical),
+          avisoDeAjuste: diasDeAvisoExigidos(vertical),
+        },
         sedes: sedes.map((s) => ({
           id: s.id,
           nombre: s.nombre,

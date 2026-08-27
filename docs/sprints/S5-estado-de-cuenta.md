@@ -1,11 +1,11 @@
 # Sprint 5 — Estado de cuenta y morosidad
 
-| Campo    | Valor                                                               |
-| -------- | ------------------------------------------------------------------- |
-| Estado   | EN CURSO — aprobado por el CEO el 25-ago-2026 (gate §8)             |
-| Rama     | `sprint-5-estado-de-cuenta`                                         |
-| Cambio   | **C2** — sustituye al "Sprint 5: dinero real" del Plan Maestro v1.1 |
-| Vigencia | Vivo durante el sprint; se congela al cerrarlo                      |
+| Campo    | Valor                                                             |
+| -------- | ----------------------------------------------------------------- |
+| Estado   | CERRADO — 27-ago-2026, tras la ampliación aprobada en el gate C3  |
+| Rama     | `sprint-5-estado-de-cuenta`                                       |
+| Cambio   | **C2** (sustituye al "S5: dinero real") · **C3** (ampliación D15) |
+| Vigencia | Vivo durante el sprint; se congela al cerrarlo                    |
 
 ---
 

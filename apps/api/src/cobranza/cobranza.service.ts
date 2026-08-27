@@ -18,8 +18,9 @@ import {
   periodoDe,
   repartir,
   RepartoInvalidoError,
-  DIAS_AVISO_AJUSTE,
 } from './reglas.js';
+import { diasDeAvisoExigidos, pisoDeGracia, type Vertical } from './marco-legal.js';
+import { aplicarSaldoAFavorPendiente } from './saldo-a-favor.js';
 
 /**
  * Quien administra el dinero de la escuela.
@@ -49,6 +50,11 @@ export interface ConceptoResumen {
   alcance: { cohorteId: string; nombre: string } | null;
   deducibleIedu: boolean;
   nivelEducativo: string | null;
+  /// Si cuenta para el umbral del Articulo 7 (§52). Viaja al cliente porque la
+  /// administracion tiene que poder verlo y corregirlo, no adivinarlo.
+  esColegiatura: boolean;
+  /// Si puede saldarse con el dinero que la familia ya tiene a favor.
+  aceptaSaldoAFavor: boolean;
   vigenteDesde: string;
   activo: boolean;
 }
@@ -89,6 +95,11 @@ export interface ResultadoGeneracion {
   /// Alumnos cuyo cargo se creo pero no se pudo repartir. No se ocultan: un
   /// cargo sin pagador es un dato incompleto que alguien tiene que arreglar.
   problemas: ProblemaDeGeneracion[];
+  /// Cuanto saldo a favor se consumio con los cargos recien generados. La
+  /// administracion tiene que verlo: es dinero que ya estaba en la caja y que
+  /// acaba de dejar de estar disponible para otra cosa (AZ-M4.10).
+  saldoAFavorAplicado: string;
+  familiasConSaldoAplicado: number;
 }
 
 @Injectable()
@@ -108,6 +119,17 @@ export class ServicioCobranza {
       diasGraciaSinRecargo: fila?.diasGraciaSinRecargo ?? 10,
       zonaHoraria: fila?.zonaHoraria ?? 'America/Mexico_City',
     };
+  }
+
+  /**
+   * El vertical del tenant, que es lo que decide QUE ley lo obliga (§51).
+   *
+   * Ante la ausencia del dato se asume COLEGIO, que es el caso cubierto por el
+   * Acuerdo: si algo va a fallar, que falle del lado que protege a la familia.
+   */
+  private async verticalDe(tx: Transaccion): Promise<Vertical> {
+    const tenant = await tx.tenant.findFirst({ select: { vertical: true } });
+    return tenant?.vertical ?? 'COLEGIO';
   }
 
   // -------------------------------------------------------------------------
@@ -136,6 +158,8 @@ export class ServicioCobranza {
         alcance: c.cohorte ? { cohorteId: c.cohorte.id, nombre: c.cohorte.nombre } : null,
         deducibleIedu: c.deducibleIedu,
         nivelEducativo: c.nivelEducativo,
+        esColegiatura: c.esColegiatura,
+        aceptaSaldoAFavor: c.aceptaSaldoAFavor,
         vigenteDesde: c.vigenteDesde.toISOString().slice(0, 10),
         activo: c.activo,
       }));
@@ -153,6 +177,8 @@ export class ServicioCobranza {
       cohorteId?: string;
       deducibleIedu?: boolean;
       nivelEducativo?: NivelEducativo;
+      esColegiatura?: boolean;
+      aceptaSaldoAFavor?: boolean;
       vigenteDesde: string;
       avisadoEn?: string;
     },
@@ -165,6 +191,17 @@ export class ServicioCobranza {
     if (entrada.deducibleIedu && !entrada.nivelEducativo) {
       throw new BadRequestException(
         'Un concepto deducible necesita nivel educativo: el complemento IEDU lo exige.',
+      );
+    }
+
+    // El Articulo 7 cuenta colegiaturas "equivalentes a cuando menos tres
+    // meses": un cobro de una sola vez —la inscripcion, una credencial— no
+    // puede ser una de ellas. Marcarlo asi inflaria el contador de morosidad
+    // con algo que la ley no cuenta, que es el defecto que este sprint corrige.
+    if (entrada.esColegiatura && entrada.periodicidad === 'UNICO') {
+      throw new BadRequestException(
+        'Un cobro de una sola vez no es una colegiatura: el Artículo 7 cuenta meses. ' +
+          'Quita la marca o cambia la periodicidad.',
       );
     }
 
@@ -187,6 +224,8 @@ export class ServicioCobranza {
           cohorteId: entrada.cohorteId ?? null,
           deducibleIedu: entrada.deducibleIedu ?? false,
           nivelEducativo: entrada.nivelEducativo ?? null,
+          esColegiatura: entrada.esColegiatura ?? false,
+          aceptaSaldoAFavor: entrada.aceptaSaldoAFavor ?? true,
           vigenteDesde: new Date(`${entrada.vigenteDesde}T00:00:00.000Z`),
           avisadoEn: entrada.avisadoEn ? new Date(`${entrada.avisadoEn}T00:00:00.000Z`) : null,
         },
@@ -216,6 +255,8 @@ export class ServicioCobranza {
           : null,
         deducibleIedu: creado.deducibleIedu,
         nivelEducativo: creado.nivelEducativo,
+        esColegiatura: creado.esColegiatura,
+        aceptaSaldoAFavor: creado.aceptaSaldoAFavor,
         vigenteDesde: creado.vigenteDesde.toISOString().slice(0, 10),
         activo: creado.activo,
       };
@@ -232,6 +273,10 @@ export class ServicioCobranza {
    *
    * Se detiene aqui y no en una advertencia porque una advertencia se ignora, y
    * quien paga la multa es la escuela.
+   *
+   * A QUIEN SE LE EXIGE (§51): solo a los tenants que el Acuerdo alcanza. La
+   * comprobacion se movio DENTRO de la transaccion en el Sprint 5 porque ahora
+   * necesita saber el vertical, y eso es una lectura de la base.
    */
   async ajustarPrecio(
     sesion: Sesion,
@@ -240,15 +285,20 @@ export class ServicioCobranza {
   ): Promise<{ id: string; monto: string; vigenteDesde: string; diasDeAviso: number }> {
     this.exigirRol(sesion);
 
-    const { dias, suficiente } = anticipacionDeAjuste(entrada.avisadoEn, entrada.vigenteDesde);
-    if (!suficiente) {
-      throw new BadRequestException(
-        `El ajuste se avisó con ${dias} día(s) de anticipación y la ley pide ${DIAS_AVISO_AJUSTE}. ` +
-          `Mueve la fecha de entrada en vigor o registra la fecha real del aviso.`,
-      );
-    }
-
     return conTenant(sesion.tenantId, async (tx) => {
+      const exigidos = diasDeAvisoExigidos(await this.verticalDe(tx));
+      const { dias, suficiente } = anticipacionDeAjuste(
+        entrada.avisadoEn,
+        entrada.vigenteDesde,
+        exigidos,
+      );
+      if (!suficiente) {
+        throw new BadRequestException(
+          `El ajuste se avisó con ${dias} día(s) de anticipación y la ley pide ${exigidos}. ` +
+            `Mueve la fecha de entrada en vigor o registra la fecha real del aviso.`,
+        );
+      }
+
       const concepto = await tx.conceptoCargo.findUnique({ where: { id: conceptoId } });
       if (!concepto) throw new NotFoundException('No encontramos ese concepto.');
 
@@ -315,6 +365,8 @@ export class ServicioCobranza {
 
     return conTenant(sesion.tenantId, async (tx) => {
       const { diasGraciaSinRecargo } = await this.parametros(tx);
+      // El piso de diez dias solo se le impone a quien la ley obliga (§51).
+      const piso = pisoDeGracia(await this.verticalDe(tx));
 
       const periodoEscolar = await tx.periodo.findFirst({
         where: { activo: true },
@@ -385,6 +437,7 @@ export class ServicioCobranza {
           periodoEfectivo,
           concepto.diaVencimiento,
           diasGraciaSinRecargo,
+          piso,
         );
         const montoCentavos = aCentavos(concepto.montoBase.toFixed(2));
 
@@ -459,6 +512,17 @@ export class ServicioCobranza {
         }
       }
 
+      // --- El saldo a favor se aplica solo (AZ-M4.10) ---
+      // Ultimo paso y DENTRO de la misma transaccion: generar cargos es el
+      // unico momento en que aparece deuda nueva, y por tanto el unico en que
+      // el dinero que la familia ya entrego puede consumirse. Si esto falla, la
+      // generacion entera se deshace — preferible a dejar cargos emitidos con
+      // un saldo a favor que la app promete aplicar y no aplico.
+      const credito = await aplicarSaldoAFavorPendiente(tx, {
+        tenantId: sesion.tenantId,
+        actorId: sesion.usuarioId,
+      });
+
       await tx.eventoAuditoria.create({
         data: {
           tenantId: sesion.tenantId,
@@ -471,6 +535,7 @@ export class ServicioCobranza {
             omitidos,
             problemas: problemas.length,
             importe: aMonto(totalCentavos),
+            saldoAFavorAplicado: credito.aplicado,
           },
         },
       });
@@ -485,6 +550,8 @@ export class ServicioCobranza {
         omitidos,
         importeTotal: aMonto(totalCentavos),
         problemas,
+        saldoAFavorAplicado: credito.aplicado,
+        familiasConSaldoAplicado: credito.tutores,
       };
     });
   }

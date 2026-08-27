@@ -50,6 +50,13 @@ const EsquemaConcepto = z.object({
   nivelEducativo: z
     .enum(['PREESCOLAR', 'PRIMARIA', 'SECUNDARIA', 'PROFESIONAL_TECNICO', 'BACHILLERATO'])
     .optional(),
+  // Si cuenta para el umbral del Articulo 7 (§52). Sin marca, NO cuenta: de los
+  // dos errores posibles, no poder suspender cuesta dinero y suspender antes de
+  // tiempo cuesta una multa.
+  esColegiatura: z.boolean().optional(),
+  // Si puede saldarse con el saldo a favor de la familia (AZ-M4.10). Por
+  // omision si; la excepcion son los cobros por cuenta de un tercero.
+  aceptaSaldoAFavor: z.boolean().optional(),
   vigenteDesde: EsquemaFecha,
   avisadoEn: EsquemaFecha.optional(),
 });

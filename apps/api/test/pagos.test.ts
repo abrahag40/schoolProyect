@@ -274,6 +274,10 @@ beforeAll(async () => {
     monto: '2450.00',
     diaVencimiento: 5,
     vigenteDesde: INICIO_CICLO,
+    // Sin esta marca no cuenta para el Articulo 7 (§52). Es deliberado que haya
+    // que declararla: el sistema no adivina cual de los cobros mensuales de una
+    // escuela es la colegiatura y cual el comedor.
+    esColegiatura: true,
   });
   await post(admin, '/cargos/generar', { periodo: VIEJO });
   await post(admin, '/cargos/generar', { periodo: RECIENTE });

@@ -659,6 +659,26 @@ model ConceptoCargo {
   deducibleIedu  Boolean         @default(false) @map("deducible_iedu")
   nivelEducativo NivelEducativo? @map("nivel_educativo")
 
+  /// --- Articulo 7: que cuenta como COLEGIATURA (§52) ---
+  /// El Acuerdo permite suspender el servicio tras tres COLEGIATURAS impagas,
+  /// no tras tres adeudos. Un comedor y una excursion sin pagar no acercan a la
+  /// familia a la suspension, por mas que sumen dinero.
+  ///
+  /// POR QUE NO SE DEDUCE DE `periodicidad`: el comedor tambien es MENSUAL. La
+  /// colegiatura es el pago por el SERVICIO EDUCATIVO, y eso solo lo sabe la
+  /// escuela. Nace en `false` porque contar de menos hace que la escuela no
+  /// pueda suspender cuando podria —dinero—, y contar de mas la haria suspender
+  /// cuando la ley aun no se lo permite —multa—. Ante la duda, el lado seguro.
+  esColegiatura Boolean @default(false) @map("es_colegiatura")
+
+  /// --- Saldo a favor (AZ-M4.10) ---
+  /// Si un cargo de este concepto puede saldarse solo con el dinero que la
+  /// familia ya tiene a favor. Casi siempre si; la excepcion son los conceptos
+  /// que la escuela cobra por cuenta de un tercero (una excursion que se le
+  /// paga al operador, un examen externo), donde consumir el saldo a favor sin
+  /// que nadie lo decida deja a la familia sin ese dinero para la colegiatura.
+  aceptaSaldoAFavor Boolean @default(true) @map("acepta_saldo_a_favor")
+
   /// --- Articulo 5, fraccion I: aviso de ajuste de cuotas ---
   /// Cuando entra en vigor este precio y cuando se le aviso a las familias.
   /// Sin las dos fechas no se puede demostrar los 60 dias de anticipacion.

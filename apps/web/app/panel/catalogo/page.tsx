@@ -15,8 +15,22 @@ interface Concepto {
   alcance: { cohorteId: string; nombre: string } | null;
   deducibleIedu: boolean;
   nivelEducativo: string | null;
+  esColegiatura: boolean;
+  aceptaSaldoAFavor: boolean;
   vigenteDesde: string;
   activo: boolean;
+}
+
+/**
+ * Lo que la ley obliga a ESTA escuela, ya resuelto por el API (§51).
+ *
+ * La pantalla no traduce vertical -> ley: eso viviria en dos sitios y uno de
+ * los dos se quedaria viejo. Aqui solo se decide que frase mostrar.
+ */
+interface MarcoLegal {
+  aplicaAcuerdoProfeco: boolean;
+  pisoSinRecargo: number;
+  avisoDeAjuste: number;
 }
 
 interface ProblemaDeGeneracion {
@@ -31,6 +45,8 @@ interface ResultadoGeneracion {
   omitidos: number;
   importeTotal: string;
   problemas: ProblemaDeGeneracion[];
+  saldoAFavorAplicado: string;
+  familiasConSaldoAplicado: number;
 }
 
 const PERIODICIDAD: Record<string, string> = {
@@ -87,6 +103,9 @@ export default function PaginaCatalogo() {
   const [resultado, setResultado] = useState<ResultadoGeneracion | null>(null);
   const [periodo, setPeriodo] = useState(periodoActual);
   const [deducible, setDeducible] = useState(false);
+  const [marco, setMarco] = useState<MarcoLegal | null>(null);
+  const [esColegiatura, setEsColegiatura] = useState(false);
+  const [aceptaSaldo, setAceptaSaldo] = useState(true);
   const [recarga, setRecarga] = useState(0);
 
   useEffect(() => {
@@ -109,6 +128,13 @@ export default function PaginaCatalogo() {
         return;
       }
       setConceptos(datos);
+
+      // El marco legal se pide aparte y NO bloquea el catálogo: si falla, la
+      // pantalla sigue sirviendo y solo se calla la frase sobre la ley. Decir
+      // "cargando la ley" mientras se ve la lista sería ruido; afirmar la ley
+      // equivocada, un defecto (§51).
+      const { datos: escuela } = await pedirApi<{ marcoLegal: MarcoLegal }>('/mi-escuela');
+      if (vigente && escuela) setMarco(escuela.marcoLegal);
     })();
 
     return () => {
@@ -132,6 +158,8 @@ export default function PaginaCatalogo() {
       diaVencimiento: Number(campoTexto(formulario, 'diaVencimiento') || 5),
       deducibleIedu: deducible,
       ...(deducible && nivel ? { nivelEducativo: nivel } : {}),
+      esColegiatura,
+      aceptaSaldoAFavor: aceptaSaldo,
       vigenteDesde: campoTexto(formulario, 'vigenteDesde'),
     });
 
@@ -145,6 +173,8 @@ export default function PaginaCatalogo() {
 
     evento.currentTarget.reset();
     setDeducible(false);
+    setEsColegiatura(false);
+    setAceptaSaldo(true);
     setRecarga((n) => n + 1);
   }
 
@@ -236,6 +266,14 @@ export default function PaginaCatalogo() {
                         Deducible{c.nivelEducativo ? ` · ${NIVEL[c.nivelEducativo]}` : ''}
                       </Insignia>
                     )}
+                    {/* Las dos marcas que deciden reglas de dinero se muestran
+                        SIEMPRE, en positivo o en negativo: si "cuenta para la
+                        suspensión" solo apareciera cuando es cierto, nadie
+                        notaría que a su colegiatura le falta la marca. */}
+                    <Insignia tono={c.esColegiatura ? 'info' : 'neutro'}>
+                      {c.esColegiatura ? 'Cuenta para el Art. 7' : 'No cuenta para el Art. 7'}
+                    </Insignia>
+                    {!c.aceptaSaldoAFavor && <Insignia tono="neutro">Sin saldo a favor</Insignia>}
                   </div>
                 </div>
                 <span
@@ -291,7 +329,11 @@ export default function PaginaCatalogo() {
               nombre="diaVencimiento"
               type="number"
               defaultValue="5"
-              ayuda="Por ley se aceptan pagos sin recargo durante los primeros 10 días del mes, aunque venza antes."
+              ayuda={
+                marco?.aplicaAcuerdoProfeco
+                  ? `Por ley se aceptan pagos sin recargo durante los primeros ${marco.pisoSinRecargo} días del mes, aunque venza antes.`
+                  : 'A esta institución no la alcanza el Acuerdo de PROFECO: la ventana sin recargo es la que fije tu reglamento.'
+              }
             />
             <Campo
               etiqueta="Vigente desde"
@@ -328,6 +370,35 @@ export default function PaginaCatalogo() {
                 </span>
               </div>
             )}
+
+            <label style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
+              <input
+                type="checkbox"
+                checked={esColegiatura}
+                onChange={(e) => setEsColegiatura(e.target.checked)}
+                style={{ width: 20, height: 20 }}
+              />
+              <span>Es una colegiatura</span>
+            </label>
+            <span style={ayudaEstilo}>
+              La ley permite suspender el servicio por tres colegiaturas impagas, y cuenta solo
+              colegiaturas. Un comedor o una excursión sin pagar no acercan a la familia a ese
+              límite, aunque sumen dinero.
+            </span>
+
+            <label style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
+              <input
+                type="checkbox"
+                checked={aceptaSaldo}
+                onChange={(e) => setAceptaSaldo(e.target.checked)}
+                style={{ width: 20, height: 20 }}
+              />
+              <span>Puede pagarse con saldo a favor</span>
+            </label>
+            <span style={ayudaEstilo}>
+              Quítalo cuando cobres por cuenta de alguien más —una excursión, un examen externo—:
+              así el dinero que la familia dejó a cuenta no se consume sin que nadie lo decida.
+            </span>
 
             <Boton type="submit" cargando={guardando}>
               Guardar concepto
@@ -378,6 +449,17 @@ export default function PaginaCatalogo() {
                 <strong>${resultado.importeTotal}</strong>.
                 {resultado.omitidos > 0 && <> {resultado.omitidos} ya existían y no se tocaron.</>}
               </p>
+
+              {/* Dinero que ya estaba en la caja y acaba de dejar de estar
+                  disponible. Callarlo haría que el corte del mes no cuadrara
+                  con lo que la administración cree que se cobró. */}
+              {resultado.saldoAFavorAplicado !== '0.00' && (
+                <p style={{ margin: 'var(--space-2) 0 0' }}>
+                  Se aplicaron <strong>${resultado.saldoAFavorAplicado}</strong> de saldo a favor de{' '}
+                  {resultado.familiasConSaldoAplicado} familia(s) que ya habían pagado por
+                  adelantado.
+                </p>
+              )}
 
               {resultado.problemas.length > 0 && (
                 <div style={{ marginTop: 'var(--space-3)' }}>
