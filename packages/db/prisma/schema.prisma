@@ -303,6 +303,7 @@ model Alumno {
   tutores       TutorAlumno[]
   asistencias   Asistencia[]
   cargos        Cargo[]
+  becas         Beca[]
 
   @@index([tenantId])
   @@index([tenantId, activo])
@@ -692,6 +693,7 @@ model ConceptoCargo {
   tenant  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   cohorte Cohorte? @relation(fields: [cohorteId], references: [id], onDelete: Cascade)
   cargos  Cargo[]
+  becas   Beca[]
 
   @@unique([tenantId, clave])
   @@index([tenantId, activo])
@@ -743,9 +745,10 @@ model Cargo {
   /// agujero en la contabilidad de la escuela.
   motivoCancelacion String?   @map("motivo_cancelacion")
 
-  alumno   Alumno         @relation(fields: [alumnoId], references: [id], onDelete: Cascade)
-  concepto ConceptoCargo  @relation(fields: [conceptoId], references: [id])
-  partes   ParteDeCargo[]
+  alumno     Alumno            @relation(fields: [alumnoId], references: [id], onDelete: Cascade)
+  concepto   ConceptoCargo     @relation(fields: [conceptoId], references: [id])
+  partes     ParteDeCargo[]
+  descuentos DescuentoDeCargo[]
 
   @@unique([tenantId, clave])
   @@index([tenantId, periodo])
@@ -784,13 +787,25 @@ model ParteDeCargo {
   @@schema("public")
 }
 
+/// Cada cuanto se cobra un concepto (AZ-M4.1c).
+///
+/// Las tres periodicidades ciclicas se agregaron en el Sprint 6: sin ellas una
+/// universidad con cuatrimestres o una prepa con semestres no podia usar el
+/// sistema. El periodo de cada una se ancla al CICLO ESCOLAR y no al año
+/// calendario — ver `periodos.ts`, que es donde vive la aritmetica.
 enum Periodicidad {
-  /// Se genera cada mes: la colegiatura.
+  /// Se genera cada mes: la colegiatura. Clave `2026-09`.
   MENSUAL
-  /// Una sola vez: inscripcion, examen extraordinario, credencial.
-  UNICO
-  /// Una vez por ciclo.
+  /// Cada dos meses. Clave `2026-B3`.
+  BIMESTRAL
+  /// Cada cuatro meses. Clave `2026-C2`.
+  CUATRIMESTRAL
+  /// Cada seis meses. Clave `2026-S1`.
+  SEMESTRAL
+  /// Una vez por ciclo. Clave `2026-A1`.
   ANUAL
+  /// Una sola vez: inscripcion, examen extraordinario, credencial. Clave `2026-A1`.
+  UNICO
 
   @@schema("public")
 }
@@ -890,6 +905,108 @@ enum MetodoPago {
   DEPOSITO
   TARJETA
   OTRO
+
+  @@schema("public")
+}
+
+/// UNA BECA O UN CONVENIO (AZ-M4.3a).
+///
+/// No es un campo en el alumno ni un descuento escrito en el cargo: es una
+/// entidad con VIGENCIA propia, porque una beca que expira a mitad de ciclo
+/// tiene que dejar de aplicarse **sola** en el siguiente periodo generado. Si
+/// dependiera de que alguien la desactive a mano, la escuela seguiria becando
+/// meses de mas, y esa fuga no se detecta hasta la auditoria anual.
+///
+/// POR QUE LLEVA `motivo` OBLIGATORIO: la beca del 5% de la matricula es una
+/// obligacion legal (LGE art. 149-III, LGES art. 70), no un descuento
+/// comercial. Una autoridad puede pedir la prueba de a quien se beco y por que,
+/// y "estaba en el sistema" no es prueba si nadie escribio el porque.
+model Beca {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  alumnoId String @map("alumno_id") @db.Uuid
+
+  tipo  TipoDescuento
+  /// Porcentaje (5.00 = 5%) o importe fijo en pesos. Decimal, nunca float (§43).
+  valor Decimal       @db.Decimal(10, 2)
+
+  /// Alcance. Null = todos los conceptos; con valor = solo ese. Asi una beca
+  /// puede cubrir la colegiatura y no el comedor, que es el caso normal.
+  conceptoId String? @map("concepto_id") @db.Uuid
+
+  /// Los dos extremos son INCLUSIVOS. `vigenteHasta` null = sin fecha de fin.
+  vigenteDesde DateTime  @map("vigente_desde") @db.Date
+  vigenteHasta DateTime? @map("vigente_hasta") @db.Date
+
+  /// Por que se otorgo. Obligatorio: ver arriba.
+  motivo String
+  /// Si es la beca que la ley exige otorgar. Se marca para poder demostrar el
+  /// cumplimiento del 5% sin tener que interpretar los motivos a mano.
+  esObligacionLegal Boolean @default(false) @map("es_obligacion_legal")
+
+  activa      Boolean  @default(true)
+  otorgadaPor String?  @map("otorgada_por") @db.Uuid
+  creadaEn    DateTime @default(now()) @map("creada_en") @db.Timestamptz(6)
+
+  alumno     Alumno             @relation(fields: [alumnoId], references: [id], onDelete: Cascade)
+  concepto   ConceptoCargo?     @relation(fields: [conceptoId], references: [id], onDelete: Cascade)
+  aplicadas  DescuentoDeCargo[]
+
+  @@index([tenantId, alumnoId])
+  @@index([tenantId, activa])
+  @@map("beca")
+  @@schema("public")
+}
+
+/// EL ASIENTO: cuanto se descontó de este cargo y por que (AZ-M4.3a / AZ-M4.3b).
+///
+/// El cargo conserva su **precio de lista** en `monto` y el descuento se
+/// registra aqui encima, igual que un pago (§48). Sin esto, un cargo de 2,205
+/// no podria contestar "¿por que 2,205 y no 2,450?", y la escuela no podria
+/// demostrar cuanto beco.
+///
+/// INVARIANTE, probada contra la base: `cargo.monto − Σ descuentos = Σ partes`.
+/// El reparto entre pagadores se hace sobre el NETO, que es lo que la familia
+/// debe de verdad.
+model DescuentoDeCargo {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  cargoId  String @map("cargo_id") @db.Uuid
+
+  /// De que beca salio. Null cuando es un descuento del propio cargo —pronto
+  /// pago, pago del periodo completo— que no viene de una beca otorgada.
+  becaId String? @map("beca_id") @db.Uuid
+
+  categoria CategoriaDescuento
+  /// Texto para el estado de cuenta: "Beca de hermanos", "Pronto pago".
+  concepto  String
+  /// Lo que de verdad se aplico, ya recortado al remanente. NO la intencion:
+  /// guardar 5,000 cuando solo se aplicaron 2,450 daria un total que no cuadra
+  /// con la diferencia de importes.
+  monto     Decimal            @db.Decimal(10, 2)
+
+  creadoEn DateTime @default(now()) @map("creado_en") @db.Timestamptz(6)
+
+  cargo Cargo @relation(fields: [cargoId], references: [id], onDelete: Cascade)
+  beca  Beca? @relation(fields: [becaId], references: [id])
+
+  @@index([tenantId, cargoId])
+  @@map("descuento_de_cargo")
+  @@schema("public")
+}
+
+enum TipoDescuento {
+  PORCENTAJE
+  MONTO_FIJO
+
+  @@schema("public")
+}
+
+/// Decide el ORDEN de aplicacion, y por eso es un dato y no un comentario:
+/// beca primero, descuento despues, cada uno sobre lo que quedo.
+enum CategoriaDescuento {
+  BECA
+  DESCUENTO
 
   @@schema("public")
 }
