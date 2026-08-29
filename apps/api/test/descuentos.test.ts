@@ -11,7 +11,9 @@ import {
   BecaInvalidaError,
   becasAplicables,
   calcularDescuentos,
+  descuentoPorProrrateo,
   estaVigente,
+  proporcionDelPeriodo,
   validarPorcentaje,
   type DescuentoAplicable,
 } from '../src/cobranza/descuentos.js';
@@ -216,5 +218,86 @@ describe('alcance: toda la escuela o un solo concepto', () => {
   it('la beca vencida no aparece, aunque su alcance encaje', () => {
     const r = becasAplicables(becas, { conceptoId: 'c-colegiatura', fecha: '2026-09-01' });
     expect(r.map((b) => b.referencia)).not.toContain('vencida');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Prorrateo por alta a mitad de periodo (AZ-M4.1)
+// ---------------------------------------------------------------------------
+
+describe('prorrateo: quien entra a mitad no paga el periodo completo', () => {
+  const agosto = { inicioDelPeriodo: '2026-08-01', finDelPeriodo: '2026-08-31' };
+
+  it('quien entra el día 1 paga el periodo completo', () => {
+    const p = proporcionDelPeriodo({ ...agosto, altaEn: '2026-08-01' });
+    expect(p).toEqual({ diasCubiertos: 31, diasTotales: 31 });
+    expect(descuentoPorProrrateo(COLEGIATURA, p)).toBe(0);
+  });
+
+  it('quien se inscribió ANTES de que empezara también paga completo', () => {
+    // No se le cobra de más por haberse inscrito temprano.
+    const p = proporcionDelPeriodo({ ...agosto, altaEn: '2026-06-15' });
+    expect(descuentoPorProrrateo(COLEGIATURA, p)).toBe(0);
+  });
+
+  it('quien entra el 17 de agosto cubre 15 de los 31 días', () => {
+    const p = proporcionDelPeriodo({ ...agosto, altaEn: '2026-08-17' });
+    expect(p).toEqual({ diasCubiertos: 15, diasTotales: 31 });
+    // 2450 x 15/31 = 1185.48…; se cobran 1185.48 y se descuentan 1264.52.
+    expect(descuentoPorProrrateo(COLEGIATURA, p)).toBe(126_452);
+    expect(COLEGIATURA - descuentoPorProrrateo(COLEGIATURA, p)).toBe(118_548);
+  });
+
+  it('los dos extremos cuentan: el último día se debe un día, no cero', () => {
+    const p = proporcionDelPeriodo({ ...agosto, altaEn: '2026-08-31' });
+    expect(p.diasCubiertos).toBe(1);
+    expect(descuentoPorProrrateo(COLEGIATURA, p)).toBeLessThan(COLEGIATURA);
+  });
+
+  it('EL CASO PELIGROSO: un alta POSTERIOR al periodo cobra completo, no cero', () => {
+    // Una escuela que migra a Azahar en noviembre tiene a todos sus alumnos con
+    // alta de noviembre. Prorratear los cargos de agosto a octubre los dejaría
+    // en CERO, sin un solo error, y la escuela perdería un trimestre completo
+    // sin enterarse hasta el corte. El error contrario —cobrarle un periodo
+    // anterior a quien llegó tarde— lo reclama la familia el mismo día.
+    const p = proporcionDelPeriodo({ ...agosto, altaEn: '2026-11-05' });
+    expect(p.diasCubiertos).toBe(31);
+    expect(descuentoPorProrrateo(COLEGIATURA, p)).toBe(0);
+  });
+
+  it('funciona igual sobre un semestre, que es donde más se nota', () => {
+    // Seis meses: agosto a enero. Entrar en noviembre cubre poco más de la mitad.
+    const semestre = { inicioDelPeriodo: '2026-08-01', finDelPeriodo: '2027-01-31' };
+    const p = proporcionDelPeriodo({ ...semestre, altaEn: '2026-11-01' });
+    expect(p.diasTotales).toBe(184);
+    expect(p.diasCubiertos).toBe(92);
+    // Justo la mitad, y el sistema no tuvo que saber cuántos días trae cada mes.
+    expect(descuentoPorProrrateo(1_000_000, p)).toBe(500_000);
+  });
+});
+
+describe('el orden con prorrateo: primero el precio real, luego la beca', () => {
+  it('la beca se calcula sobre lo prorrateado, no sobre el periodo completo', () => {
+    // Si la beca fuera primero, becaría días que el alumno no estuvo.
+    const p = proporcionDelPeriodo({
+      inicioDelPeriodo: '2026-08-01',
+      finDelPeriodo: '2026-08-31',
+      altaEn: '2026-08-17',
+    });
+    const r = calcularDescuentos(COLEGIATURA, [
+      {
+        referencia: 'prorrateo',
+        categoria: 'PRORRATEO',
+        tipo: 'MONTO_FIJO',
+        valor: descuentoPorProrrateo(COLEGIATURA, p),
+        concepto: 'Prorrateo por alta el 17 de agosto',
+      },
+      beca('hermanos', 10),
+    ]);
+
+    // Base prorrateada 1,185.48; la beca del 10 % son 118.55, no 245.00.
+    expect(r.aplicados[0]!.referencia).toBe('prorrateo');
+    expect(r.aplicados[1]!.centavos).toBe(11_855);
+    expect(r.netoCentavos).toBe(106_693);
   });
 });

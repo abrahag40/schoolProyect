@@ -26,7 +26,13 @@ import {
   periodoDeFecha,
   primerMes,
 } from './periodos.js';
-import { becasAplicables, calcularDescuentos, type DescuentoAplicable } from './descuentos.js';
+import {
+  becasAplicables,
+  calcularDescuentos,
+  descuentoPorProrrateo,
+  proporcionDelPeriodo,
+  type DescuentoAplicable,
+} from './descuentos.js';
 
 /**
  * Quien administra el dinero de la escuela.
@@ -470,6 +476,10 @@ export class ServicioCobranza {
           },
         });
 
+        // Los limites del periodo en dias, para el prorrateo.
+        const primerDiaDelPeriodo = `${mesDeVencimiento}-01`;
+        const ultimoDiaDelPeriodo = fechaDelPeriodo(ultimoMes, 31);
+
         // El cargo vence en el PRIMER mes del periodo: un semestre que arranca
         // en agosto se cobra en agosto, no en enero.
         const vencimiento = fechaDelPeriodo(mesDeVencimiento, concepto.diaVencimiento);
@@ -483,6 +493,18 @@ export class ServicioCobranza {
         // dia en que alguien pulsa "generar": generar tarde no debe quitarle la
         // beca a nadie.
         const inicioDelPeriodo = `${mesDeVencimiento}-01`;
+
+        // Pronto pago, congelado en el cargo. Se recorta al limite sin recargo
+        // porque premiar por "pagar temprano" un dia en que ya corre la mora
+        // seria premiar y penalizar el mismo acto — y la base lo rechazaria.
+        const diaProntoPago = concepto.diaProntoPago;
+        const limiteProntoPago =
+          diaProntoPago === null || concepto.descuentoProntoPagoPorcentaje === null
+            ? null
+            : (() => {
+                const candidato = fechaDelPeriodo(mesDeVencimiento, diaProntoPago);
+                return candidato <= limite ? candidato : limite;
+              })();
         const montoCentavos = aCentavos(concepto.montoBase.toFixed(2));
 
         for (const inscripcion of inscripciones) {
@@ -524,6 +546,37 @@ export class ServicioCobranza {
             concepto: b.motivo,
           }));
 
+          // --- Prorrateo por alta a mitad de periodo (AZ-M4.1) ---
+          // Va PRIMERO en la cascada: fija el precio real de lo que se cobra.
+          // Aplicar la beca antes becaria dias que el alumno no estuvo.
+          //
+          // NO se prorratea un concepto UNICO: la inscripcion, una credencial o
+          // un examen extraordinario cuestan lo que cuestan. No son un servicio
+          // que se consuma con el tiempo, asi que entrar en noviembre no hace
+          // que la inscripcion valga menos. Prorratearla seria regalar dinero
+          // por llegar tarde.
+          const alta = inscripcion.altaEn.toISOString().slice(0, 10);
+          const proporcion =
+            concepto.periodicidad === 'UNICO'
+              ? { diasCubiertos: 1, diasTotales: 1 }
+              : proporcionDelPeriodo({
+                  altaEn: alta,
+                  inicioDelPeriodo: primerDiaDelPeriodo,
+                  finDelPeriodo: ultimoDiaDelPeriodo,
+                });
+          const prorrateo = descuentoPorProrrateo(montoCentavos, proporcion);
+          if (prorrateo > 0) {
+            descuentos.push({
+              referencia: `prorrateo:${inscripcion.id}`,
+              categoria: 'PRORRATEO',
+              tipo: 'MONTO_FIJO',
+              valor: prorrateo,
+              concepto:
+                `Prorrateo por alta el ${alta} ` +
+                `(${proporcion.diasCubiertos} de ${proporcion.diasTotales} días)`,
+            });
+          }
+
           const { aplicados, netoCentavos } = calcularDescuentos(montoCentavos, descuentos);
 
           const cargo = await tx.cargo.create({
@@ -537,6 +590,10 @@ export class ServicioCobranza {
               monto: concepto.montoBase,
               fechaVencimiento: new Date(`${vencimiento}T00:00:00.000Z`),
               fechaLimiteSinRecargo: new Date(`${limite}T00:00:00.000Z`),
+              fechaLimiteProntoPago:
+                limiteProntoPago === null ? null : new Date(`${limiteProntoPago}T00:00:00.000Z`),
+              descuentoProntoPagoPorcentaje:
+                limiteProntoPago === null ? null : concepto.descuentoProntoPagoPorcentaje,
               clave,
               generadoPor: sesion.usuarioId,
             },
@@ -547,11 +604,15 @@ export class ServicioCobranza {
 
           if (aplicados.length > 0) {
             await tx.descuentoDeCargo.createMany({
+              // El prorrateo NO tiene beca detras: su referencia es sintetica.
+              // Guardarla como `becaId` seria una llave foranea rota.
               data: aplicados.map((d) => ({
                 tenantId: sesion.tenantId,
                 cargoId: cargo.id,
-                becaId: d.referencia,
-                categoria: 'BECA' as const,
+                becaId: d.referencia.startsWith('prorrateo:') ? null : d.referencia,
+                categoria: d.referencia.startsWith('prorrateo:')
+                  ? ('PRORRATEO' as const)
+                  : ('BECA' as const),
                 concepto: d.concepto,
                 monto: aMonto(d.centavos),
               })),

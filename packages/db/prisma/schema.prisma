@@ -672,6 +672,18 @@ model ConceptoCargo {
   /// cuando la ley aun no se lo permite —multa—. Ante la duda, el lado seguro.
   esColegiatura Boolean @default(false) @map("es_colegiatura")
 
+  /// --- Pronto pago (AZ-M4.3b) ---
+  /// Descuento por pagar antes de tiempo, y hasta que dia del mes se gana.
+  /// Los dos van juntos o ninguno: un porcentaje sin fecha no se puede aplicar,
+  /// y una fecha sin porcentaje no descuenta nada. Lo impone un CHECK.
+  ///
+  /// NO se aplica al generar el cargo —no se sabe cuando pagara la familia—
+  /// sino al registrar el pago. Se CONGELA en cada cargo al emitirlo, igual que
+  /// la fecha limite sin recargo: la prueba de lo que se ofrecio es la columna
+  /// del cargo, no la configuracion vigente meses despues (§44).
+  descuentoProntoPagoPorcentaje Decimal? @map("descuento_pronto_pago_porcentaje") @db.Decimal(5, 2)
+  diaProntoPago                 Int?     @map("dia_pronto_pago")
+
   /// --- Saldo a favor (AZ-M4.10) ---
   /// Si un cargo de este concepto puede saldarse solo con el dinero que la
   /// familia ya tiene a favor. Casi siempre si; la excepcion son los conceptos
@@ -732,6 +744,13 @@ model Cargo {
   /// se conserva en el enum por compatibilidad con los datos ya escritos.
   estado EstadoCargo @default(PENDIENTE)
 
+  /// --- Pronto pago congelado al emitir (AZ-M4.3b) ---
+  /// Hasta cuando se gana el descuento y de cuanto es. Congelado a proposito:
+  /// si la escuela cambia su politica en noviembre, los cargos de septiembre
+  /// conservan lo que se le ofrecio a la familia cuando se emitieron.
+  fechaLimiteProntoPago         DateTime? @map("fecha_limite_pronto_pago") @db.Date
+  descuentoProntoPagoPorcentaje Decimal?  @map("descuento_pronto_pago_porcentaje") @db.Decimal(5, 2)
+
   /// Clave de idempotencia (§15): {alumno}:{concepto}:{periodo}. La unicidad la
   /// impone la base, no la aplicacion: dos administradores generando a la vez
   /// no pueden duplicar un cargo.
@@ -780,6 +799,7 @@ model ParteDeCargo {
   cargo        Cargo              @relation(fields: [cargoId], references: [id], onDelete: Cascade)
   tutor        Tutor              @relation(fields: [tutorId], references: [id], onDelete: Cascade)
   aplicaciones AplicacionDePago[]
+  descuentos   DescuentoDeCargo[]
 
   @@unique([cargoId, tutorId])
   @@index([tenantId, tutorId])
@@ -974,8 +994,20 @@ model DescuentoDeCargo {
   cargoId  String @map("cargo_id") @db.Uuid
 
   /// De que beca salio. Null cuando es un descuento del propio cargo —pronto
-  /// pago, pago del periodo completo— que no viene de una beca otorgada.
+  /// pago, prorrateo— que no viene de una beca otorgada.
   becaId String? @map("beca_id") @db.Uuid
+
+  /// A QUE PARTE se le condono, cuando el descuento nace despues del reparto.
+  ///
+  /// Null = descuento de EMISION (prorrateo, beca): redujo la base antes de
+  /// repartir, asi que ya esta dentro de `Σ partes`.
+  /// Con valor = descuento del MOMENTO DEL PAGO (pronto pago): el reparto ya
+  /// estaba congelado, asi que se salda la parte de ese pagador concreto.
+  ///
+  /// Distinguirlos es lo que mantiene la contabilidad legible: sin este campo,
+  /// un pronto pago descuadraria la invariante `monto − Σ descuentos = Σ partes`
+  /// y nadie sabria si el defecto estaba en el reparto o en el descuento.
+  parteDeCargoId String? @map("parte_de_cargo_id") @db.Uuid
 
   categoria CategoriaDescuento
   /// Texto para el estado de cuenta: "Beca de hermanos", "Pronto pago".
@@ -987,10 +1019,12 @@ model DescuentoDeCargo {
 
   creadoEn DateTime @default(now()) @map("creado_en") @db.Timestamptz(6)
 
-  cargo Cargo @relation(fields: [cargoId], references: [id], onDelete: Cascade)
-  beca  Beca? @relation(fields: [becaId], references: [id])
+  cargo Cargo         @relation(fields: [cargoId], references: [id], onDelete: Cascade)
+  beca  Beca?         @relation(fields: [becaId], references: [id])
+  parte ParteDeCargo? @relation(fields: [parteDeCargoId], references: [id], onDelete: Cascade)
 
   @@index([tenantId, cargoId])
+  @@index([tenantId, parteDeCargoId])
   @@map("descuento_de_cargo")
   @@schema("public")
 }
@@ -1005,6 +1039,9 @@ enum TipoDescuento {
 /// Decide el ORDEN de aplicacion, y por eso es un dato y no un comentario:
 /// beca primero, descuento despues, cada uno sobre lo que quedo.
 enum CategoriaDescuento {
+  /// Ajuste por alta a mitad de periodo. Va PRIMERO: no es un descuento, fija
+  /// el precio real de lo que se cobra.
+  PRORRATEO
   BECA
   DESCUENTO
 

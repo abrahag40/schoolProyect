@@ -473,16 +473,29 @@ describe('el reparto cuadra al centavo (AZ-M4.3)', () => {
     expect(rows.map((r) => r.monto)).toEqual(['1470.00', '980.00']);
   });
 
-  it('INVARIANTE contra la base: la suma de las partes es el monto del cargo', async () => {
+  it('INVARIANTE contra la base: precio de lista − descuentos = suma de las partes', async () => {
     // La condicion no se puede expresar como CHECK —es entre filas— asi que se
     // verifica aqui, contra los datos reales, para todos los cargos repartidos.
+    //
+    // La invariante crecio en el Sprint 6: el cargo guarda su PRECIO DE LISTA y
+    // los descuentos de emision (prorrateo, becas) viven como asientos, asi que
+    // lo que se reparte entre los pagadores es el neto. Si esto no cierra, hay
+    // un renglon del estado de cuenta que nadie puede justificar.
+    //
+    // Solo cuentan los descuentos SIN parte: los de emision. Un pronto pago se
+    // ata a la parte de quien pago temprano y salda su saldo, no rebaja el
+    // reparto — por eso se excluye aqui y se verifica en `saldos`.
     const { rows } = await owner.query(
       `SELECT c.id, c.monto::text AS monto, sum(p.monto)::text AS partes
-         FROM cargo c JOIN parte_de_cargo p ON p.cargo_id = c.id
+         FROM cargo c
+         JOIN parte_de_cargo p ON p.cargo_id = c.id
         GROUP BY c.id, c.monto
-       HAVING c.monto <> sum(p.monto)`,
+       HAVING c.monto - coalesce((
+                SELECT sum(d.monto) FROM descuento_de_cargo d
+                 WHERE d.cargo_id = c.id AND d.parte_de_cargo_id IS NULL), 0)
+              <> sum(p.monto)`,
     );
-    expect(rows, 'hay cargos cuyo reparto no cuadra').toHaveLength(0);
+    expect(rows, 'hay cargos cuyo reparto no cuadra con sus descuentos').toHaveLength(0);
   });
 
   it('un pagador unico se queda con el total', async () => {

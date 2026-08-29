@@ -17,7 +17,9 @@
  * ============================================================================
  * EL ORDEN DE APLICACION, DECLARADO Y PROBADO
  * ============================================================================
- * Se aplica **beca primero, descuento despues, y cada uno sobre lo que quedo**.
+ * **Prorrateo, luego beca, luego descuento — y cada uno sobre lo que quedo.**
+ * El prorrateo abre la fila porque no es un descuento: fija el precio real de
+ * lo que se cobra. El detalle de por que, en el comentario de `ORDEN`.
  *
  * No es arbitrario y no es gratis elegirlo: con una beca del 50 % y un pronto
  * pago del 10 %, en cascada la familia paga 45 % del precio de lista; sumando
@@ -37,9 +39,21 @@ export type TipoDescuento = 'PORCENTAJE' | 'MONTO_FIJO';
  * A que familia pertenece el descuento. Decide el ORDEN de aplicacion, y por
  * eso es un dato y no un comentario.
  */
-export type CategoriaDescuento = 'BECA' | 'DESCUENTO';
+export type CategoriaDescuento = 'PRORRATEO' | 'BECA' | 'DESCUENTO';
 
-const ORDEN: Record<CategoriaDescuento, number> = { BECA: 0, DESCUENTO: 1 };
+/**
+ * El orden de aplicacion, y por que este.
+ *
+ * PRORRATEO va primero porque no es un descuento: es el **precio real** de lo
+ * que se esta cobrando. Un alumno que entra el 17 de agosto no debe medio mes
+ * de colegiatura con beca: debe la beca sobre el medio mes. Aplicar la beca
+ * antes del prorrateo becaria dias que el alumno no estuvo.
+ *
+ * BECA antes que DESCUENTO por la razon del comentario de cabecera: el pronto
+ * pago premia pagar a tiempo lo que te toca, y lo que te toca ya viene con tu
+ * beca aplicada.
+ */
+const ORDEN: Record<CategoriaDescuento, number> = { PRORRATEO: 0, BECA: 1, DESCUENTO: 2 };
 
 export interface DescuentoAplicable {
   /// Identificador opaco. A este modulo no le importa si es una beca, un pronto
@@ -135,6 +149,80 @@ export function calcularDescuentos(
 
   const total = aplicados.reduce((a, x) => a + x.centavos, 0);
   return { aplicados, totalCentavos: total, netoCentavos: base - total };
+}
+
+// ---------------------------------------------------------------------------
+// Prorrateo por alta a mitad de periodo (AZ-M4.1)
+// ---------------------------------------------------------------------------
+
+/**
+ * Que proporcion del periodo alcanza a cubrir quien se da de alta a mitad.
+ *
+ * SE CUENTA EN DIAS, NO EN MESES, y la razon es que los meses no duran lo
+ * mismo: prorratear "medio semestre" cuando alguien entra el 15 de octubre
+ * daria un numero distinto segun se cuente octubre completo o no. Los dias son
+ * la unidad que no admite dos interpretaciones.
+ *
+ * Los dos extremos cuentan: quien entra el ultimo dia del periodo debe un dia,
+ * no cero. Y quien entra antes de que empiece debe el periodo completo — no se
+ * le cobra de mas por haberse inscrito temprano.
+ *
+ * ============================================================================
+ * EL CASO PELIGROSO: UN ALTA POSTERIOR AL PERIODO NO PRORRATEA
+ * ============================================================================
+ * Si la fecha de alta cae DESPUES de que el periodo termino, se cobra el
+ * periodo COMPLETO. Parece al reves y no lo es.
+ *
+ * La fecha de alta es cuando el alumno entro **a nuestro sistema**, que no es
+ * lo mismo que cuando entro a la escuela. Una escuela que migra a Azahar en
+ * noviembre y genera los cargos de agosto a octubre tiene a todos sus alumnos
+ * con alta de noviembre. Prorratear ahi dejaria los tres meses en CERO, la
+ * escuela no lo notaria hasta el corte, y habria perdido un trimestre de
+ * ingresos sin un solo mensaje de error.
+ *
+ * El error contrario —cobrarle un periodo anterior a quien de verdad llego
+ * tarde— es visible el mismo dia: la familia reclama y la escuela cancela el
+ * cargo. Entre un fallo silencioso que cuesta dinero y uno ruidoso que se
+ * corrige en un minuto, se elige el ruidoso.
+ *
+ * Devuelve el numerador y el denominador en vez de una fraccion decimal, porque
+ * un `0.5333333` multiplicado por centavos vuelve a meter punto flotante en el
+ * dinero por la puerta de atras (§43).
+ */
+export function proporcionDelPeriodo(entrada: {
+  altaEn: string;
+  inicioDelPeriodo: string;
+  finDelPeriodo: string;
+}): { diasCubiertos: number; diasTotales: number } {
+  const dia = 86_400_000;
+  const inicio = Date.parse(`${entrada.inicioDelPeriodo}T00:00:00Z`);
+  const fin = Date.parse(`${entrada.finDelPeriodo}T00:00:00Z`);
+  const alta = Date.parse(`${entrada.altaEn}T00:00:00Z`);
+
+  const diasTotales = Math.round((fin - inicio) / dia) + 1;
+  // Antes del periodo: completo. Despues del periodo: tambien completo, por la
+  // razon del comentario de arriba. Solo se prorratea DENTRO del periodo.
+  if (alta <= inicio || alta > fin) return { diasCubiertos: diasTotales, diasTotales };
+
+  return { diasCubiertos: Math.round((fin - alta) / dia) + 1, diasTotales };
+}
+
+/**
+ * Lo que se descuenta por los dias que el alumno NO estuvo.
+ *
+ * Se expresa como descuento y no como un importe distinto para que el estado de
+ * cuenta pueda ensenar el renglon: "Colegiatura 2,450 · Prorrateo por alta el
+ * 17 de agosto −1,185". Un cargo que simplemente dijera 1,265 obligaria a la
+ * familia a llamar para entender por que no son 2,450.
+ */
+export function descuentoPorProrrateo(
+  baseCentavos: number,
+  proporcion: { diasCubiertos: number; diasTotales: number },
+): number {
+  if (proporcion.diasTotales <= 0) return 0;
+  if (proporcion.diasCubiertos >= proporcion.diasTotales) return 0;
+  const aCobrar = Math.round((baseCentavos * proporcion.diasCubiertos) / proporcion.diasTotales);
+  return Math.max(0, baseCentavos - aCobrar);
 }
 
 // ---------------------------------------------------------------------------

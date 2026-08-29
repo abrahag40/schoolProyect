@@ -10,6 +10,7 @@ import { describe, it, expect } from 'vitest';
 import { aCentavos, fechaLimiteSinRecargo } from '../src/cobranza/reglas.js';
 import {
   aplicarPago,
+  aplicarPagoConProntoPago,
   aplicarSaldoAFavor,
   periodosEnMora,
   puedeDevolverse,
@@ -460,5 +461,123 @@ describe('avisos fiscales en el estado de cuenta (AZ-M4.5b)', () => {
 
   it('si no los hay, no se dice nada: un aviso que no aplica es ruido', () => {
     expect(avisosFiscales({ hayConceptosDeducibles: false })).toEqual([]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AZ-M4.3b — descuento por pronto pago, en el momento del pago
+// ---------------------------------------------------------------------------
+
+describe('pronto pago: el descuento cambia cuánto dinero hace falta', () => {
+  const parte = (
+    referencia: string,
+    vence: string,
+    saldoCentavos: number,
+    prontoPago: { hasta: string; porcentaje: number } | null = null,
+  ) => ({ referencia, vence, saldoCentavos, prontoPago });
+
+  it('pagar dentro de la ventana salda la parte con MENOS dinero', () => {
+    // Debe 1,000 con 10 % de pronto pago: con 900 queda saldada.
+    const r = aplicarPagoConProntoPago(
+      90_000,
+      [parte('sep', '2026-09-05', 100_000, { hasta: '2026-09-03', porcentaje: 10 })],
+      '2026-09-01',
+    );
+    expect(r.aplicaciones).toEqual([
+      { referencia: 'sep', centavos: 90_000, descuentoCentavos: 10_000 },
+    ]);
+    expect(r.sobranteCentavos).toBe(0);
+    expect(r.descuentoTotalCentavos).toBe(10_000);
+  });
+
+  it('EL DEFECTO QUE ESTE DISEÑO EVITA: sin calcularlo antes, sobraría dinero', () => {
+    // Si el pago se repartiera primero y el descuento se restara después, los
+    // 900 se aplicarían íntegros a la parte —quedando 100 abiertos— y luego el
+    // descuento dejaría 100 de sobrante que iría a la parte SIGUIENTE, que no
+    // le tocaba. Aquí la segunda parte no recibe un peso.
+    const r = aplicarPagoConProntoPago(
+      90_000,
+      [
+        parte('sep', '2026-09-05', 100_000, { hasta: '2026-09-03', porcentaje: 10 }),
+        parte('oct', '2026-10-05', 100_000),
+      ],
+      '2026-09-01',
+    );
+    expect(r.aplicaciones).toHaveLength(1);
+    expect(r.sobranteCentavos).toBe(0);
+  });
+
+  it('un día tarde y no hay premio: se cobra completo', () => {
+    const r = aplicarPagoConProntoPago(
+      90_000,
+      [parte('sep', '2026-09-05', 100_000, { hasta: '2026-09-03', porcentaje: 10 })],
+      '2026-09-04',
+    );
+    expect(r.descuentoTotalCentavos).toBe(0);
+    expect(r.aplicaciones[0]!.centavos).toBe(90_000);
+  });
+
+  it('el último día de la ventana SÍ cuenta', () => {
+    const r = aplicarPagoConProntoPago(
+      90_000,
+      [parte('sep', '2026-09-05', 100_000, { hasta: '2026-09-03', porcentaje: 10 })],
+      '2026-09-03',
+    );
+    expect(r.descuentoTotalCentavos).toBe(10_000);
+  });
+
+  it('NO-camino: un abono parcial NO gana el descuento', () => {
+    // El pronto pago premia liquidar temprano, no dar un anticipo temprano.
+    // Descontar sobre deuda que sigue abierta sería regalar dinero.
+    const r = aplicarPagoConProntoPago(
+      50_000,
+      [parte('sep', '2026-09-05', 100_000, { hasta: '2026-09-03', porcentaje: 10 })],
+      '2026-09-01',
+    );
+    expect(r.descuentoTotalCentavos).toBe(0);
+    expect(r.aplicaciones[0]!.centavos).toBe(50_000);
+  });
+
+  it('sin pronto pago configurado se comporta igual que un pago normal', () => {
+    const r = aplicarPagoConProntoPago(
+      150_000,
+      [parte('ago', '2026-08-05', 100_000), parte('sep', '2026-09-05', 100_000)],
+      '2026-09-01',
+    );
+    expect(r.aplicaciones.map((a) => a.centavos)).toEqual([100_000, 50_000]);
+    expect(r.descuentoTotalCentavos).toBe(0);
+  });
+
+  it('sigue siendo FIFO: lo más viejo primero, aunque el premio esté en lo nuevo', () => {
+    // Saldar septiembre para ganar el descuento y dejar agosto abierto dejaría
+    // a la familia con un mes vencido más — que es lo que cuenta el Artículo 7.
+    const r = aplicarPagoConProntoPago(
+      100_000,
+      [
+        parte('sep', '2026-09-05', 100_000, { hasta: '2026-09-03', porcentaje: 10 }),
+        parte('ago', '2026-08-05', 100_000),
+      ],
+      '2026-09-01',
+    );
+    expect(r.aplicaciones[0]!.referencia).toBe('ago');
+    expect(r.descuentoTotalCentavos).toBe(0);
+  });
+
+  it('INVARIANTE: dinero aplicado + sobrante = lo que entró, siempre', () => {
+    for (let monto = 1; monto <= 400_000; monto += 3_137) {
+      const r = aplicarPagoConProntoPago(
+        monto,
+        [
+          parte('ago', '2026-08-05', 120_000, { hasta: '2026-08-03', porcentaje: 7.5 }),
+          parte('sep', '2026-09-05', 100_000, { hasta: '2026-09-03', porcentaje: 10 }),
+        ],
+        '2026-08-01',
+      );
+      const aplicado = r.aplicaciones.reduce((a, x) => a + x.centavos, 0);
+      expect(aplicado + r.sobranteCentavos, `pago ${monto}`).toBe(monto);
+      for (const a of r.aplicaciones) {
+        expect(a.centavos + a.descuentoCentavos).toBeLessThanOrEqual(120_000);
+      }
+    }
   });
 });
