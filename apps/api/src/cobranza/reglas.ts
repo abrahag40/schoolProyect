@@ -20,13 +20,16 @@
  *   - Art. 5-I -> los ajustes de cuotas se informan con 60 dias de anticipacion.
  * Estan aqui y no en una casilla de configuracion a proposito: la escuela puede
  * ser mas generosa que la ley, nunca mas estricta.
+ *
+ * A QUIEN obligan esas dos reglas lo decide `marco-legal.ts` (§51). Este modulo
+ * recibe el piso ya resuelto: no le toca saber que es una universidad, solo
+ * cuantos dias no puede bajar.
  */
 
-/** Piso legal del Articulo 4. No es un valor por omision: es un minimo. */
-export const DIAS_GRACIA_MINIMOS = 10;
-
-/** Articulo 5, fraccion I. */
-export const DIAS_AVISO_AJUSTE = 60;
+// Las constantes viven en `marco-legal.ts`, que es donde esta el ambito de cada
+// una. Se re-exportan para no romper a quien ya las importaba de aqui.
+export { DIAS_GRACIA_MINIMOS, DIAS_AVISO_AJUSTE } from './marco-legal.js';
+import { DIAS_GRACIA_MINIMOS, DIAS_AVISO_AJUSTE } from './marco-legal.js';
 
 export class RepartoInvalidoError extends Error {
   constructor(sumaPorcentajes: number) {
@@ -76,18 +79,25 @@ export function fechaDelPeriodo(periodo: string, dia: number): string {
  *   1. el dia de vencimiento que fijo la escuela — cobrar recargo antes de que
  *      algo venza no tiene sentido;
  *   2. los dias de gracia que la escuela quiera dar de mas;
- *   3. el piso del Articulo 4: el dia 10, siempre.
- * Una escuela puede ser mas generosa. Mas estricta que la ley, no.
+ *   3. el piso legal, si al tenant lo alcanza la ley.
+ * Una escuela cubierta puede ser mas generosa. Mas estricta que la ley, no.
+ *
+ * `pisoLegalDias` llega ya resuelto por `pisoDeGracia(vertical)`: 10 para un
+ * colegio, 0 para una universidad o una academia, a las que el Acuerdo no
+ * obliga (§51). Cero no abre la puerta a cobrar recargo el dia 1 — el maximo
+ * con el dia de vencimiento sigue ahi—; solo deja de imponer un minimo que esa
+ * escuela no debe.
  */
 export function fechaLimiteSinRecargo(
   periodo: string,
   diaVencimiento: number,
   diasGraciaDeLaEscuela: number = DIAS_GRACIA_MINIMOS,
+  pisoLegalDias: number = DIAS_GRACIA_MINIMOS,
 ): string {
   const dia = Math.max(
     Math.trunc(diaVencimiento),
     Math.trunc(diasGraciaDeLaEscuela),
-    DIAS_GRACIA_MINIMOS,
+    Math.trunc(pisoLegalDias),
   );
   return fechaDelPeriodo(periodo, dia);
 }
@@ -102,15 +112,20 @@ export function hayRecargo(hoy: string, fechaLimiteSinRecargo: string): boolean 
  *
  * Devuelve el dato y el veredicto por separado: la pantalla necesita decirle a
  * la administracion CUANTOS dias faltan, no solo que no se puede.
+ *
+ * `diasExigidos` llega de `diasDeAvisoExigidos(vertical)`. En un tenant que el
+ * Acuerdo no alcanza vale 0 y cualquier anticipacion es suficiente: lo que rija
+ * ahi es el contrato, y nosotros no lo conocemos.
  */
 export function anticipacionDeAjuste(
   avisadoEn: string,
   vigenteDesde: string,
+  diasExigidos: number = DIAS_AVISO_AJUSTE,
 ): { dias: number; suficiente: boolean } {
   const inicio = Date.parse(`${avisadoEn}T00:00:00Z`);
   const fin = Date.parse(`${vigenteDesde}T00:00:00Z`);
   const dias = Math.floor((fin - inicio) / 86_400_000);
-  return { dias, suficiente: dias >= DIAS_AVISO_AJUSTE };
+  return { dias, suficiente: dias >= diasExigidos };
 }
 
 // ---------------------------------------------------------------------------

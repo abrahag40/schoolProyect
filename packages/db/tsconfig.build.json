@@ -1,0 +1,15 @@
+{
+  // Compilacion: SOLO `src`.
+  //
+  // rootDir = src para que la salida sea dist/index.js y NO dist/src/index.js.
+  // Importa: el cliente de Prisma vive en ../generated (hermano de dist), y
+  // desde dist/index.js el import '../generated/prisma/client.js' resuelve
+  // bien. Con dist/src/index.js dejaria de hacerlo.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "outDir": "dist",
+    "rootDir": "src"
+  },
+  "include": ["src/**/*.ts"]
+}

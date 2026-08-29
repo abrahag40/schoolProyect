@@ -115,15 +115,35 @@ async function token(escuela: string, email: string) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ escuela, email, contrasena: CONTRASENA }),
   });
-  const cuerpo = await r.json();
-  return cuerpo.token as string;
+  const cuerpo = (await r.json()) as { token: string };
+  return cuerpo.token;
+}
+
+/**
+ * Forma minima de lo que devuelve la consola. Se declara para que el
+ * compilador vuelva a proteger despues de la frontera de red — la misma razon
+ * por la que el cliente web y el movil tienen su lector tipado.
+ *
+ * Estos errores llevaban aqui desde el Sprint 1 y nadie los veia: las pruebas
+ * no estaban en ningun tsconfig, asi que `pnpm typecheck` ni las miraba. Se
+ * descubrio al meterlas al proyecto en el Sprint 5.
+ */
+interface PanelPlataforma {
+  /// TODA_LA_CARTERA para el CEO; MI_CARTERA para un socio.
+  alcance: string;
+  /// Presente solo cuando la consola RECHAZA. El mensaje es opaco a proposito:
+  /// distinguir "no existe" de "no puedes" le confirma la consola a quien sondea.
+  message?: string;
+  mrr: { total: string } & Record<string, unknown>;
+  clientes: Array<Record<string, unknown>>;
 }
 
 async function panel(tok: string) {
   const r = await fetch(`${base}/plataforma/panel`, {
     headers: { Authorization: `Bearer ${tok}` },
   });
-  return { estado: r.status, cuerpo: await r.json().catch(() => null) };
+  const cuerpo = (await r.json().catch(() => null)) as PanelPlataforma;
+  return { estado: r.status, cuerpo };
 }
 
 describe('quien NO entra a la consola', () => {
@@ -179,7 +199,7 @@ describe('que ve cada quien', () => {
     const { cuerpo } = await panel(await token('zahardev-test', 'socio@zahardev.mx'));
     expect(cuerpo.alcance).toBe('MI_CARTERA');
     expect(cuerpo.clientes).toHaveLength(1);
-    expect(cuerpo.clientes[0].escuela).toBe('Escuela B');
+    expect(cuerpo.clientes[0]!.escuela).toBe('Escuela B');
     // Ni el nombre del cliente ajeno aparece en la respuesta.
     expect(JSON.stringify(cuerpo)).not.toContain('Escuela A');
   });
@@ -187,7 +207,7 @@ describe('que ve cada quien', () => {
   it('los importes viajan como cadena para no perder centavos (§4)', async () => {
     const { cuerpo } = await panel(await token('zahardev-test', 'ceo@zahardev.mx'));
     expect(typeof cuerpo.mrr.total).toBe('string');
-    expect(typeof cuerpo.clientes[0].precioMensual).toBe('string');
+    expect(typeof cuerpo.clientes[0]!.precioMensual).toBe('string');
   });
 
   it('la consola no expone datos personales de las escuelas', async () => {
@@ -208,9 +228,9 @@ describe('que ve cada quien', () => {
     // Y ninguna estructura de personas: solo agregados comerciales.
     // (`alumnosMaximos` SI es legitimo: es el cupo contratado del plan, un
     // dato del contrato, no de una persona.)
-    expect(cuerpo.clientes[0]).not.toHaveProperty('alumnos');
-    expect(cuerpo.clientes[0]).not.toHaveProperty('tutores');
-    expect(Object.keys(cuerpo.clientes[0]).sort()).toEqual([
+    expect(cuerpo.clientes[0]!).not.toHaveProperty('alumnos');
+    expect(cuerpo.clientes[0]!).not.toHaveProperty('tutores');
+    expect(Object.keys(cuerpo.clientes[0]!).sort()).toEqual([
       'alumnosMaximos',
       'cortesiaHasta',
       'escuela',

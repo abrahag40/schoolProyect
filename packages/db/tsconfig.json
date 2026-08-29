@@ -1,16 +1,12 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "outDir": "dist",
-    // rootDir = src para que la salida sea dist/index.js y no dist/src/index.js.
-    // El cliente de Prisma vive en ../generated (hermano de dist): desde
-    // dist/index.js el import '../generated/prisma/client.js' resuelve bien,
-    // y como ya viene compilado no necesita pasar por tsc.
-    "rootDir": "src",
+    "noEmit": true,
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "types": ["node"]
   },
-  "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist", "test"]
+  // Igual que en apps/api: cubre todo el paquete y no emite.
+  "include": ["src/**/*.ts", "test/**/*.ts", "*.config.ts"],
+  "exclude": ["node_modules", "dist", "generated"]
 }

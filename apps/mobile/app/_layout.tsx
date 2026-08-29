@@ -19,6 +19,7 @@ export default function DisenoRaiz() {
       >
         <Stack.Screen name="index" options={{ title: 'Entrar' }} />
         <Stack.Screen name="panel" options={{ title: 'Mi escuela' }} />
+        <Stack.Screen name="estado-de-cuenta" options={{ title: 'Estado de cuenta' }} />
       </Stack>
     </>
   );

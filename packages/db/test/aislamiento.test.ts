@@ -29,6 +29,8 @@ beforeAll(async () => {
   // El orden importa: las hijas antes que las padres. Borrar tenant primero
   // funcionaria por CASCADE, pero dejarlo explicito hace visible el grafo de
   // dependencias a quien agregue una tabla nueva.
+  await owner.query('DELETE FROM aplicacion_de_pago');
+  await owner.query('DELETE FROM pago');
   await owner.query('DELETE FROM parte_de_cargo');
   await owner.query('DELETE FROM cargo');
   await owner.query('DELETE FROM concepto_cargo');
@@ -428,6 +430,63 @@ describe('cobranza aislada (Sprint 4)', () => {
 
     const enAcademia = await conTenant(ID_ACADEMIA, (tx) => tx.cargo.count(), cliente);
     expect(enAcademia, 'la escritura cruzada dejo rastro').toBe(1);
+  });
+
+  it('los pagos de una escuela no existen para la otra (Sprint 5)', async () => {
+    const propio = await conTenant(
+      ID_COLEGIO,
+      async (tx) => ({ tutor: await tx.tutor.findFirst() }),
+      cliente,
+    );
+    if (!propio.tutor) return; // el escenario base no siempre tiene tutores
+
+    await conTenant(
+      ID_COLEGIO,
+      (tx) =>
+        tx.pago.create({
+          data: {
+            tenantId: ID_COLEGIO,
+            tutorId: propio.tutor!.id,
+            monto: '500.00',
+            fecha: new Date('2026-09-15T00:00:00.000Z'),
+            metodo: 'TRANSFERENCIA',
+          },
+        }),
+      cliente,
+    );
+
+    expect(await conTenant(ID_ACADEMIA, (tx) => tx.pago.count(), cliente)).toBe(0);
+    expect(await conTenant(ID_COLEGIO, (tx) => tx.pago.count(), cliente)).toBe(1);
+  });
+
+  it('no se puede registrar un pago a nombre de otra escuela', async () => {
+    // El caso feo: el atacante ya tiene el id del tutor ajeno en la mano. Sin
+    // RLS este INSERT pasaria y el dinero se aplicaria a la deuda equivocada.
+    const ajeno = await conTenant(
+      ID_ACADEMIA,
+      async (tx) => ({ tutor: await tx.tutor.findFirst() }),
+      cliente,
+    );
+    if (!ajeno.tutor) return;
+
+    await expect(
+      conTenant(
+        ID_COLEGIO,
+        (tx) =>
+          tx.pago.create({
+            data: {
+              tenantId: ID_ACADEMIA,
+              tutorId: ajeno.tutor!.id,
+              monto: '1.00',
+              fecha: new Date('2026-09-15T00:00:00.000Z'),
+              metodo: 'EFECTIVO',
+            },
+          }),
+        cliente,
+      ),
+    ).rejects.toThrow();
+
+    expect(await conTenant(ID_ACADEMIA, (tx) => tx.pago.count(), cliente)).toBe(0);
   });
 
   it('el reparto de un cargo tampoco cruza la frontera', async () => {

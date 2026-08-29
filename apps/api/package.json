@@ -5,9 +5,9 @@
   "type": "module",
   "description": "API de Azahar. Proceso de larga vida (no serverless): los crons de cobranza y los webhooks de pasarela lo exigen (ADR-003).",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json",
     "//dev": "Se compila con tsc y se ejecuta el resultado, en vez de --experimental-strip-types. Motivo (verificado el 24-ago-2026 con Node 25.2.1): el type-stripping de Node NO resuelve un import \".js\" a su hermano \".ts\", que es justo lo que exige TypeScript con NodeNext — el arranque moria con ERR_MODULE_NOT_FOUND. Ademas Nest necesita emitDecoratorMetadata para inyectar por tipo y el type-stripping no lo emite: la DI fallaria en desarrollo y no en produccion, que es la peor forma de fallar. Este camino usa el MISMO compilador que la imagen de Docker.",
-    "dev": "tsc -p tsconfig.json && (tsc -p tsconfig.json --watch --preserveWatchOutput & node --watch dist/main.js)",
+    "dev": "tsc -p tsconfig.build.json && (tsc -p tsconfig.build.json --watch --preserveWatchOutput & node --watch dist/main.js)",
     "start": "node dist/main.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"

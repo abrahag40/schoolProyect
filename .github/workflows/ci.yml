@@ -66,9 +66,16 @@ jobs:
         run: pnpm --filter @azahar/db generate
       - run: pnpm lint
       - run: pnpm typecheck
-      - name: Pruebas (incluye el gate de aislamiento multi-tenant)
+      # Los navegadores de Playwright pesan y se descargan aparte del lockfile.
+      # Solo chromium: el objetivo de este sprint es verificar el comportamiento
+      # a 360 px, no la matriz de navegadores — eso llega con el hardening (S11).
+      - name: Navegador para las pruebas de extremo a extremo
+        run: pnpm --filter @azahar/web exec playwright install --with-deps chromium
+      # Playwright levanta el API y la web solo, pero necesita el API COMPILADO.
+      - name: Compilar antes de las pruebas de extremo a extremo
+        run: pnpm build
+      - name: Pruebas (incluye el gate de aislamiento y las e2e a 360 px)
         run: pnpm test
-      - run: pnpm build
 
   seguridad-dependencias:
     name: SCA (dependencias vulnerables)

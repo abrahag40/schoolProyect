@@ -17,6 +17,32 @@ const ID_COLEGIO = '61111111-1111-4111-8111-111111111111';
 const ID_ACADEMIA = '62222222-2222-4222-8222-222222222222';
 const CONTRASENA = 'prueba-asistencia-2026';
 
+/** Contratos de lo que responde el API, declarados una vez. */
+interface GruposRespuesta {
+  hoy: string;
+  grupos: Array<{
+    id: string;
+    nombre: string;
+    tipo: string;
+    inscritos: number;
+    listaDeHoy: boolean;
+  }>;
+}
+
+interface ListaRespuesta {
+  cohorte: { id: string; nombre: string; tipo: string; sede: string };
+  fecha: string;
+  yaRegistrada: boolean;
+  alumnos: Array<{ alumnoId: string; nombre: string; apellidos: string; estado: string | null }>;
+}
+
+interface PaseListaRespuesta {
+  fecha: string;
+  guardados: number;
+  resumen: { presentes: number; ausentes: number; retardos: number; justificadas: number };
+  avisosGenerados: number;
+}
+
 let app: INestApplication;
 let base: string;
 let owner: pg.Client;
@@ -141,10 +167,10 @@ beforeAll(async () => {
   for (const a of alumnos) ids[a.nombre.toLowerCase()] = a.id;
 
   for (const [alumno, cohorte] of [
-    ['ana', ids.primeroA],
-    ['luis', ids.primeroA],
-    ['rosa', ids.primeroA],
-    ['otro', ids.segundoA],
+    ['ana', ids.primeroA!],
+    ['luis', ids.primeroA!],
+    ['rosa', ids.primeroA!],
+    ['otro', ids.segundoA!],
   ] as const) {
     await owner.query(
       `INSERT INTO inscripcion (id, tenant_id, alumno_id, cohorte_id, estado, alta_en)
@@ -184,7 +210,7 @@ beforeAll(async () => {
     `INSERT INTO asignacion_docente (id, tenant_id, usuario_id, cohorte_id, titular, creada_en) VALUES
        (gen_random_uuid(),$1,$2,$3,true,now()),
        (gen_random_uuid(),$4,$5,$6,true,now())`,
-    [ID_COLEGIO, ids['maestra@t.mx'], ids.primeroA, ID_ACADEMIA, ids['coach@t.mx'], ids.sub12],
+    [ID_COLEGIO, ids['maestra@t.mx'], ids.primeroA!, ID_ACADEMIA, ids['coach@t.mx'], ids.sub12!],
   );
 
   for (const [correo, hijos] of [
@@ -221,7 +247,7 @@ async function entrar(escuela: string, email: string): Promise<string> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ escuela, email, contrasena: CONTRASENA }),
   });
-  return (await r.json()).token;
+  return ((await r.json()) as { token: string }).token;
 }
 
 const conToken = (token: string) => ({
@@ -240,7 +266,7 @@ async function pasarLista(
     headers: conToken(token),
     body: JSON.stringify({ cohorteId, fecha, registros }),
   });
-  return { estado: r.status, cuerpo: await r.json() };
+  return { estado: r.status, cuerpo: (await r.json()) as PaseListaRespuesta };
 }
 
 async function avisosDe(token: string) {
@@ -252,10 +278,10 @@ describe('mis grupos: quien ve que', () => {
   it('la maestra ve SOLO el grupo que tiene asignado', async () => {
     const token = await entrar('colegio-a', 'maestra@t.mx');
     const r = await fetch(`${base}/pase-lista/grupos`, { headers: conToken(token) });
-    const cuerpo = await r.json();
+    const cuerpo = (await r.json()) as GruposRespuesta & ListaRespuesta;
 
     expect(cuerpo.grupos).toHaveLength(1);
-    expect(cuerpo.grupos[0]).toMatchObject({ nombre: '1o A', tipo: 'GRADO', inscritos: 3 });
+    expect(cuerpo.grupos[0]!).toMatchObject({ nombre: '1o A', tipo: 'GRADO', inscritos: 3 });
     // Y el "hoy" viene de la escuela: la pantalla no lo calcula por su cuenta.
     expect(cuerpo.hoy).toBe(HOY);
   });
@@ -263,7 +289,7 @@ describe('mis grupos: quien ve que', () => {
   it('la direccion ve todos los grupos del periodo', async () => {
     const token = await entrar('colegio-a', 'dir@t.mx');
     const r = await fetch(`${base}/pase-lista/grupos`, { headers: conToken(token) });
-    expect((await r.json()).grupos).toHaveLength(2);
+    expect(((await r.json()) as GruposRespuesta).grupos).toHaveLength(2);
   });
 
   it('un tutor no entra al pase de lista', async () => {
@@ -280,28 +306,24 @@ describe('mis grupos: quien ve que', () => {
 describe('la lista de un grupo', () => {
   it('trae a los inscritos ordenados y sin estado previo', async () => {
     const token = await entrar('colegio-a', 'maestra@t.mx');
-    const r = await fetch(`${base}/pase-lista/${ids.primeroA}`, { headers: conToken(token) });
-    const cuerpo = await r.json();
+    const r = await fetch(`${base}/pase-lista/${ids.primeroA!}`, { headers: conToken(token) });
+    const cuerpo = (await r.json()) as GruposRespuesta & ListaRespuesta;
 
     expect(cuerpo.cohorte).toMatchObject({ nombre: '1o A', sede: 'Campus A' });
     expect(cuerpo.yaRegistrada).toBe(false);
-    expect(cuerpo.alumnos.map((a: { nombre: string }) => a.nombre)).toEqual([
-      'Ana',
-      'Luis',
-      'Rosa',
-    ]);
-    expect(cuerpo.alumnos[0].estado).toBeNull();
+    expect(cuerpo.alumnos.map((a) => a.nombre)).toEqual(['Ana', 'Luis', 'Rosa']);
+    expect(cuerpo.alumnos[0]!.estado).toBeNull();
   });
 
   it('la maestra NO puede abrir la lista de un grupo ajeno de su propia escuela', async () => {
     const token = await entrar('colegio-a', 'maestra@t.mx');
-    const r = await fetch(`${base}/pase-lista/${ids.segundoA}`, { headers: conToken(token) });
+    const r = await fetch(`${base}/pase-lista/${ids.segundoA!}`, { headers: conToken(token) });
     expect(r.status).toBe(403);
   });
 
   it('tampoco la de otra escuela: el aislamiento aguanta con un id valido en la mano', async () => {
     const token = await entrar('colegio-a', 'maestra@t.mx');
-    const r = await fetch(`${base}/pase-lista/${ids.sub12}`, { headers: conToken(token) });
+    const r = await fetch(`${base}/pase-lista/${ids.sub12!}`, { headers: conToken(token) });
     expect(r.status).toBe(403);
   });
 });
@@ -309,31 +331,29 @@ describe('la lista de un grupo', () => {
 describe('guardar el pase de lista', () => {
   it('guarda, resume, y deja la lista marcada como registrada', async () => {
     const token = await entrar('colegio-a', 'maestra@t.mx');
-    const { estado, cuerpo } = await pasarLista(token, ids.primeroA, F_ANA, [
-      { alumnoId: ids.ana, estado: 'AUSENTE' },
-      { alumnoId: ids.luis, estado: 'PRESENTE' },
-      { alumnoId: ids.rosa, estado: 'PRESENTE' },
+    const { estado, cuerpo } = await pasarLista(token, ids.primeroA!, F_ANA, [
+      { alumnoId: ids.ana!, estado: 'AUSENTE' },
+      { alumnoId: ids.luis!, estado: 'PRESENTE' },
+      { alumnoId: ids.rosa!, estado: 'PRESENTE' },
     ]);
 
     expect(estado).toBe(200);
     expect(cuerpo.resumen).toEqual({ presentes: 2, ausentes: 1, retardos: 0, justificadas: 0 });
 
-    const r = await fetch(`${base}/pase-lista/${ids.primeroA}?fecha=${F_ANA}`, {
+    const r = await fetch(`${base}/pase-lista/${ids.primeroA!}?fecha=${F_ANA}`, {
       headers: conToken(token),
     });
-    const lista = await r.json();
+    const lista = (await r.json()) as ListaRespuesta;
     expect(lista.yaRegistrada).toBe(true);
-    expect(lista.alumnos.find((a: { nombre: string }) => a.nombre === 'Ana').estado).toBe(
-      'AUSENTE',
-    );
+    expect(lista.alumnos.find((a) => a.nombre === 'Ana')!.estado).toBe('AUSENTE');
   });
 
   it('no se pasa lista de un dia que no ha ocurrido', async () => {
     const token = await entrar('colegio-a', 'maestra@t.mx');
     const manana = new Date(`${HOY}T12:00:00Z`);
     manana.setUTCDate(manana.getUTCDate() + 1);
-    const { estado } = await pasarLista(token, ids.primeroA, manana.toISOString().slice(0, 10), [
-      { alumnoId: ids.ana, estado: 'AUSENTE' },
+    const { estado } = await pasarLista(token, ids.primeroA!, manana.toISOString().slice(0, 10), [
+      { alumnoId: ids.ana!, estado: 'AUSENTE' },
     ]);
     expect(estado).toBe(400);
   });
@@ -342,8 +362,8 @@ describe('guardar el pase de lista', () => {
     // RLS no lo impediria: 'Otro' es de la MISMA escuela. La frontera de grupo
     // es de aplicacion y por eso se prueba aqui.
     const token = await entrar('colegio-a', 'dir@t.mx');
-    const { estado } = await pasarLista(token, ids.primeroA, F_ANA, [
-      { alumnoId: ids.otro, estado: 'AUSENTE' },
+    const { estado } = await pasarLista(token, ids.primeroA!, F_ANA, [
+      { alumnoId: ids.otro!, estado: 'AUSENTE' },
     ]);
     expect(estado).toBe(400);
   });
@@ -354,9 +374,9 @@ describe('guardar el pase de lista', () => {
       method: 'POST',
       headers: conToken(token),
       body: JSON.stringify({
-        cohorteId: ids.primeroA,
+        cohorteId: ids.primeroA!,
         fecha: F_ANA,
-        registros: [{ alumnoId: ids.ana, estado: 'DE_VACACIONES' }],
+        registros: [{ alumnoId: ids.ana!, estado: 'DE_VACACIONES' }],
       }),
     });
     expect(r.status).toBe(400);
@@ -364,11 +384,11 @@ describe('guardar el pase de lista', () => {
 
   it('corregir un estado deja rastro en la bitacora inmutable (§39)', async () => {
     const token = await entrar('colegio-a', 'maestra@t.mx');
-    await pasarLista(token, ids.primeroA, F_CORRECCION, [
-      { alumnoId: ids.rosa, estado: 'PRESENTE' },
+    await pasarLista(token, ids.primeroA!, F_CORRECCION, [
+      { alumnoId: ids.rosa!, estado: 'PRESENTE' },
     ]);
-    await pasarLista(token, ids.primeroA, F_CORRECCION, [
-      { alumnoId: ids.rosa, estado: 'AUSENTE' },
+    await pasarLista(token, ids.primeroA!, F_CORRECCION, [
+      { alumnoId: ids.rosa!, estado: 'AUSENTE' },
     ]);
 
     const { rows } = await owner.query(
@@ -396,10 +416,10 @@ describe('el aviso llega a la familia (el Sprint Goal)', () => {
     const madre = await entrar('colegio-a', 'madre@t.mx');
     const antes = (await avisosDe(madre)).length;
 
-    const { cuerpo } = await pasarLista(token, ids.primeroA, F_ANA, [
-      { alumnoId: ids.ana, estado: 'AUSENTE' },
-      { alumnoId: ids.luis, estado: 'PRESENTE' },
-      { alumnoId: ids.rosa, estado: 'PRESENTE' },
+    const { cuerpo } = await pasarLista(token, ids.primeroA!, F_ANA, [
+      { alumnoId: ids.ana!, estado: 'AUSENTE' },
+      { alumnoId: ids.luis!, estado: 'PRESENTE' },
+      { alumnoId: ids.rosa!, estado: 'PRESENTE' },
     ]);
 
     expect(cuerpo.avisosGenerados).toBe(0);
@@ -408,22 +428,22 @@ describe('el aviso llega a la familia (el Sprint Goal)', () => {
 
   it('un retardo no genera aviso: el canal se reserva para lo que importa', async () => {
     const token = await entrar('colegio-a', 'maestra@t.mx');
-    const { cuerpo } = await pasarLista(token, ids.primeroA, F_RETARDO, [
-      { alumnoId: ids.rosa, estado: 'RETARDO' },
+    const { cuerpo } = await pasarLista(token, ids.primeroA!, F_RETARDO, [
+      { alumnoId: ids.rosa!, estado: 'RETARDO' },
     ]);
     expect(cuerpo.avisosGenerados).toBe(0);
   });
 
   it('al tercer dia de falta llega ademas el aviso acumulado, con el numero', async () => {
     const token = await entrar('colegio-a', 'maestra@t.mx');
-    const primeros = await pasarLista(token, ids.primeroA, F_LUIS[0]!, [
-      { alumnoId: ids.luis, estado: 'AUSENTE' },
+    const primeros = await pasarLista(token, ids.primeroA!, F_LUIS[0]!, [
+      { alumnoId: ids.luis!, estado: 'AUSENTE' },
     ]);
-    const segundos = await pasarLista(token, ids.primeroA, F_LUIS[1]!, [
-      { alumnoId: ids.luis, estado: 'AUSENTE' },
+    const segundos = await pasarLista(token, ids.primeroA!, F_LUIS[1]!, [
+      { alumnoId: ids.luis!, estado: 'AUSENTE' },
     ]);
-    const terceros = await pasarLista(token, ids.primeroA, F_LUIS[2]!, [
-      { alumnoId: ids.luis, estado: 'AUSENTE' },
+    const terceros = await pasarLista(token, ids.primeroA!, F_LUIS[2]!, [
+      { alumnoId: ids.luis!, estado: 'AUSENTE' },
     ]);
 
     // Uno, uno... y dos: la falta del dia MAS el acumulado.
@@ -446,11 +466,11 @@ describe('el aviso llega a la familia (el Sprint Goal)', () => {
     });
 
     const maestra = await entrar('colegio-a', 'maestra@t.mx');
-    await pasarLista(maestra, ids.primeroA, F_PUSH, [{ alumnoId: ids.ana, estado: 'AUSENTE' }]);
+    await pasarLista(maestra, ids.primeroA!, F_PUSH, [{ alumnoId: ids.ana!, estado: 'AUSENTE' }]);
 
     const { rows } = await owner.query(
       `SELECT dispositivos, enviada_en FROM notificacion WHERE clave = $1`,
-      [`falta:${ids.ana}:${F_PUSH}`],
+      [`falta:${ids.ana!}:${F_PUSH}`],
     );
     expect(rows).toHaveLength(1);
     expect(rows[0].enviada_en).not.toBeNull();

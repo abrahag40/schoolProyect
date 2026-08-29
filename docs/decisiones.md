@@ -188,3 +188,61 @@ true)` dentro de una transaccion, nunca como ajuste de sesion. _(Motivo: con
   ejecutando solo el gate de tokens. Un check verde que no comprueba nada es
   peor que su ausencia: da una garantía falsa. Al implementarlo aparecieron 65
   hallazgos, dos de ellos defectos reales de React.)_
+
+### Nuevas del Sprint 5 (25-ago-2026)
+
+- **§47** — El saldo se **deriva**, nunca se guarda. Un cargo no cambia de
+  importe cuando alguien paga: se registra el pago, se aplica, y lo que falta es
+  una resta. _(Una columna de saldo hay que mantenerla sincronizada con cada
+  abono, y el día que la columna y la suma difieran nadie sabrá cuál de las dos
+  creer. Lo mismo vale para el estado `PAGADO` del cargo: no se escribe.)_
+- **§48** — Un pago es un **asiento** y se aplica **de lo más viejo a lo más
+  nuevo**. _(El Artículo 7 del Acuerdo DOF 10-mar-1992 cuenta COLEGIATURAS
+  vencidas —meses—, no pesos: saldar el mes corriente y dejar agosto abierto
+  mantiene a la familia en riesgo de suspensión aunque haya pagado lo mismo. Y
+  lo que sobra queda a favor, no se rechaza: una familia que paga por adelantado
+  no se equivocó.)_
+- **§49** — El `tsconfig.json` de cada paquete cubre **todo** su contenido
+  —fuentes, pruebas y archivos de configuración— y la compilación vive en
+  `tsconfig.build.json`. _(Con las pruebas fuera del proyecto, `pnpm typecheck`
+  ni las miraba: al incluirlas en el Sprint 5 aparecieron errores de tipo que
+  llevaban ahí desde el Sprint 1. Además obligaba a mantener una lista de
+  excepciones en el linter cuyo tope se alcanzaba cada vez que alguien agregaba
+  una prueba.)_
+- **§50** — Las pruebas de extremo a extremo verifican lo que **solo un
+  navegador puede verificar** —que la cookie httpOnly viaje, que la pantalla se
+  arme con datos reales, que no scrollee de lado a 360 px— y no repiten lo que
+  ya cubren las pruebas del API. _(Duplicar cobertura en la capa más lenta y más
+  frágil es como una suite deja de correrse. Y se preparan solas: sembrar y
+  generar datos a mano antes de correrlas es una instrucción que alguien va a
+  olvidar, y entonces se culpa a la prueba en vez de al defecto.)_
+- **§51** — Toda regla legal que acote el cobro se declara **por vertical**, y el
+  ámbito vive en el dominio junto con la regla (`marco-legal.ts`), nunca en la
+  pantalla. El Acuerdo DOF 10-mar-1992 alcanza a los particulares con RVOE de
+  educación básica y normal: en nuestro modelo, al vertical `COLEGIO`. A una
+  universidad, una academia o un taller **no** se les impone su ventana de
+  gracia, su aviso de 60 días ni su umbral de suspensión. _(Aplicar la ley "por
+  si acaso" suena prudente y no lo es: le impone al cliente obligaciones que su
+  contrato no tiene y encima le afirma en pantalla que son la ley. Eso es
+  informarle mal sobre su propia obligación legal. El mapeo vertical→ámbito es
+  inferencia nuestra y está marcada como tal en el módulo: el día que exista una
+  academia con RVOE de básica habrá que preguntar por el RVOE del plantel.)_
+- **§52** — El contador del Artículo 7 cuenta **colegiaturas, no adeudos**. Un
+  concepto declara si lo es (`esColegiatura`) y nace en `false`: el sistema no
+  adivina cuál de los cobros mensuales de una escuela es la colegiatura y cuál
+  el comedor. _(De los dos errores posibles, contar de menos cuesta dinero —la
+  escuela no suspende cuando podría— y contar de más cuesta una multa —suspende
+  cuando la ley todavía no se lo permite—. El defecto real: hasta el Sprint 5
+  tres excursiones impagas empujaban a una familia al umbral de suspensión sin
+  deber una sola colegiatura.)_
+- **§53** — Las funcionalidades **legalmente prohibidas no se construyen**, ni
+  desactivadas, ni detrás de una bandera: retener documentos por adeudo (LGE
+  art. 146 y 170-XXII, multa de 1,001 a 7,000 UMA) y exhibir morosos (Acuerdo
+  9.º). Ninguna exportación ni notificación grupal puede identificar a un alumno
+  por su adeudo. _(Una casilla apagada es una invitación encendida: alguien la
+  prende un lunes de corte y la multa la paga el cliente.)_
+- **§54** — Ningún dato de incumplimiento de pago sobrevive **72 meses**
+  (LFPDPPP 2025, art. 10). _(Un alumno pasa seis años en primaria: cualquier
+  "historial completo de pagos" viola la ley por construcción. Se escribe ahora
+  aunque la purga se implemente en el sprint de reportes, porque el dato que hoy
+  se acumula es el que mañana hay que borrar.)_

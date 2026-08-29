@@ -25,6 +25,39 @@ const INICIO_CICLO = '2026-08-01';
 const PERIODO = '2026-09';
 const PERIODO_CICLO = '2026-08';
 
+/** Contratos de lo que responde el API, declarados una vez. */
+interface ConceptoRespuesta {
+  id: string;
+  clave: string;
+  monto: string;
+  deducibleIedu: boolean;
+  nivelEducativo: string | null;
+}
+
+interface GeneracionRespuesta {
+  periodo: string;
+  generados: number;
+  omitidos: number;
+  importeTotal: string;
+  problemas: Array<{ alumno: string; concepto: string; motivo: string }>;
+}
+
+interface CargoRespuesta {
+  id: string;
+  alumno: string;
+  concepto: string;
+  monto: string;
+  vence: string;
+  sinRecargoHasta: string;
+  estado: string;
+  partes: Array<{ tutor: string; porcentaje: string; monto: string }>;
+}
+
+interface ErrorRespuesta {
+  message?: string;
+  detalles?: Array<{ campo: string; mensaje: string }>;
+}
+
 let app: INestApplication;
 let base: string;
 let owner: pg.Client;
@@ -207,7 +240,7 @@ async function entrar(escuela: string, email: string): Promise<string> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ escuela, email, contrasena: CONTRASENA }),
   });
-  return (await r.json()).token;
+  return ((await r.json()) as { token: string }).token;
 }
 
 const conToken = (token: string) => ({
@@ -215,13 +248,13 @@ const conToken = (token: string) => ({
   'Content-Type': 'application/json',
 });
 
-async function post(token: string, ruta: string, cuerpo: unknown) {
+async function post<T = Record<string, unknown>>(token: string, ruta: string, cuerpo: unknown) {
   const r = await fetch(`${base}${ruta}`, {
     method: 'POST',
     headers: conToken(token),
     body: JSON.stringify(cuerpo),
   });
-  return { estado: r.status, cuerpo: await r.json().catch(() => null) };
+  return { estado: r.status, cuerpo: (await r.json().catch(() => null)) as T };
 }
 
 describe('quien administra el dinero', () => {
@@ -246,16 +279,20 @@ describe('quien administra el dinero', () => {
 describe('catalogo de cargos', () => {
   it('la administracion da de alta la colegiatura, con sus datos fiscales', async () => {
     const token = await entrar('colegio-c', 'admin@t.mx');
-    const { estado, cuerpo } = await post(token, '/catalogo-cargos', {
-      clave: 'colegiatura-primaria',
-      nombre: 'Colegiatura de primaria',
-      periodicidad: 'MENSUAL',
-      monto: '2450.00',
-      diaVencimiento: 5,
-      deducibleIedu: true,
-      nivelEducativo: 'PRIMARIA',
-      vigenteDesde: INICIO_CICLO,
-    });
+    const { estado, cuerpo } = await post<ConceptoRespuesta & ErrorRespuesta>(
+      token,
+      '/catalogo-cargos',
+      {
+        clave: 'colegiatura-primaria',
+        nombre: 'Colegiatura de primaria',
+        periodicidad: 'MENSUAL',
+        monto: '2450.00',
+        diaVencimiento: 5,
+        deducibleIedu: true,
+        nivelEducativo: 'PRIMARIA',
+        vigenteDesde: INICIO_CICLO,
+      },
+    );
 
     expect(estado).toBe(201);
     expect(cuerpo).toMatchObject({
@@ -269,14 +306,18 @@ describe('catalogo de cargos', () => {
 
   it('y la inscripcion, que se cobra una sola vez por ciclo', async () => {
     const token = await entrar('colegio-c', 'admin@t.mx');
-    const { estado, cuerpo } = await post(token, '/catalogo-cargos', {
-      clave: 'inscripcion',
-      nombre: 'Inscripción del ciclo',
-      periodicidad: 'UNICO',
-      monto: '4900.00',
-      diaVencimiento: 15,
-      vigenteDesde: INICIO_CICLO,
-    });
+    const { estado, cuerpo } = await post<ConceptoRespuesta & ErrorRespuesta>(
+      token,
+      '/catalogo-cargos',
+      {
+        clave: 'inscripcion',
+        nombre: 'Inscripción del ciclo',
+        periodicidad: 'UNICO',
+        monto: '4900.00',
+        diaVencimiento: 15,
+        vigenteDesde: INICIO_CICLO,
+      },
+    );
     expect(estado).toBe(201);
     ids.inscripcion = cuerpo.id;
   });
@@ -286,36 +327,46 @@ describe('catalogo de cargos', () => {
     // la familia pierde su deduccion — un año despues, cuando ya no hay
     // arreglo. Se detiene aqui.
     const token = await entrar('colegio-c', 'admin@t.mx');
-    const { estado, cuerpo } = await post(token, '/catalogo-cargos', {
-      clave: 'taller-deducible',
-      nombre: 'Taller',
-      periodicidad: 'MENSUAL',
-      monto: '500.00',
-      deducibleIedu: true,
-      vigenteDesde: INICIO_CICLO,
-    });
+    const { estado, cuerpo } = await post<ConceptoRespuesta & ErrorRespuesta>(
+      token,
+      '/catalogo-cargos',
+      {
+        clave: 'taller-deducible',
+        nombre: 'Taller',
+        periodicidad: 'MENSUAL',
+        monto: '500.00',
+        deducibleIedu: true,
+        vigenteDesde: INICIO_CICLO,
+      },
+    );
     expect(estado).toBe(400);
     expect(cuerpo.message).toMatch(/nivel educativo/i);
   });
 
   it('un importe mal escrito se rechaza con 400 y dice como se escribe', async () => {
     const token = await entrar('colegio-c', 'admin@t.mx');
-    const { estado, cuerpo } = await post(token, '/catalogo-cargos', {
-      clave: 'malo',
-      nombre: 'Concepto con importe raro',
-      periodicidad: 'MENSUAL',
-      monto: '$2,450',
-      vigenteDesde: INICIO_CICLO,
-    });
+    const { estado, cuerpo } = await post<ConceptoRespuesta & ErrorRespuesta>(
+      token,
+      '/catalogo-cargos',
+      {
+        clave: 'malo',
+        nombre: 'Concepto con importe raro',
+        periodicidad: 'MENSUAL',
+        monto: '$2,450',
+        vigenteDesde: INICIO_CICLO,
+      },
+    );
     expect(estado).toBe(400);
-    expect(cuerpo.detalles[0]).toMatchObject({ campo: 'monto' });
+    expect(cuerpo.detalles![0]).toMatchObject({ campo: 'monto' });
   });
 });
 
 describe('generacion de cargos (AZ-M4.2)', () => {
   it('genera un cargo por alumno y concepto, y suma el importe correcto', async () => {
     const token = await entrar('colegio-c', 'admin@t.mx');
-    const { estado, cuerpo } = await post(token, '/cargos/generar', { periodo: PERIODO });
+    const { estado, cuerpo } = await post<GeneracionRespuesta>(token, '/cargos/generar', {
+      periodo: PERIODO,
+    });
 
     expect(estado).toBe(200);
     // 3 alumnos x 2 conceptos.
@@ -329,7 +380,7 @@ describe('generacion de cargos (AZ-M4.2)', () => {
     // Anclar la inscripcion al periodo pedido la cobraria doce veces al año.
     const { rows } = await owner.query(
       `SELECT DISTINCT periodo FROM cargo WHERE concepto_id = $1`,
-      [ids.inscripcion],
+      [ids.inscripcion!],
     );
     expect(rows.map((r) => r.periodo)).toEqual([PERIODO_CICLO]);
   });
@@ -340,7 +391,7 @@ describe('generacion de cargos (AZ-M4.2)', () => {
     // contra el dia 1 del periodo, la generacion de agosto devolvia CERO cargos
     // en silencio: la escuela no habria cobrado su primer mes.
     const token = await entrar('colegio-c', 'admin@t.mx');
-    await post(token, '/catalogo-cargos', {
+    await post<ConceptoRespuesta & ErrorRespuesta>(token, '/catalogo-cargos', {
       clave: 'taller-vespertino',
       nombre: 'Taller vespertino',
       periodicidad: 'MENSUAL',
@@ -349,7 +400,9 @@ describe('generacion de cargos (AZ-M4.2)', () => {
       vigenteDesde: '2026-09-17',
     });
 
-    const { cuerpo } = await post(token, '/cargos/generar', { periodo: PERIODO });
+    const { cuerpo } = await post<GeneracionRespuesta>(token, '/cargos/generar', {
+      periodo: PERIODO,
+    });
     // Tres alumnos x el taller nuevo.
     expect(cuerpo.generados).toBe(3);
     expect(cuerpo.importeTotal).toBe('900.00');
@@ -359,7 +412,7 @@ describe('generacion de cargos (AZ-M4.2)', () => {
     // La otra mitad de la regla: un aumento que entra en octubre no puede
     // colarse en los cargos de septiembre.
     const token = await entrar('colegio-c', 'admin@t.mx');
-    await post(token, '/catalogo-cargos', {
+    await post<ConceptoRespuesta & ErrorRespuesta>(token, '/catalogo-cargos', {
       clave: 'excursion-octubre',
       nombre: 'Excursión de octubre',
       periodicidad: 'MENSUAL',
@@ -368,7 +421,9 @@ describe('generacion de cargos (AZ-M4.2)', () => {
       vigenteDesde: '2026-10-01',
     });
 
-    const { cuerpo } = await post(token, '/cargos/generar', { periodo: PERIODO });
+    const { cuerpo } = await post<GeneracionRespuesta>(token, '/cargos/generar', {
+      periodo: PERIODO,
+    });
     expect(cuerpo.generados).toBe(0);
   });
 
@@ -376,7 +431,9 @@ describe('generacion de cargos (AZ-M4.2)', () => {
     // Un cargo que nadie debe es un dato incompleto. Ocultarlo en un log lo
     // convierte en un faltante que aparece en la auditoria.
     const token = await entrar('colegio-c', 'admin@t.mx');
-    const { cuerpo } = await post(token, '/cargos/generar', { periodo: PERIODO });
+    const { cuerpo } = await post<GeneracionRespuesta>(token, '/cargos/generar', {
+      periodo: PERIODO,
+    });
     // Ya estan generados; los problemas se reportan en la corrida que los creo.
     expect(cuerpo.generados).toBe(0);
 
@@ -389,7 +446,7 @@ describe('generacion de cargos (AZ-M4.2)', () => {
          FROM cargo c
          LEFT JOIN parte_de_cargo p ON p.cargo_id = c.id
         WHERE c.alumno_id = $1`,
-      [ids.rosa],
+      [ids.rosa!],
     );
     expect(rows[0].total).toBeGreaterThan(0);
     expect(rows[0].con_reparto, 'un alumno sin pagadores no deberia tener reparto').toBe(0);
@@ -404,7 +461,7 @@ describe('el reparto cuadra al centavo (AZ-M4.3)', () => {
          JOIN cargo c ON c.id = p.cargo_id
         WHERE c.alumno_id = $1 AND c.concepto_id = $2
         ORDER BY p.porcentaje DESC`,
-      [ids.ana, ids.colegiatura],
+      [ids.ana!, ids.colegiatura!],
     );
     expect(rows.map((r) => r.monto)).toEqual(['1470.00', '980.00']);
   });
@@ -426,7 +483,7 @@ describe('el reparto cuadra al centavo (AZ-M4.3)', () => {
       `SELECT p.monto::text FROM parte_de_cargo p
          JOIN cargo c ON c.id = p.cargo_id
         WHERE c.alumno_id = $1 AND c.concepto_id = $2`,
-      [ids.luis, ids.colegiatura],
+      [ids.luis!, ids.colegiatura!],
     );
     expect(rows.map((r) => r.monto)).toEqual(['2450.00']);
   });
@@ -436,12 +493,11 @@ describe('Articulo 4: la ventana legal queda ESCRITA en el cargo', () => {
   it('aunque la colegiatura venza el dia 5, no hay recargo antes del dia 10', async () => {
     const token = await entrar('colegio-c', 'admin@t.mx');
     const r = await fetch(`${base}/cargos?periodo=${PERIODO}`, { headers: conToken(token) });
-    const cargos = await r.json();
+    const cargos = (await r.json()) as CargoRespuesta[];
 
     const deAna = cargos.find(
-      (c: { alumno: string; concepto: string }) =>
-        c.alumno.includes('Ana') && c.concepto.includes('Colegiatura'),
-    );
+      (c) => c.alumno.includes('Ana') && c.concepto.includes('Colegiatura'),
+    )!;
     expect(deAna.vence).toBe('2026-09-05');
     // El dato queda congelado en la fila: si mañana la escuela cambia su
     // configuracion, la prueba de que respeto la ventana sigue siendo esta.
@@ -452,7 +508,7 @@ describe('Articulo 4: la ventana legal queda ESCRITA en el cargo', () => {
     const { rows } = await owner.query(
       `SELECT fecha_vencimiento::text AS vence, fecha_limite_sin_recargo::text AS limite
          FROM cargo WHERE concepto_id = $1 LIMIT 1`,
-      [ids.inscripcion],
+      [ids.inscripcion!],
     );
     expect(rows[0].vence).toBe('2026-08-15');
     expect(rows[0].limite).toBe('2026-08-15');
@@ -466,8 +522,10 @@ describe('idempotencia (§15)', () => {
 
     const antes = await contar();
     const token = await entrar('colegio-c', 'admin@t.mx');
-    await post(token, '/cargos/generar', { periodo: PERIODO });
-    const { cuerpo } = await post(token, '/cargos/generar', { periodo: PERIODO });
+    await post<GeneracionRespuesta>(token, '/cargos/generar', { periodo: PERIODO });
+    const { cuerpo } = await post<GeneracionRespuesta>(token, '/cargos/generar', {
+      periodo: PERIODO,
+    });
 
     expect(cuerpo.generados).toBe(0);
     expect(cuerpo.omitidos).toBeGreaterThan(0);
@@ -486,7 +544,7 @@ describe('idempotencia (§15)', () => {
 describe('aislamiento entre escuelas', () => {
   it('la academia genera lo suyo y no ve un solo cargo del colegio', async () => {
     const token = await entrar('academia-c', 'admin@t.mx');
-    await post(token, '/catalogo-cargos', {
+    await post<ConceptoRespuesta & ErrorRespuesta>(token, '/catalogo-cargos', {
       clave: 'mensualidad',
       nombre: 'Mensualidad Sub-12',
       periodicidad: 'MENSUAL',
@@ -494,14 +552,16 @@ describe('aislamiento entre escuelas', () => {
       diaVencimiento: 10,
       vigenteDesde: INICIO_CICLO,
     });
-    const { cuerpo } = await post(token, '/cargos/generar', { periodo: PERIODO });
+    const { cuerpo } = await post<GeneracionRespuesta>(token, '/cargos/generar', {
+      periodo: PERIODO,
+    });
 
     // Un alumno, un concepto.
     expect(cuerpo.generados).toBe(1);
     expect(cuerpo.importeTotal).toBe('890.00');
 
     const r = await fetch(`${base}/cargos?periodo=${PERIODO}`, { headers: conToken(token) });
-    const cargos = await r.json();
+    const cargos = (await r.json()) as CargoRespuesta[];
     expect(cargos).toHaveLength(1);
     expect(JSON.stringify(cargos)).not.toContain('Perez');
   });
@@ -509,7 +569,7 @@ describe('aislamiento entre escuelas', () => {
   it('y el colegio sigue viendo solo lo suyo', async () => {
     const token = await entrar('colegio-c', 'admin@t.mx');
     const r = await fetch(`${base}/cargos?periodo=${PERIODO}`, { headers: conToken(token) });
-    const cargos = await r.json();
+    const cargos = (await r.json()) as CargoRespuesta[];
     // Tres alumnos x dos conceptos mensuales vigentes en septiembre.
     expect(cargos).toHaveLength(6);
     expect(JSON.stringify(cargos)).not.toContain('Sub-12');
@@ -519,7 +579,7 @@ describe('aislamiento entre escuelas', () => {
 describe('Articulo 5-I: un ajuste de precio se avisa con 60 dias', () => {
   it('con un mes de anticipacion se rechaza, y se dice cuantos dias faltan', async () => {
     const token = await entrar('colegio-c', 'admin@t.mx');
-    const r = await fetch(`${base}/catalogo-cargos/${ids.colegiatura}/precio`, {
+    const r = await fetch(`${base}/catalogo-cargos/${ids.colegiatura!}/precio`, {
       method: 'PATCH',
       headers: conToken(token),
       body: JSON.stringify({
@@ -529,14 +589,14 @@ describe('Articulo 5-I: un ajuste de precio se avisa con 60 dias', () => {
       }),
     });
     expect(r.status).toBe(400);
-    const cuerpo = await r.json();
+    const cuerpo = (await r.json()) as ErrorRespuesta;
     expect(cuerpo.message).toMatch(/31 día\(s\)/);
     expect(cuerpo.message).toMatch(/60/);
   });
 
   it('con tres meses se acepta y queda en la bitacora inmutable', async () => {
     const token = await entrar('colegio-c', 'admin@t.mx');
-    const r = await fetch(`${base}/catalogo-cargos/${ids.colegiatura}/precio`, {
+    const r = await fetch(`${base}/catalogo-cargos/${ids.colegiatura!}/precio`, {
       method: 'PATCH',
       headers: conToken(token),
       body: JSON.stringify({
@@ -546,7 +606,7 @@ describe('Articulo 5-I: un ajuste de precio se avisa con 60 dias', () => {
       }),
     });
     expect(r.status).toBe(200);
-    expect((await r.json()).monto).toBe('2700.00');
+    expect(((await r.json()) as { monto: string }).monto).toBe('2700.00');
 
     const { rows } = await owner.query(
       `SELECT datos FROM evento_auditoria WHERE tipo = 'cobranza.precio_ajustado'`,
@@ -560,7 +620,7 @@ describe('Articulo 5-I: un ajuste de precio se avisa con 60 dias', () => {
     // haria imposible demostrar que se cobro lo que se anuncio.
     const { rows } = await owner.query(
       `SELECT DISTINCT monto::text FROM cargo WHERE concepto_id = $1`,
-      [ids.colegiatura],
+      [ids.colegiatura!],
     );
     expect(rows.map((r) => r.monto)).toEqual(['2450.00']);
   });
@@ -583,7 +643,7 @@ describe('la base tambien defiende el dato, no solo la aplicacion', () => {
 
   it('un cargo cancelado sin motivo tampoco', async () => {
     await expect(
-      owner.query(`UPDATE cargo SET cancelado_en = now() WHERE alumno_id = $1`, [ids.luis]),
+      owner.query(`UPDATE cargo SET cancelado_en = now() WHERE alumno_id = $1`, [ids.luis!]),
     ).rejects.toThrow(/cargo_cancelacion_con_motivo/);
   });
 
@@ -592,7 +652,7 @@ describe('la base tambien defiende el dato, no solo la aplicacion', () => {
       owner.query(
         `UPDATE cargo SET fecha_limite_sin_recargo = fecha_vencimiento - 1
           WHERE alumno_id = $1`,
-        [ids.ana],
+        [ids.ana!],
       ),
     ).rejects.toThrow(/cargo_limite_no_anterior_al_vencimiento/);
   });

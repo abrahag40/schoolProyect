@@ -28,3 +28,7 @@ packages/db/generated/
 .DS_Store
 *.log
 npm-debug.log*
+
+# Playwright
+test-results/
+playwright-report/
