@@ -57,6 +57,12 @@ const EsquemaConcepto = z.object({
   // Si puede saldarse con el saldo a favor de la familia (AZ-M4.10). Por
   // omision si; la excepcion son los cobros por cuenta de un tercero.
   aceptaSaldoAFavor: z.boolean().optional(),
+  // Una VOLUNTARIA solo se le cobra a quien la acepto (AZ-M4.2). Por omision
+  // obligatoria, que es lo que eran todos los conceptos hasta el Sprint 6.
+  obligatoriedad: z.enum(['OBLIGATORIA', 'VOLUNTARIA']).optional(),
+  // Pronto pago: los dos campos van juntos o ninguno, y la base lo impone.
+  descuentoProntoPagoPorcentaje: z.number().positive().max(100).optional(),
+  diaProntoPago: z.number().int().min(1).max(31).optional(),
   vigenteDesde: EsquemaFecha,
   avisadoEn: EsquemaFecha.optional(),
 });

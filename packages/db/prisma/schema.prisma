@@ -162,16 +162,19 @@ model Sede {
   nombre   String
   /// Clave del Centro de Trabajo (SEP). Solo aplica a incorporadas.
   cct      String?
-  /// Acuerdo RVOE. Dato maestro del complemento IEDU (A1), capturado desde S0
-  /// aunque la facturacion llegue en R2: recapturar despues seria un retrabajo
-  /// por cada escuela (principio 4, captura unica).
-  rvoe     String?
   activa   Boolean  @default(true)
   creadaEn DateTime @default(now()) @db.Timestamptz(6)
 
+  /// DEFECTO CORREGIDO EN EL SPRINT 6: aqui vivia una columna `rvoe` unica por
+  /// sede. El RVOE se otorga POR NIVEL EDUCATIVO, no por plantel: una escuela
+  /// con preescolar, primaria y secundaria tiene TRES acuerdos distintos. Con
+  /// una sola columna, dos de cada tres facturas saldrian con el RVOE
+  /// equivocado — y eso explota en el Release 2, con escuelas ya cargadas.
+  /// Ahora vive en `Rvoe`, una fila por sede y nivel.
   tenant   Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   cohortes Cohorte[]
   roles    UsuarioRol[]
+  rvoes    Rvoe[]
 
   @@index([tenantId])
   @@map("sede")
@@ -304,6 +307,7 @@ model Alumno {
   asistencias   Asistencia[]
   cargos        Cargo[]
   becas         Beca[]
+  aceptaciones  AceptacionDeCuota[]
 
   @@index([tenantId])
   @@index([tenantId, activo])
@@ -672,6 +676,12 @@ model ConceptoCargo {
   /// cuando la ley aun no se lo permite —multa—. Ante la duda, el lado seguro.
   esColegiatura Boolean @default(false) @map("es_colegiatura")
 
+  /// --- Cuotas voluntarias (AZ-M4.2) ---
+  /// Si la escuela puede cobrarla a todos o solo a quien la acepto. Nace
+  /// OBLIGATORIA porque es lo que era todo hasta el Sprint 6; marcar una cuota
+  /// como voluntaria es lo que activa el guard del Acuerdo (arts. 3 y 5-III).
+  obligatoriedad Obligatoriedad @default(OBLIGATORIA)
+
   /// --- Pronto pago (AZ-M4.3b) ---
   /// Descuento por pagar antes de tiempo, y hasta que dia del mes se gana.
   /// Los dos van juntos o ninguno: un porcentaje sin fecha no se puede aplicar,
@@ -704,8 +714,9 @@ model ConceptoCargo {
 
   tenant  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   cohorte Cohorte? @relation(fields: [cohorteId], references: [id], onDelete: Cascade)
-  cargos  Cargo[]
-  becas   Beca[]
+  cargos       Cargo[]
+  becas        Beca[]
+  aceptaciones AceptacionDeCuota[]
 
   @@unique([tenantId, clave])
   @@index([tenantId, activo])
@@ -1026,6 +1037,78 @@ model DescuentoDeCargo {
   @@index([tenantId, cargoId])
   @@index([tenantId, parteDeCargoId])
   @@map("descuento_de_cargo")
+  @@schema("public")
+}
+
+/// EL RVOE, POR NIVEL EDUCATIVO (AZ-A1).
+///
+/// El Reconocimiento de Validez Oficial de Estudios se otorga por programa y
+/// nivel, no por plantel. Una escuela con preescolar, primaria y secundaria
+/// tiene tres acuerdos con numeros distintos, y el complemento IEDU del SAT
+/// exige el que corresponde al nivel del concepto facturado.
+///
+/// Hasta el Sprint 6 guardabamos uno solo por sede. Con tres niveles, dos de
+/// cada tres CFDI habrian salido con el acuerdo equivocado — un dato fiscal
+/// incorrecto en un comprobante ya timbrado, que se corrige cancelando y
+/// reemitiendo con la ventana dura del CFF 29-A. Se movio ahora porque no hay
+/// escuelas reales cargadas: es el momento barato.
+model Rvoe {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  sedeId   String @map("sede_id") @db.Uuid
+
+  nivelEducativo NivelEducativo @map("nivel_educativo")
+  /// Numero de acuerdo tal como lo emitio la autoridad.
+  acuerdo        String
+
+  creadoEn DateTime @default(now()) @map("creado_en") @db.Timestamptz(6)
+
+  sede Sede @relation(fields: [sedeId], references: [id], onDelete: Cascade)
+
+  /// Un solo acuerdo por sede y nivel: dos filas para primaria en el mismo
+  /// plantel harian que la factura dependiera de cual leyo la consulta.
+  @@unique([sedeId, nivelEducativo])
+  @@index([tenantId])
+  @@map("rvoe")
+  @@schema("public")
+}
+
+/// QUIEN ACEPTO UNA CUOTA VOLUNTARIA (AZ-M4.2).
+///
+/// El Acuerdo DOF 10-mar-1992 (arts. 3 y 5-III) obliga a informar que pagos son
+/// obligatorios y cuales voluntarios, y prohibe condicionar el servicio a los
+/// voluntarios. Un sistema que permite generarle una "cooperacion" a los 400
+/// alumnos de golpe la vuelve obligatoria de hecho, por mas que la llame
+/// voluntaria.
+///
+/// Por eso un concepto VOLUNTARIO no se genera masivamente: solo se le cobra a
+/// quien lo acepto, y la aceptacion queda con fecha y con quien la registro.
+/// Es la prueba de que la escuela informo y la familia eligio.
+model AceptacionDeCuota {
+  id         String @id @default(uuid()) @db.Uuid
+  tenantId   String @map("tenant_id") @db.Uuid
+  alumnoId   String @map("alumno_id") @db.Uuid
+  conceptoId String @map("concepto_id") @db.Uuid
+
+  aceptadaEn  DateTime @default(now()) @map("aceptada_en") @db.Timestamptz(6)
+  /// Quien la registro. Null solo si algun dia la familia acepta desde su app.
+  registradaPor String? @map("registrada_por") @db.Uuid
+
+  alumno   Alumno        @relation(fields: [alumnoId], references: [id], onDelete: Cascade)
+  concepto ConceptoCargo @relation(fields: [conceptoId], references: [id], onDelete: Cascade)
+
+  @@unique([alumnoId, conceptoId])
+  @@index([tenantId, conceptoId])
+  @@map("aceptacion_de_cuota")
+  @@schema("public")
+}
+
+enum Obligatoriedad {
+  /// La escuela puede cobrarla a todos: colegiatura, inscripcion.
+  OBLIGATORIA
+  /// Solo a quien la acepto. Excursiones, cooperaciones, eventos.
+  VOLUNTARIA
+
   @@schema("public")
 }
 

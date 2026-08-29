@@ -62,9 +62,9 @@ beforeAll(async () => {
     [ID_COLEGIO, ID_ACADEMIA],
   );
   await owner.query(
-    `INSERT INTO sede (id, tenant_id, nombre, cct, rvoe, activa, "creadaEn") VALUES
-       (gen_random_uuid(), $1, 'Campus Norte', '31PPR0001A', 'ACUERDO-123/2024', true, now()),
-       (gen_random_uuid(), $2, 'Cancha Principal', NULL, NULL, true, now())`,
+    `INSERT INTO sede (id, tenant_id, nombre, cct, activa, "creadaEn") VALUES
+       (gen_random_uuid(), $1, 'Campus Norte', '31PPR0001A', true, now()),
+       (gen_random_uuid(), $2, 'Cancha Principal', NULL, true, now())`,
     [ID_COLEGIO, ID_ACADEMIA],
   );
   await owner.query(

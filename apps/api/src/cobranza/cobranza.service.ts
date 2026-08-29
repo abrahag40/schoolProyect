@@ -67,6 +67,9 @@ export interface ConceptoResumen {
   esColegiatura: boolean;
   /// Si puede saldarse con el dinero que la familia ya tiene a favor.
   aceptaSaldoAFavor: boolean;
+  /// OBLIGATORIA o VOLUNTARIA. Una voluntaria solo se le cobra a quien la
+  /// acepto (Acuerdo DOF 10-mar-1992, arts. 3 y 5-III).
+  obligatoriedad: string;
   vigenteDesde: string;
   activo: boolean;
 }
@@ -176,6 +179,7 @@ export class ServicioCobranza {
         nivelEducativo: c.nivelEducativo,
         esColegiatura: c.esColegiatura,
         aceptaSaldoAFavor: c.aceptaSaldoAFavor,
+        obligatoriedad: c.obligatoriedad,
         vigenteDesde: c.vigenteDesde.toISOString().slice(0, 10),
         activo: c.activo,
       }));
@@ -195,6 +199,7 @@ export class ServicioCobranza {
       nivelEducativo?: NivelEducativo;
       esColegiatura?: boolean;
       aceptaSaldoAFavor?: boolean;
+      obligatoriedad?: 'OBLIGATORIA' | 'VOLUNTARIA';
       vigenteDesde: string;
       avisadoEn?: string;
     },
@@ -214,6 +219,17 @@ export class ServicioCobranza {
     // meses": un cobro de una sola vez —la inscripcion, una credencial— no
     // puede ser una de ellas. Marcarlo asi inflaria el contador de morosidad
     // con algo que la ley no cuenta, que es el defecto que este sprint corrige.
+    // Una cuota voluntaria no puede ser colegiatura: la colegiatura ES la
+    // contraprestacion del servicio educativo. Si fuera voluntaria no habria
+    // nada que cobrar, y ademas entraria al contador del Articulo 7 — el
+    // defecto que §52 acaba de cerrar.
+    if (entrada.obligatoriedad === 'VOLUNTARIA' && entrada.esColegiatura) {
+      throw new BadRequestException(
+        'Una cuota voluntaria no puede ser colegiatura: la colegiatura es lo que se ' +
+          'cobra por el servicio educativo.',
+      );
+    }
+
     if (entrada.esColegiatura && entrada.periodicidad === 'UNICO') {
       throw new BadRequestException(
         'Un cobro de una sola vez no es una colegiatura: el Artículo 7 cuenta meses. ' +
@@ -223,6 +239,22 @@ export class ServicioCobranza {
 
     return conTenant(sesion.tenantId, async (tx) => {
       const { diaVencimientoPorOmision } = await this.parametros(tx);
+
+      // Un concepto deducible necesita el RVOE **de su nivel** capturado: el
+      // complemento IEDU lo exige y sin el, el CFDI se rechaza al timbrar
+      // (AZ-A1). Se detiene aqui y no en el Release 2, cuando ya haya cien
+      // escuelas con el dato incompleto y facturas que corregir cancelando.
+      if (entrada.deducibleIedu && entrada.nivelEducativo) {
+        const tieneRvoe = await tx.rvoe.findFirst({
+          where: { nivelEducativo: entrada.nivelEducativo },
+        });
+        if (!tieneRvoe) {
+          throw new BadRequestException(
+            `No hay RVOE capturado para ${entrada.nivelEducativo}. El complemento IEDU lo ` +
+              `exige, y sin él el SAT rechaza la factura. Regístralo en los datos de la escuela.`,
+          );
+        }
+      }
 
       if (entrada.cohorteId) {
         const existe = await tx.cohorte.findUnique({ where: { id: entrada.cohorteId } });
@@ -242,6 +274,7 @@ export class ServicioCobranza {
           nivelEducativo: entrada.nivelEducativo ?? null,
           esColegiatura: entrada.esColegiatura ?? false,
           aceptaSaldoAFavor: entrada.aceptaSaldoAFavor ?? true,
+          obligatoriedad: entrada.obligatoriedad ?? 'OBLIGATORIA',
           vigenteDesde: new Date(`${entrada.vigenteDesde}T00:00:00.000Z`),
           avisadoEn: entrada.avisadoEn ? new Date(`${entrada.avisadoEn}T00:00:00.000Z`) : null,
         },
@@ -273,6 +306,7 @@ export class ServicioCobranza {
         nivelEducativo: creado.nivelEducativo,
         esColegiatura: creado.esColegiatura,
         aceptaSaldoAFavor: creado.aceptaSaldoAFavor,
+        obligatoriedad: creado.obligatoriedad,
         vigenteDesde: creado.vigenteDesde.toISOString().slice(0, 10),
         activo: creado.activo,
       };
@@ -403,6 +437,14 @@ export class ServicioCobranza {
       // no hay un "ultimo dia del periodo" comun a todos.
       const conceptos = await tx.conceptoCargo.findMany({ where: { activo: true } });
 
+      // Quien acepto cada cuota voluntaria (AZ-M4.2). De una sola consulta, por
+      // la misma razon que las becas: N+1 sobre 400 familias en el proceso que
+      // corre con la escuela entera esperando.
+      const aceptaciones = await tx.aceptacionDeCuota.findMany({
+        select: { alumnoId: true, conceptoId: true },
+      });
+      const acepto = new Set(aceptaciones.map((a) => `${a.alumnoId}:${a.conceptoId}`));
+
       // Las becas del tenant, de una sola consulta y agrupadas por alumno. Una
       // consulta por alumno seria N+1 sobre 400 familias, y la generacion es
       // justo el proceso que corre con la escuela entera esperando.
@@ -510,6 +552,23 @@ export class ServicioCobranza {
         for (const inscripcion of inscripciones) {
           const alumno = inscripcion.alumno;
           if (!alumno.activo) continue;
+
+          // --- Guard de cuotas voluntarias (AZ-M4.2) ---
+          // El Acuerdo DOF 10-mar-1992 (arts. 3 y 5-III) prohibe condicionar el
+          // servicio educativo a un pago voluntario. Generarle una
+          // "cooperacion" a los 400 alumnos de golpe la vuelve obligatoria de
+          // hecho: aparece en su estado de cuenta, suma al adeudo y entra a la
+          // lista de morosos. Llamarla voluntaria en la pantalla no cambia lo
+          // que el sistema hace con ella.
+          //
+          // Solo se le cobra a quien la acepto, y esa fila es la prueba de que
+          // la escuela informo y la familia eligio.
+          if (
+            concepto.obligatoriedad === 'VOLUNTARIA' &&
+            !acepto.has(`${alumno.id}:${concepto.id}`)
+          ) {
+            continue;
+          }
 
           const clave = claveDeCargo(alumno.id, concepto.id, periodoEfectivo);
 

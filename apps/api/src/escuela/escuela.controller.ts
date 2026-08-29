@@ -17,7 +17,15 @@ import {
  */
 export interface ResumenEscuela {
   escuela: { nombre: string; vertical: string } | null;
-  sedes: Array<{ id: string; nombre: string; cct: string | null; rvoe: string | null }>;
+  /// Cada plantel con SUS acuerdos RVOE, uno por nivel educativo (AZ-A1).
+  /// Antes era una cadena por sede; con tres niveles, dos de cada tres CFDI
+  /// habrian salido con el acuerdo equivocado.
+  sedes: Array<{
+    id: string;
+    nombre: string;
+    cct: string | null;
+    rvoes: Array<{ nivelEducativo: string; acuerdo: string }>;
+  }>;
   /// El periodo vigente. Su TIPO es lo que hace multi-vertical al producto:
   /// ciclo escolar, temporada o cohorte continua.
   periodo: { nombre: string; tipo: string } | null;
@@ -51,7 +59,10 @@ export class ControladorEscuela {
     return conTenant(tenantId, async (tx) => {
       const [escuela, sedes, periodo, alumnos, tutores, usuarios] = await Promise.all([
         tx.tenant.findFirst(),
-        tx.sede.findMany({ orderBy: { nombre: 'asc' } }),
+        tx.sede.findMany({
+          orderBy: { nombre: 'asc' },
+          include: { rvoes: { orderBy: { nivelEducativo: 'asc' } } },
+        }),
         tx.periodo.findFirst({ where: { activo: true }, orderBy: { inicio: 'desc' } }),
         tx.alumno.count({ where: { activo: true } }),
         tx.tutor.count(),
@@ -86,7 +97,12 @@ export class ControladorEscuela {
           cct: s.cct,
           // El RVOE se captura desde el Sprint 0 aunque la facturacion llegue
           // en R2: asi ninguna escuela recaptura al activar el modulo fiscal.
-          rvoe: s.rvoe,
+          // Va POR NIVEL desde el Sprint 6, que es como lo otorga la autoridad
+          // y como lo exige el complemento IEDU.
+          rvoes: s.rvoes.map((r) => ({
+            nivelEducativo: r.nivelEducativo,
+            acuerdo: r.acuerdo,
+          })),
         })),
         periodo: periodo && { nombre: periodo.nombre, tipo: periodo.tipo },
         cohortes: cohortes.map((c) => ({

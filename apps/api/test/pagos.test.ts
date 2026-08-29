@@ -128,6 +128,8 @@ beforeAll(async () => {
     'cohorte',
     'periodo',
     'aviso_privacidad',
+    'rvoe',
+    'aceptacion_de_cuota',
     'usuario_rol',
     'usuario',
     'sede',
@@ -161,6 +163,17 @@ beforeAll(async () => {
        (gen_random_uuid(),$2,'Cancha P',true,now()) RETURNING id, tenant_id`,
     [ID_COLEGIO, ID_ACADEMIA],
   );
+
+  // El RVOE va POR NIVEL (AZ-A1). Sin el capturado, el catalogo rechaza crear
+  // un concepto deducible: el complemento IEDU lo exige y sin el, el SAT
+  // rechaza la factura al timbrar.
+  for (const s of sedes) {
+    await owner.query(
+      `INSERT INTO rvoe (id, tenant_id, sede_id, nivel_educativo, acuerdo, creado_en)
+       VALUES (gen_random_uuid(), $1, $2, 'PRIMARIA', 'ACUERDO PRUEBA/2024', now())`,
+      [s.tenant_id, s.id],
+    );
+  }
   const { rows: periodos } = await owner.query(
     `INSERT INTO periodo (id, tenant_id, nombre, tipo, inicio, activo, creado_en) VALUES
        (gen_random_uuid(),$1,'Ciclo P','CICLO_ESCOLAR',$3::date,true,now()),
