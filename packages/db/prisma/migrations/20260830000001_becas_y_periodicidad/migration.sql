@@ -115,3 +115,30 @@ BEGIN
       t || '_aislamiento', t);
   END LOOP;
 END $$;
+
+-- ---------------------------------------------------------------------------
+-- La clave del periodo admite las formas nuevas (AZ-M4.1c).
+--
+-- El CHECK del Sprint 4 exigia `AAAA-MM` y por eso rechazo `2026-A1` en cuanto
+-- se cablearon las periodicidades ciclicas. LO ATRAPO LA BASE, no las pruebas
+-- ni el compilador: es exactamente para lo que se puso, y la alternativa
+-- —quitarlo para que "ya no estorbe"— habria dejado entrar cualquier cadena de
+-- siete caracteres al campo que identifica un cargo.
+--
+-- Se ENSANCHA con los formatos que el dominio sabe leer, y ni uno mas:
+--   AAAA-MM  mes          (01..12)
+--   AAAA-B#  bimestre     (1..6)
+--   AAAA-C#  cuatrimestre (1..3)
+--   AAAA-S#  semestre     (1..2)
+--   AAAA-A1  ciclo entero (solo 1)
+-- Los rangos van en la expresion a proposito: `2026-S3` no existe, igual que no
+-- existe el mes 13, y aceptarlo produciria un cargo que nadie sabe cuando vence.
+-- ---------------------------------------------------------------------------
+ALTER TABLE "cargo" DROP CONSTRAINT cargo_periodo_formato;
+ALTER TABLE "cargo" ADD CONSTRAINT cargo_periodo_formato CHECK (
+  "periodo" ~ '^\d{4}-(0[1-9]|1[0-2])$'
+  OR "periodo" ~ '^\d{4}-B[1-6]$'
+  OR "periodo" ~ '^\d{4}-C[1-3]$'
+  OR "periodo" ~ '^\d{4}-S[1-2]$'
+  OR "periodo" ~ '^\d{4}-A1$'
+);

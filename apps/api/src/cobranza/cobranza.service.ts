@@ -15,12 +15,18 @@ import {
   esPeriodoValido,
   fechaLimiteSinRecargo,
   fechaDelPeriodo,
-  periodoDe,
   repartir,
   RepartoInvalidoError,
 } from './reglas.js';
 import { diasDeAvisoExigidos, pisoDeGracia, type Vertical } from './marco-legal.js';
 import { aplicarSaldoAFavorPendiente } from './saldo-a-favor.js';
+import {
+  esPeriodoValido as esClaveDePeriodoValida,
+  mesesDelPeriodo,
+  periodoDeFecha,
+  primerMes,
+} from './periodos.js';
+import { becasAplicables, calcularDescuentos, type DescuentoAplicable } from './descuentos.js';
 
 /**
  * Quien administra el dinero de la escuela.
@@ -100,6 +106,10 @@ export interface ResultadoGeneracion {
   /// acaba de dejar de estar disponible para otra cosa (AZ-M4.10).
   saldoAFavorAplicado: string;
   familiasConSaldoAplicado: number;
+  /// Cuanto se dejo de cobrar por becas en esta corrida. Es el numero que
+  /// demuestra el cumplimiento del 5% que exige la ley (LGE 149-III), y por eso
+  /// se reporta en vez de quedarse en la diferencia entre dos totales.
+  becado: string;
 }
 
 @Injectable()
@@ -359,8 +369,12 @@ export class ServicioCobranza {
   async generarCargos(sesion: Sesion, periodo: string): Promise<ResultadoGeneracion> {
     this.exigirRol(sesion);
 
+    // La peticion sigue siendo un MES, aunque los conceptos ya no lo sean: la
+    // administracion dice "genera lo de septiembre" y cada concepto resuelve su
+    // propio periodo (AZ-M4.1c). Un concepto semestral generara su semestre una
+    // sola vez, porque la idempotencia lo impide despues.
     if (!esPeriodoValido(periodo)) {
-      throw new BadRequestException('El periodo debe venir como AAAA-MM.');
+      throw new BadRequestException('El mes debe venir como AAAA-MM.');
     }
 
     return conTenant(sesion.tenantId, async (tx) => {
@@ -376,38 +390,62 @@ export class ServicioCobranza {
         throw new BadRequestException('La escuela no tiene un periodo activo.');
       }
 
-      // Un concepto entra en el periodo si su vigencia empieza EN CUALQUIER DIA
-      // de ese mes, no solo si ya estaba vigente el dia 1.
-      //
-      // DEFECTO REAL cazado en la demo del 25-ago-2026: el ciclo escolar
-      // arranca el 17 de agosto, asi que la colegiatura entra en vigor ese dia
-      // — y comparando contra el dia 1 la generacion de agosto devolvia CERO
-      // cargos, en silencio y sin error. La escuela no habria cobrado su primer
-      // mes. El limite correcto es el ultimo dia del periodo: un aumento que
-      // entra en septiembre sigue quedando fuera de agosto, que es lo que la
-      // regla debe proteger.
-      const ultimoDiaDelPeriodo = fechaDelPeriodo(periodo, 31);
-      const conceptos = await tx.conceptoCargo.findMany({
-        where: {
-          activo: true,
-          vigenteDesde: { lte: new Date(`${ultimoDiaDelPeriodo}T00:00:00.000Z`) },
-        },
-      });
+      const inicioDelCiclo = periodoEscolar.inicio.toISOString().slice(0, 10);
+
+      // Todos los conceptos activos: el filtro por vigencia se hace DENTRO del
+      // bucle, porque ahora cada concepto abarca un tramo distinto del ciclo y
+      // no hay un "ultimo dia del periodo" comun a todos.
+      const conceptos = await tx.conceptoCargo.findMany({ where: { activo: true } });
+
+      // Las becas del tenant, de una sola consulta y agrupadas por alumno. Una
+      // consulta por alumno seria N+1 sobre 400 familias, y la generacion es
+      // justo el proceso que corre con la escuela entera esperando.
+      const becasVigentes = await tx.beca.findMany({ where: { activa: true } });
+      const becasPorAlumno = new Map<string, typeof becasVigentes>();
+      for (const b of becasVigentes) {
+        const lista = becasPorAlumno.get(b.alumnoId) ?? [];
+        lista.push(b);
+        becasPorAlumno.set(b.alumnoId, lista);
+      }
 
       const problemas: ProblemaDeGeneracion[] = [];
       let generados = 0;
       let omitidos = 0;
       let totalCentavos = 0;
+      /// Cuanto se dejo de cobrar por becas. La escuela tiene que poder verlo:
+      /// es el numero que demuestra el cumplimiento del 5% que exige la ley.
+      let becadoCentavos = 0;
 
       for (const concepto of conceptos) {
-        // Un concepto MENSUAL se cobra en el periodo pedido. Uno UNICO o ANUAL
-        // se ancla al ciclo escolar: la inscripcion se paga una vez por ciclo,
-        // no una vez al mes, y anclarla al periodo pedido la cobraria doce
-        // veces al año.
-        const periodoEfectivo =
-          concepto.periodicidad === 'MENSUAL'
-            ? periodo
-            : periodoDe(periodoEscolar.inicio.toISOString().slice(0, 10));
+        // En que periodo DE ESTE CONCEPTO cae el mes que se pidio. Un concepto
+        // mensual da `2026-09`; uno semestral, `2026-S1`; uno unico, `2026-A1`.
+        // Null = el mes queda fuera del ciclo escolar, y entonces no hay nada
+        // que generar: es informacion, no un error.
+        const periodoEfectivo = periodoDeFecha(
+          `${periodo}-01`,
+          concepto.periodicidad,
+          inicioDelCiclo,
+        );
+        if (periodoEfectivo === null || !esClaveDePeriodoValida(periodoEfectivo)) continue;
+
+        // Los meses que abarca, para saber donde vence y hasta cuando cuenta la
+        // vigencia del concepto.
+        const meses = mesesDelPeriodo(periodoEfectivo, inicioDelCiclo);
+        const mesDeVencimiento = primerMes(periodoEfectivo, inicioDelCiclo);
+        const ultimoMes = meses[meses.length - 1] ?? mesDeVencimiento;
+
+        // Un concepto entra si su vigencia empieza EN CUALQUIER DIA del periodo,
+        // no solo si ya estaba vigente el primer dia.
+        //
+        // DEFECTO REAL cazado en la demo del 25-ago-2026: el ciclo escolar
+        // arranca el 17 de agosto, asi que la colegiatura entra en vigor ese dia
+        // — y comparando contra el dia 1 la generacion de agosto devolvia CERO
+        // cargos, en silencio y sin error. La escuela no habria cobrado su primer
+        // mes. El limite correcto es el ultimo dia del periodo: un aumento que
+        // entra en septiembre sigue quedando fuera de agosto, que es lo que la
+        // regla debe proteger.
+        const finDeVigencia = fechaDelPeriodo(ultimoMes, 31);
+        if (concepto.vigenteDesde > new Date(`${finDeVigencia}T00:00:00.000Z`)) continue;
 
         const inscripciones = await tx.inscripcion.findMany({
           where: {
@@ -432,13 +470,19 @@ export class ServicioCobranza {
           },
         });
 
-        const vencimiento = fechaDelPeriodo(periodoEfectivo, concepto.diaVencimiento);
+        // El cargo vence en el PRIMER mes del periodo: un semestre que arranca
+        // en agosto se cobra en agosto, no en enero.
+        const vencimiento = fechaDelPeriodo(mesDeVencimiento, concepto.diaVencimiento);
         const limite = fechaLimiteSinRecargo(
-          periodoEfectivo,
+          mesDeVencimiento,
           concepto.diaVencimiento,
           diasGraciaSinRecargo,
           piso,
         );
+        // La beca se juzga vigente al ARRANCAR el periodo que se cobra, no el
+        // dia en que alguien pulsa "generar": generar tarde no debe quitarle la
+        // beca a nadie.
+        const inicioDelPeriodo = `${mesDeVencimiento}-01`;
         const montoCentavos = aCentavos(concepto.montoBase.toFixed(2));
 
         for (const inscripcion of inscripciones) {
@@ -455,12 +499,41 @@ export class ServicioCobranza {
             continue;
           }
 
+          // --- Becas: el cargo guarda su PRECIO DE LISTA y el descuento va
+          //     encima como asiento (AZ-M4.3a) ---
+          const aplicables = becasAplicables(
+            (becasPorAlumno.get(alumno.id) ?? []).map((b) => ({
+              id: b.id,
+              tipo: b.tipo,
+              valor: Number(b.valor),
+              motivo: b.motivo,
+              conceptoId: b.conceptoId,
+              vigenteDesde: b.vigenteDesde.toISOString().slice(0, 10),
+              vigenteHasta: b.vigenteHasta?.toISOString().slice(0, 10) ?? null,
+            })),
+            { conceptoId: concepto.id, fecha: inicioDelPeriodo },
+          );
+
+          const descuentos: DescuentoAplicable[] = aplicables.map((b) => ({
+            referencia: b.id,
+            categoria: 'BECA',
+            tipo: b.tipo,
+            // Un porcentaje viaja tal cual; un monto fijo se convierte a
+            // centavos, que es la unidad de este dominio (§43).
+            valor: b.tipo === 'PORCENTAJE' ? b.valor : aCentavos(b.valor.toFixed(2)),
+            concepto: b.motivo,
+          }));
+
+          const { aplicados, netoCentavos } = calcularDescuentos(montoCentavos, descuentos);
+
           const cargo = await tx.cargo.create({
             data: {
               tenantId: sesion.tenantId,
               alumnoId: alumno.id,
               conceptoId: concepto.id,
               periodo: periodoEfectivo,
+              // Precio de LISTA, no el neto: sin el, el estado de cuenta no
+              // puede explicar por que se cobra lo que se cobra.
               monto: concepto.montoBase,
               fechaVencimiento: new Date(`${vencimiento}T00:00:00.000Z`),
               fechaLimiteSinRecargo: new Date(`${limite}T00:00:00.000Z`),
@@ -469,9 +542,26 @@ export class ServicioCobranza {
             },
           });
           generados++;
-          totalCentavos += montoCentavos;
+          totalCentavos += netoCentavos;
+          becadoCentavos += montoCentavos - netoCentavos;
+
+          if (aplicados.length > 0) {
+            await tx.descuentoDeCargo.createMany({
+              data: aplicados.map((d) => ({
+                tenantId: sesion.tenantId,
+                cargoId: cargo.id,
+                becaId: d.referencia,
+                categoria: 'BECA' as const,
+                concepto: d.concepto,
+                monto: aMonto(d.centavos),
+              })),
+            });
+          }
 
           // --- El reparto, congelado en este momento ---
+          // Sobre el NETO, que es lo que la familia debe de verdad. Repartir el
+          // precio de lista le cobraria a los pagadores la beca que la escuela
+          // ya concedio.
           const pagadores = alumno.tutores
             .filter((t) => t.porcentajePago !== null)
             .map((t) => ({ referencia: t.tutorId, porcentaje: Number(t.porcentajePago) }));
@@ -486,7 +576,7 @@ export class ServicioCobranza {
           }
 
           try {
-            const partes = repartir(montoCentavos, pagadores);
+            const partes = repartir(netoCentavos, pagadores);
             await tx.parteDeCargo.createMany({
               data: partes.map((parte) => ({
                 tenantId: sesion.tenantId,
@@ -535,6 +625,7 @@ export class ServicioCobranza {
             omitidos,
             problemas: problemas.length,
             importe: aMonto(totalCentavos),
+            becado: aMonto(becadoCentavos),
             saldoAFavorAplicado: credito.aplicado,
           },
         },
@@ -549,6 +640,7 @@ export class ServicioCobranza {
         generados,
         omitidos,
         importeTotal: aMonto(totalCentavos),
+        becado: aMonto(becadoCentavos),
         problemas,
         saldoAFavorAplicado: credito.aplicado,
         familiasConSaldoAplicado: credito.tutores,
@@ -559,8 +651,12 @@ export class ServicioCobranza {
   /** Los cargos de un periodo, con su reparto. Lectura para la pantalla. */
   async listarCargos(sesion: Sesion, periodo: string): Promise<CargoResumen[]> {
     this.exigirRol(sesion);
+    // La peticion sigue siendo un MES, aunque los conceptos ya no lo sean: la
+    // administracion dice "genera lo de septiembre" y cada concepto resuelve su
+    // propio periodo (AZ-M4.1c). Un concepto semestral generara su semestre una
+    // sola vez, porque la idempotencia lo impide despues.
     if (!esPeriodoValido(periodo)) {
-      throw new BadRequestException('El periodo debe venir como AAAA-MM.');
+      throw new BadRequestException('El mes debe venir como AAAA-MM.');
     }
 
     return conTenant(sesion.tenantId, async (tx) => {

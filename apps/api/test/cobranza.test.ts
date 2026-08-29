@@ -376,13 +376,20 @@ describe('generacion de cargos (AZ-M4.2)', () => {
     expect(cuerpo.importeTotal).toBe('22050.00');
   });
 
-  it('el concepto UNICO se ancla al ciclo, no al mes pedido', async () => {
+  it('el concepto UNICO se ancla al CICLO y lleva su propia clave', async () => {
     // Anclar la inscripcion al periodo pedido la cobraria doce veces al año.
+    //
+    // CAMBIO DELIBERADO DEL SPRINT 6 (AZ-M4.1c): antes la clave era `2026-08`,
+    // el MES en que arrancaba el ciclo — un mes disfrazado de ciclo, que
+    // funcionaba de casualidad porque nada mas usaba esa forma. Ahora un cobro
+    // de una sola vez tiene su propia clave, `2026-A1`, y es indistinguible de
+    // los demas periodos ciclicos. Sin esto, un semestre y el mes de arranque
+    // del ciclo competirian por el mismo identificador.
     const { rows } = await owner.query(
       `SELECT DISTINCT periodo FROM cargo WHERE concepto_id = $1`,
       [ids.inscripcion!],
     );
-    expect(rows.map((r) => r.periodo)).toEqual([PERIODO_CICLO]);
+    expect(rows.map((r) => r.periodo)).toEqual([`${PERIODO_CICLO.slice(0, 4)}-A1`]);
   });
 
   it('un concepto que entra en vigor A MEDIADOS del mes SI se cobra ese mes', async () => {
