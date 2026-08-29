@@ -71,8 +71,31 @@ fila y se prioriza; no se reabre el plan.
 | 21  | Cobro prorrateado por carga: 25 % de colegiatura por materia                       | `AZ-M4.1b` | primaria UPAEP A.1                 | Could  | No — Release 2             |
 | 22  | Cuatro unidades de cobro: colegiatura, crédito, unidad, materia                    | `AZ-M4.1b` | primaria UPAEP I.5                 | Could  | No — Release 2             |
 | 23  | Seguro que cubre los pagos restantes si fallece el tutor                           | —          | primaria UPAEP E.1                 | Won't  | **Descartado** (ver abajo) |
+| 24  | Periodicidad de cobro distinta de la mensual: bimestral, semestral, cuatrimestral  | `AZ-M4.1c` | primaria UPAEP I.1 · pregunta CEO  | Must   | No — ver abajo             |
 
-**Marcador al 27-ago-2026: 7 de 23 soportados · 7 de 13 `Must` soportados.**
+**Marcador al 29-ago-2026: 7 de 24 soportados · 7 de 14 `Must` soportados.**
+
+### El escenario 24, y cómo apareció
+
+No salió de un barrido de fuentes: salió de una **pregunta del CEO el
+29-ago-2026** — "una escuela puede que cobre bimestralmente o semestralmente,
+¿eso ya es configurable?". La respuesta medida contra el código es **no**.
+
+`Periodicidad` sólo admite `MENSUAL`, `UNICO` y `ANUAL`, y el periodo de cobro
+es una columna `AAAA-MM` validada contra `/^\d{4}-(0[1-9]|1[0-2])$/`. Un
+semestre no se puede expresar: `ANUAL` lo cobraría una vez por ciclo (serían
+dos), y `MENSUAL` doce veces. La evidencia de que esto es normal ya estaba en el
+estudio y no la leímos con esta pregunta en mente: el reglamento de la UPAEP
+cobra por **período académico** y ofrece pagarlo completo o en parcialidades
+mensuales — el periodo es el semestre, la mensualidad es sólo la forma de
+pagarlo.
+
+Es `Must` porque una universidad o una preparatoria con cuatrimestres no puede
+usar el sistema sin esto, y ambos verticales están en el alcance del producto
+desde la Definición de Producto.
+
+**Queda registrado, no ejecutado.** Entrar al Sprint 6 es decisión del CEO en
+gate (§8): recuperar M4.1 ya es el sprint más cargado del plan.
 
 ### Por qué el 23 es `Won't` y no "algún día"
 
