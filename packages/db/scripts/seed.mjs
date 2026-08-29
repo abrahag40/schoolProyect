@@ -107,7 +107,16 @@ try {
       ],
       alumnos: [
         { nombre: 'Sofia', apellidos: 'Ramirez Loera', nacimiento: '2018-03-12', cohorte: 0 },
-        { nombre: 'Mateo', apellidos: 'Ramirez Loera', nacimiento: '2016-07-04', cohorte: 2 },
+        // Mateo entra el 15 de septiembre, un mes despues de arrancar el ciclo:
+        // es el caso que hace visible el prorrateo en la demo. Sin un alumno
+        // asi, la funcion existe y no se ve.
+        {
+          nombre: 'Mateo',
+          apellidos: 'Ramirez Loera',
+          nacimiento: '2016-07-04',
+          cohorte: 2,
+          altaTardia: '2026-09-15',
+        },
       ],
       // Padres separados que dividen la colegiatura 60/40 y una abuela que
       // recoge pero no paga. Es el "tercer pagador" que el mercado pide.
@@ -417,10 +426,14 @@ try {
         [e.id, a.nombre, a.apellidos, a.nacimiento],
       );
       alumnoIds.push(rows[0].id);
+      // La fecha de alta manda el PRORRATEO (AZ-M4.1), asi que se siembra con
+      // intencion y no con `now()`: quien se inscribe al arrancar el ciclo paga
+      // el periodo completo, y `altaTardia` deja a un alumno entrando a mitad
+      // para que la demo ensene el prorrateo de verdad.
       await q(
         `INSERT INTO inscripcion (id, tenant_id, alumno_id, cohorte_id, estado, alta_en)
-         VALUES (gen_random_uuid(), $1, $2, $3, 'ACTIVA', now())`,
-        [e.id, rows[0].id, cohorteIds[a.cohorte]],
+         VALUES (gen_random_uuid(), $1, $2, $3, 'ACTIVA', $4::date)`,
+        [e.id, rows[0].id, cohorteIds[a.cohorte], a.altaTardia ?? e.periodo.inicio],
       );
     }
 
@@ -501,8 +514,8 @@ try {
       );
       await q(
         `INSERT INTO inscripcion (id, tenant_id, alumno_id, cohorte_id, estado, alta_en)
-         VALUES (gen_random_uuid(), $1, $2, $3, 'ACTIVA', now())`,
-        [e.id, rows[0].id, cohorteIds[c.cohorte]],
+         VALUES (gen_random_uuid(), $1, $2, $3, 'ACTIVA', $4::date)`,
+        [e.id, rows[0].id, cohorteIds[c.cohorte], e.periodo.inicio],
       );
     }
 

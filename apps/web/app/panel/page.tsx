@@ -184,6 +184,9 @@ export default function PaginaPanel() {
                 <Boton variante="secundario" onClick={() => router.push('/panel/morosidad')}>
                   Ver cobranza
                 </Boton>
+                <Boton variante="secundario" onClick={() => router.push('/panel/becas')}>
+                  Becas
+                </Boton>
               </div>
             </Tarjeta>
           )}

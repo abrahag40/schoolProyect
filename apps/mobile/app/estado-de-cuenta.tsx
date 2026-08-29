@@ -21,6 +21,8 @@ interface CargoEnEstadoDeCuenta {
   sinRecargoHasta: string;
   recargoHoy: string;
   vencido: boolean;
+  /// Por que este cargo no cuesta su precio de lista (AZ-M4.3a).
+  descuentos: Array<{ concepto: string; monto: string }>;
 }
 
 interface EstadoDeCuenta {
@@ -227,6 +229,21 @@ export default function PantallaEstadoDeCuenta() {
                   {periodoLegible(cargo.periodo)}
                   {cargo.miParte !== cargo.total && ` · tu parte de $${cargo.total}`}
                 </Text>
+
+                {/* EL DESGLOSE, a la vista y no detrás de un enlace.
+                    Un cargo de $1,066.93 sobre una colegiatura de $2,450 obliga
+                    a la familia a llamar para entenderlo. Con el renglón de la
+                    beca y el del prorrateo, no hay nada que preguntar — y de
+                    paso la escuela deja de recibir esa llamada. */}
+                {cargo.descuentos.map((d) => (
+                  <View
+                    key={`${d.concepto}-${d.monto}`}
+                    style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 12 }}
+                  >
+                    <Text style={{ color: c.tenue, fontSize: 13, flex: 1 }}>{d.concepto}</Text>
+                    <Text style={{ color: c.tenue, fontSize: 13 }}>−${d.monto}</Text>
+                  </View>
+                ))}
 
                 {/* La fecha legal, dicha. Por ley se aceptan pagos sin cargo
                     durante los primeros diez días naturales del mes. */}
