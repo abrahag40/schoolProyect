@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import {
+  ControladorAceptaciones,
   ControladorBecas,
   ControladorCargos,
   ControladorCatalogo,
@@ -11,7 +12,7 @@ import {
 } from './pagos.controller.js';
 import { ServicioCobranza } from './cobranza.service.js';
 import { ServicioPagos } from './pagos.service.js';
-import { ServicioBecas } from './becas.service.js';
+import { ServicioAceptaciones, ServicioBecas } from './becas.service.js';
 
 @Module({
   controllers: [
@@ -21,7 +22,8 @@ import { ServicioBecas } from './becas.service.js';
     ControladorEstadoDeCuenta,
     ControladorMorosidad,
     ControladorBecas,
+    ControladorAceptaciones,
   ],
-  providers: [ServicioCobranza, ServicioPagos, ServicioBecas],
+  providers: [ServicioCobranza, ServicioPagos, ServicioBecas, ServicioAceptaciones],
 })
 export class ModuloCobranza {}

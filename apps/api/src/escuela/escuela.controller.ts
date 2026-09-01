@@ -1,6 +1,9 @@
-import { Controller, Get, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Post, Req, UseGuards } from '@nestjs/common';
+import { z } from 'zod';
 import { conTenant } from '@azahar/db';
 import { GuardSesion } from '../comun/sesion.guard.js';
+import { ServicioRvoe } from './rvoe.service.js';
+import type { RvoeResumen } from './rvoe.service.js';
 import type { Sesion } from '../comun/sesion.js';
 import {
   aplicaAcuerdoProfeco,
@@ -115,5 +118,53 @@ export class ControladorEscuela {
         misRoles: roles,
       };
     });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// RVOE por nivel educativo (AZ-A1)
+// ---------------------------------------------------------------------------
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const EsquemaRvoe = z.object({
+  sedeId: z.string().regex(UUID, 'El plantel no es válido.'),
+  nivelEducativo: z.enum([
+    'PREESCOLAR',
+    'PRIMARIA',
+    'SECUNDARIA',
+    'PROFESIONAL_TECNICO',
+    'BACHILLERATO',
+  ]),
+  // No vacío: un acuerdo en blanco pasaría la validación de "existe" del
+  // catálogo y produciría un CFDI con el campo vacío, que el SAT rechaza igual.
+  acuerdo: z.string().trim().min(3, 'Escribe el número de acuerdo.').max(120),
+});
+
+/**
+ * Los acuerdos RVOE de la escuela, uno por plantel y nivel.
+ *
+ * Existe porque el catálogo RECHAZA crear un concepto deducible sin el RVOE de
+ * su nivel: sin un lugar donde capturarlo, ese gate deja de proteger y se
+ * vuelve un muro. Una regla que no se puede satisfacer es un defecto, por
+ * correcta que sea.
+ */
+@Controller('rvoe')
+@UseGuards(GuardSesion)
+export class ControladorRvoe {
+  constructor(private readonly servicio: ServicioRvoe) {}
+
+  @Get()
+  async listar(@Req() peticion: { sesion: Sesion }): Promise<RvoeResumen[]> {
+    return this.servicio.listar(peticion.sesion);
+  }
+
+  @Post()
+  @HttpCode(201)
+  async registrar(
+    @Body() cuerpo: unknown,
+    @Req() peticion: { sesion: Sesion },
+  ): Promise<RvoeResumen> {
+    return this.servicio.registrar(peticion.sesion, EsquemaRvoe.parse(cuerpo));
   }
 }

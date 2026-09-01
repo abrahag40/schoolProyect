@@ -7,7 +7,10 @@ import { pedirApi } from '../api';
 
 interface Resumen {
   escuela: { nombre: string; vertical: string } | null;
-  sedes: Array<{ id: string; nombre: string; cct: string | null; rvoe: string | null }>;
+  // El RVOE ya no vive aqui: va por nivel educativo, en `/panel/escuela`
+  // (AZ-A1). Dejar el campo viejo en el tipo no lo detecta el compilador
+  // —el JSON no se valida contra la interfaz— pero engaña a quien lo lea.
+  sedes: Array<{ id: string; nombre: string; cct: string | null }>;
   periodo: { nombre: string; tipo: string } | null;
   cohortes: Array<{ id: string; nombre: string; tipo: string; inscritos: number }>;
   totales: { alumnos: number; tutores: number; usuarios: number };
@@ -187,6 +190,9 @@ export default function PaginaPanel() {
                 <Boton variante="secundario" onClick={() => router.push('/panel/becas')}>
                   Becas
                 </Boton>
+                <Boton variante="secundario" onClick={() => router.push('/panel/escuela')}>
+                  Datos fiscales
+                </Boton>
               </div>
             </Tarjeta>
           )}
@@ -227,10 +233,11 @@ export default function PaginaPanel() {
                 <li key={sede.id} style={filaEstilo}>
                   <strong>{sede.nombre}</strong>
                   <span style={{ color: 'var(--texto-tenue)', fontSize: 'var(--font-size-sm)' }}>
-                    {/* Una academia no tiene CCT ni RVOE: se dice, en vez de
-                        dejar un hueco que parezca un error de carga. */}
+                    {/* Una academia no tiene CCT: se dice, en vez de dejar un
+                        hueco que parezca un error de carga. Los acuerdos RVOE
+                        ya no salen aqui —van por nivel educativo— y tienen su
+                        propia pantalla en Datos fiscales. */}
                     {sede.cct ? `CCT ${sede.cct}` : 'Sin clave SEP'}
-                    {sede.rvoe ? ` · ${sede.rvoe}` : ''}
                   </span>
                 </li>
               ))}

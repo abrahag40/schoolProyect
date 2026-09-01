@@ -249,3 +249,140 @@ export class ServicioBecas {
     });
   }
 }
+
+// ---------------------------------------------------------------------------
+// Aceptación de cuotas voluntarias (AZ-M4.2)
+// ---------------------------------------------------------------------------
+
+export interface AceptacionResumen {
+  alumnoId: string;
+  alumno: string;
+  aceptadaEn: string;
+}
+
+/**
+ * Quién aceptó una cuota voluntaria.
+ *
+ * POR QUE ESTO NECESITA PANTALLA: desde el Sprint 6 un concepto VOLUNTARIO no
+ * se genera a nadie que no lo haya aceptado. Sin un lugar donde registrar la
+ * aceptación, la escuela marca una cuota como voluntaria, genera, y no aparece
+ * un solo cargo — sin error y sin explicación. El guard sería correcto y la
+ * funcionalidad, inservible.
+ */
+@Injectable()
+export class ServicioAceptaciones {
+  private exigirRol(sesion: Sesion): void {
+    if (!sesion.roles.some((r) => ROLES_COBRANZA.includes(r))) {
+      throw new ForbiddenException('Esta sección es para administración y cobranza.');
+    }
+  }
+
+  async listar(sesion: Sesion, conceptoId: string): Promise<AceptacionResumen[]> {
+    this.exigirRol(sesion);
+
+    return conTenant(sesion.tenantId, async (tx) => {
+      const filas = await tx.aceptacionDeCuota.findMany({
+        where: { conceptoId },
+        include: { alumno: { select: { nombre: true, apellidos: true } } },
+        orderBy: { aceptadaEn: 'desc' },
+      });
+      return filas.map((a) => ({
+        alumnoId: a.alumnoId,
+        alumno: `${a.alumno.apellidos}, ${a.alumno.nombre}`,
+        aceptadaEn: a.aceptadaEn.toISOString().slice(0, 10),
+      }));
+    });
+  }
+
+  async aceptar(
+    sesion: Sesion,
+    entrada: { conceptoId: string; alumnoId: string },
+  ): Promise<AceptacionResumen> {
+    this.exigirRol(sesion);
+
+    return conTenant(sesion.tenantId, async (tx) => {
+      const concepto = await tx.conceptoCargo.findUnique({ where: { id: entrada.conceptoId } });
+      if (!concepto) throw new NotFoundException('No encontramos ese concepto.');
+      if (concepto.obligatoriedad !== 'VOLUNTARIA') {
+        // Registrar una aceptación sobre una cuota obligatoria no haría daño,
+        // pero sí confundiría: sugeriría que quien no aparece en la lista no la
+        // debe. Y sí la debe. Se rechaza para que la lista signifique una cosa.
+        throw new BadRequestException(
+          'Solo las cuotas voluntarias se aceptan. Esta es obligatoria y se le cobra a todos.',
+        );
+      }
+
+      const alumno = await tx.alumno.findUnique({ where: { id: entrada.alumnoId } });
+      if (!alumno) throw new NotFoundException('No encontramos a esa alumna o alumno.');
+
+      // Aceptar dos veces la misma cuota es la misma aceptación, no dos: la
+      // base lo impone y aquí se resuelve sin error para que registrar de nuevo
+      // no parezca un fallo.
+      const guardada = await tx.aceptacionDeCuota.upsert({
+        where: {
+          alumnoId_conceptoId: { alumnoId: entrada.alumnoId, conceptoId: entrada.conceptoId },
+        },
+        create: {
+          tenantId: sesion.tenantId,
+          alumnoId: entrada.alumnoId,
+          conceptoId: entrada.conceptoId,
+          registradaPor: sesion.usuarioId,
+        },
+        update: {},
+        include: { alumno: { select: { nombre: true, apellidos: true } } },
+      });
+
+      await tx.eventoAuditoria.create({
+        data: {
+          tenantId: sesion.tenantId,
+          actorId: sesion.usuarioId,
+          tipo: 'cobranza.cuota_aceptada',
+          entidad: 'aceptacion_de_cuota',
+          entidadId: guardada.id,
+          datos: { conceptoId: entrada.conceptoId, alumnoId: entrada.alumnoId },
+        },
+      });
+
+      return {
+        alumnoId: guardada.alumnoId,
+        alumno: `${guardada.alumno.apellidos}, ${guardada.alumno.nombre}`,
+        aceptadaEn: guardada.aceptadaEn.toISOString().slice(0, 10),
+      };
+    });
+  }
+
+  /**
+   * Retirar una aceptación.
+   *
+   * Aquí SÍ se borra la fila, a diferencia de una beca: la aceptación no es un
+   * asiento de dinero, es un permiso. Los cargos que ya se generaron con ella
+   * no se tocan —siguen debiéndose, porque la familia sí aceptó cuando se
+   * emitieron— y la bitácora conserva el rastro de que existió.
+   */
+  async retirar(
+    sesion: Sesion,
+    entrada: { conceptoId: string; alumnoId: string },
+  ): Promise<{ retirada: boolean }> {
+    this.exigirRol(sesion);
+
+    return conTenant(sesion.tenantId, async (tx) => {
+      const borradas = await tx.aceptacionDeCuota.deleteMany({
+        where: { conceptoId: entrada.conceptoId, alumnoId: entrada.alumnoId },
+      });
+
+      if (borradas.count > 0) {
+        await tx.eventoAuditoria.create({
+          data: {
+            tenantId: sesion.tenantId,
+            actorId: sesion.usuarioId,
+            tipo: 'cobranza.cuota_aceptacion_retirada',
+            entidad: 'aceptacion_de_cuota',
+            datos: { conceptoId: entrada.conceptoId, alumnoId: entrada.alumnoId },
+          },
+        });
+      }
+
+      return { retirada: borradas.count > 0 };
+    });
+  }
+}

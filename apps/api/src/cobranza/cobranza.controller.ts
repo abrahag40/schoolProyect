@@ -15,7 +15,8 @@ import { GuardSesion } from '../comun/sesion.guard.js';
 import type { Sesion } from '../comun/sesion.js';
 import { ServicioCobranza } from './cobranza.service.js';
 import { ServicioBecas } from './becas.service.js';
-import type { AlumnoParaBeca, BecaResumen } from './becas.service.js';
+import { ServicioAceptaciones } from './becas.service.js';
+import type { AceptacionResumen, AlumnoParaBeca, BecaResumen } from './becas.service.js';
 import type { CargoResumen, ConceptoResumen, ResultadoGeneracion } from './cobranza.service.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -223,5 +224,56 @@ export class ControladorBecas {
       .object({ motivo: z.string().trim().min(3, 'Escribe por qué se retira.').max(300) })
       .parse(cuerpo);
     return this.servicio.retirar(peticion.sesion, EsquemaId.parse(id), motivo);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Aceptación de cuotas voluntarias (AZ-M4.2)
+// ---------------------------------------------------------------------------
+
+/**
+ * Quién aceptó cada cuota voluntaria.
+ *
+ * Cuelga del concepto y no de una sección aparte porque la pregunta siempre es
+ * "de ESTA cuota, ¿quién la aceptó?". Una lista global de aceptaciones no
+ * responde nada que alguien se pregunte.
+ */
+@Controller('catalogo-cargos/:conceptoId/aceptaciones')
+@UseGuards(GuardSesion)
+export class ControladorAceptaciones {
+  constructor(private readonly servicio: ServicioAceptaciones) {}
+
+  @Get()
+  async listar(
+    @Param('conceptoId') conceptoId: string,
+    @Req() peticion: { sesion: Sesion },
+  ): Promise<AceptacionResumen[]> {
+    return this.servicio.listar(peticion.sesion, EsquemaId.parse(conceptoId));
+  }
+
+  @Post()
+  @HttpCode(201)
+  async aceptar(
+    @Param('conceptoId') conceptoId: string,
+    @Body() cuerpo: unknown,
+    @Req() peticion: { sesion: Sesion },
+  ): Promise<AceptacionResumen> {
+    const { alumnoId } = z.object({ alumnoId: EsquemaId }).parse(cuerpo);
+    return this.servicio.aceptar(peticion.sesion, {
+      conceptoId: EsquemaId.parse(conceptoId),
+      alumnoId,
+    });
+  }
+
+  @Post(':alumnoId/retirar')
+  async retirar(
+    @Param('conceptoId') conceptoId: string,
+    @Param('alumnoId') alumnoId: string,
+    @Req() peticion: { sesion: Sesion },
+  ): Promise<{ retirada: boolean }> {
+    return this.servicio.retirar(peticion.sesion, {
+      conceptoId: EsquemaId.parse(conceptoId),
+      alumnoId: EsquemaId.parse(alumnoId),
+    });
   }
 }

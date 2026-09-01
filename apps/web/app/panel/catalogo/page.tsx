@@ -17,8 +17,21 @@ interface Concepto {
   nivelEducativo: string | null;
   esColegiatura: boolean;
   aceptaSaldoAFavor: boolean;
+  obligatoriedad: string;
   vigenteDesde: string;
   activo: boolean;
+}
+
+interface Aceptacion {
+  alumnoId: string;
+  alumno: string;
+  aceptadaEn: string;
+}
+
+interface AlumnoBreve {
+  id: string;
+  nombre: string;
+  cohorte: string | null;
 }
 
 /**
@@ -51,8 +64,11 @@ interface ResultadoGeneracion {
 
 const PERIODICIDAD: Record<string, string> = {
   MENSUAL: 'Cada mes',
-  UNICO: 'Una sola vez',
+  BIMESTRAL: 'Cada dos meses',
+  CUATRIMESTRAL: 'Cada cuatro meses',
+  SEMESTRAL: 'Cada seis meses',
   ANUAL: 'Una vez al año',
+  UNICO: 'Una sola vez',
 };
 
 const NIVEL: Record<string, string> = {
@@ -106,6 +122,12 @@ export default function PaginaCatalogo() {
   const [marco, setMarco] = useState<MarcoLegal | null>(null);
   const [esColegiatura, setEsColegiatura] = useState(false);
   const [aceptaSaldo, setAceptaSaldo] = useState(true);
+  const [voluntaria, setVoluntaria] = useState(false);
+  const [conProntoPago, setConProntoPago] = useState(false);
+  /// Qué concepto voluntario se está administrando, y quién lo aceptó.
+  const [gestionando, setGestionando] = useState<Concepto | null>(null);
+  const [aceptaciones, setAceptaciones] = useState<Aceptacion[]>([]);
+  const [alumnos, setAlumnos] = useState<AlumnoBreve[]>([]);
   const [recarga, setRecarga] = useState(0);
 
   useEffect(() => {
@@ -160,6 +182,13 @@ export default function PaginaCatalogo() {
       ...(deducible && nivel ? { nivelEducativo: nivel } : {}),
       esColegiatura,
       aceptaSaldoAFavor: aceptaSaldo,
+      obligatoriedad: voluntaria ? 'VOLUNTARIA' : 'OBLIGATORIA',
+      ...(conProntoPago
+        ? {
+            descuentoProntoPagoPorcentaje: Number(campoTexto(formulario, 'prontoPagoPorcentaje')),
+            diaProntoPago: Number(campoTexto(formulario, 'prontoPagoDia')),
+          }
+        : {}),
       vigenteDesde: campoTexto(formulario, 'vigenteDesde'),
     });
 
@@ -175,7 +204,54 @@ export default function PaginaCatalogo() {
     setDeducible(false);
     setEsColegiatura(false);
     setAceptaSaldo(true);
+    setVoluntaria(false);
+    setConProntoPago(false);
     setRecarga((n) => n + 1);
+  }
+
+  /**
+   * Abrir la administracion de aceptaciones de una cuota voluntaria.
+   *
+   * Se cargan aqui y no con el resto de la pantalla porque solo hacen falta
+   * cuando alguien las pide: pedir las aceptaciones de todos los conceptos en
+   * cada carga es trabajo que casi nunca se usa.
+   */
+  async function administrar(concepto: Concepto) {
+    setGestionando(concepto);
+    setAceptaciones([]);
+
+    const [{ datos: acs }, { datos: als }] = await Promise.all([
+      pedirApi<Aceptacion[]>(`/catalogo-cargos/${concepto.id}/aceptaciones`),
+      pedirApi<AlumnoBreve[]>('/becas/alumnos'),
+    ]);
+    if (acs) setAceptaciones(acs);
+    if (als) setAlumnos(als);
+  }
+
+  async function aceptar(alumnoId: string) {
+    if (!gestionando) return;
+    const { ok, datos, error: fallo } = await enviarJson<Aceptacion>(
+      `/catalogo-cargos/${gestionando.id}/aceptaciones`,
+      { alumnoId },
+    );
+    if (!ok || !datos) {
+      setError(fallo?.message ?? 'No pudimos registrar la aceptación.');
+      return;
+    }
+    // Se reemplaza si ya estaba: aceptar dos veces es la misma aceptación.
+    setAceptaciones((previas) => [
+      datos,
+      ...previas.filter((a) => a.alumnoId !== datos.alumnoId),
+    ]);
+  }
+
+  async function retirarAceptacion(alumnoId: string) {
+    if (!gestionando) return;
+    const { ok } = await enviarJson(
+      `/catalogo-cargos/${gestionando.id}/aceptaciones/${alumnoId}/retirar`,
+      {},
+    );
+    if (ok) setAceptaciones((previas) => previas.filter((a) => a.alumnoId !== alumnoId));
   }
 
   async function generar() {
@@ -274,6 +350,20 @@ export default function PaginaCatalogo() {
                       {c.esColegiatura ? 'Cuenta para el Art. 7' : 'No cuenta para el Art. 7'}
                     </Insignia>
                     {!c.aceptaSaldoAFavor && <Insignia tono="neutro">Sin saldo a favor</Insignia>}
+                    {c.obligatoriedad === 'VOLUNTARIA' && (
+                      <Insignia tono="info">Voluntaria · solo a quien la acepte</Insignia>
+                    )}
+                    {c.obligatoriedad === 'VOLUNTARIA' && (
+                      <Boton
+                        variante="texto"
+                        style={{ padding: 0 }}
+                        onClick={() => {
+                          void administrar(c);
+                        }}
+                      >
+                        Quién la aceptó
+                      </Boton>
+                    )}
                   </div>
                 </div>
                 <span
@@ -291,6 +381,89 @@ export default function PaginaCatalogo() {
             ))}
           </ul>
         </Tarjeta>
+
+        {/* ADMINISTRACION DE UNA CUOTA VOLUNTARIA.
+            Sin esta pantalla, marcar una cuota como voluntaria la vuelve
+            incobrable: se genera y no aparece un solo cargo, sin error y sin
+            explicacion. El guard seria correcto y la funcion, inservible. */}
+        {gestionando && (
+          <Tarjeta titulo={`Quién aceptó: ${gestionando.nombre}`}>
+            <p style={{ color: 'var(--texto-tenue)', marginTop: 'var(--space-2)' }}>
+              Solo se le genera el cargo a quien aparece en esta lista. La ley prohíbe condicionar
+              el servicio educativo a un pago voluntario.
+            </p>
+
+            {aceptaciones.length === 0 ? (
+              <p style={{ color: 'var(--texto-tenue)', marginTop: 'var(--space-3)' }}>
+                Nadie la ha aceptado todavía, así que esta cuota no le genera cargo a nadie.
+              </p>
+            ) : (
+              <ul style={{ listStyle: 'none', padding: 0, margin: 'var(--space-3) 0 0' }}>
+                {aceptaciones.map((a) => (
+                  <li
+                    key={a.alumnoId}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: 'var(--space-3)',
+                      padding: 'var(--space-2) 0',
+                      borderBottom: '1px solid var(--borde)',
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    <span>
+                      {a.alumno}{' '}
+                      <span style={{ color: 'var(--texto-tenue)' }}>· aceptó el {a.aceptadaEn}</span>
+                    </span>
+                    <Boton
+                      variante="texto"
+                      style={{ padding: 0 }}
+                      onClick={() => {
+                        void retirarAceptacion(a.alumnoId);
+                      }}
+                    >
+                      Retirar
+                    </Boton>
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            <div style={{ display: 'grid', gap: 'var(--space-1)', marginTop: 'var(--space-4)' }}>
+              <label htmlFor="aceptaAlumno" style={etiquetaEstilo}>
+                Registrar que aceptó
+              </label>
+              <select
+                id="aceptaAlumno"
+                style={campoEstilo}
+                defaultValue=""
+                onChange={(e) => {
+                  if (e.target.value) {
+                    void aceptar(e.target.value);
+                    e.target.value = '';
+                  }
+                }}
+              >
+                <option value="">Elige a quien aceptó…</option>
+                {alumnos
+                  .filter((a) => !aceptaciones.some((x) => x.alumnoId === a.id))
+                  .map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.nombre}
+                      {a.cohorte ? ` · ${a.cohorte}` : ''}
+                    </option>
+                  ))}
+              </select>
+            </div>
+
+            <div style={{ marginTop: 'var(--space-3)' }}>
+              <Boton variante="secundario" onClick={() => setGestionando(null)}>
+                Cerrar
+              </Boton>
+            </div>
+          </Tarjeta>
+        )}
 
         <Tarjeta titulo="Agregar un concepto">
           <form
@@ -318,9 +491,14 @@ export default function PaginaCatalogo() {
                 defaultValue="MENSUAL"
                 style={campoEstilo}
               >
-                <option value="MENSUAL">Cada mes</option>
-                <option value="UNICO">Una sola vez</option>
-                <option value="ANUAL">Una vez al año</option>
+                {/* Se generan del mismo mapa que las etiquetas de la lista: dos
+                    listas escritas a mano se desincronizan el dia que alguien
+                    agrega una periodicidad y solo toca una. */}
+                {Object.entries(PERIODICIDAD).map(([valor, texto]) => (
+                  <option key={valor} value={valor}>
+                    {texto}
+                  </option>
+                ))}
               </select>
             </div>
 
@@ -399,6 +577,48 @@ export default function PaginaCatalogo() {
               Quítalo cuando cobres por cuenta de alguien más —una excursión, un examen externo—:
               así el dinero que la familia dejó a cuenta no se consume sin que nadie lo decida.
             </span>
+
+            <label style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
+              <input
+                type="checkbox"
+                checked={voluntaria}
+                onChange={(e) => setVoluntaria(e.target.checked)}
+                style={{ width: 20, height: 20 }}
+              />
+              <span>Es una cuota voluntaria</span>
+            </label>
+            <span style={ayudaEstilo}>
+              La ley prohíbe condicionar el servicio educativo a un pago voluntario, así que solo
+              se le cobrará a quien la acepte. Tendrás que registrar las aceptaciones una por una.
+            </span>
+
+            <label style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
+              <input
+                type="checkbox"
+                checked={conProntoPago}
+                onChange={(e) => setConProntoPago(e.target.checked)}
+                style={{ width: 20, height: 20 }}
+              />
+              <span>Dar descuento por pronto pago</span>
+            </label>
+
+            {conProntoPago && (
+              <>
+                <Campo
+                  etiqueta="Descuento por pronto pago (%)"
+                  nombre="prontoPagoPorcentaje"
+                  placeholder="5"
+                  inputMode="decimal"
+                />
+                <Campo
+                  etiqueta="Se gana si paga antes del día"
+                  nombre="prontoPagoDia"
+                  placeholder="3"
+                  inputMode="numeric"
+                  ayuda="El descuento solo se aplica si el pago liquida el cargo completo dentro de la ventana. Un abono parcial no lo gana."
+                />
+              </>
+            )}
 
             <Boton type="submit" cargando={guardando}>
               Guardar concepto
