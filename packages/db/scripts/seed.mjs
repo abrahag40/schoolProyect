@@ -67,8 +67,18 @@ try {
       slug: 'colegio-azahar',
       vertical: 'COLEGIO',
       sedes: [
-        { nombre: 'Campus Norte', cct: '31PPR0001A', rvoe: 'ACUERDO 123/2024' },
-        { nombre: 'Campus Sur', cct: '31PPR0002B', rvoe: 'ACUERDO 124/2024' },
+        // El RVOE va POR NIVEL, que es como lo otorga la autoridad y como lo
+        // exige el complemento IEDU. Un campus con primaria y secundaria tiene
+        // dos acuerdos distintos, y la factura debe llevar el que corresponde.
+        {
+          nombre: 'Campus Norte',
+          cct: '31PPR0001A',
+          rvoes: [
+            { nivel: 'PRIMARIA', acuerdo: 'ACUERDO 123/2024' },
+            { nivel: 'SECUNDARIA', acuerdo: 'ACUERDO 456/2024' },
+          ],
+        },
+        { nombre: 'Campus Sur', cct: '31PPR0002B', rvoes: [{ nivel: 'PRIMARIA', acuerdo: 'ACUERDO 124/2024' }] },
       ],
       // Un colegio piensa en ciclos escolares y grados.
       periodo: { nombre: 'Ciclo 2026-2027', tipo: 'CICLO_ESCOLAR', inicio: '2026-08-17' },
@@ -97,7 +107,16 @@ try {
       ],
       alumnos: [
         { nombre: 'Sofia', apellidos: 'Ramirez Loera', nacimiento: '2018-03-12', cohorte: 0 },
-        { nombre: 'Mateo', apellidos: 'Ramirez Loera', nacimiento: '2016-07-04', cohorte: 2 },
+        // Mateo entra el 15 de septiembre, un mes despues de arrancar el ciclo:
+        // es el caso que hace visible el prorrateo en la demo. Sin un alumno
+        // asi, la funcion existe y no se ve.
+        {
+          nombre: 'Mateo',
+          apellidos: 'Ramirez Loera',
+          nacimiento: '2016-07-04',
+          cohorte: 2,
+          altaTardia: '2026-09-15',
+        },
       ],
       // Padres separados que dividen la colegiatura 60/40 y una abuela que
       // recoge pero no paga. Es el "tercer pagador" que el mercado pide.
@@ -165,6 +184,11 @@ try {
           // No es colegiatura: tres excursiones impagas NO acercan a la familia
           // a la suspension del servicio, por mas que sumen dinero.
           esColegiatura: false,
+          // Y es VOLUNTARIA: el Acuerdo prohibe condicionar el servicio a un
+          // pago voluntario, asi que solo se le cobra a quien la acepte. Sin
+          // aceptaciones, la generacion no crea un solo cargo de excursion —
+          // que es justo lo que la demo debe ensenar.
+          obligatoriedad: 'VOLUNTARIA',
           // La escuela solo junta el dinero para el operador. Consumir con esto
           // el saldo a favor de la familia sin que nadie lo decida la dejaria
           // sin ese dinero para la colegiatura.
@@ -201,7 +225,7 @@ try {
       vertical: 'ACADEMIA_DEPORTIVA',
       // Una academia no tiene CCT ni RVOE: los campos son opcionales por eso,
       // no por descuido del modelo.
-      sedes: [{ nombre: 'Cancha Principal', cct: null, rvoe: null }],
+      sedes: [{ nombre: 'Cancha Principal', cct: null, rvoes: [] }],
       // Una academia piensa en temporadas y categorias por edad.
       periodo: { nombre: 'Temporada Otono 2026', tipo: 'TEMPORADA', inicio: '2026-09-01' },
       cohortes: [
@@ -281,11 +305,19 @@ try {
     const sedeIds = [];
     for (const s of e.sedes) {
       const { rows } = await q(
-        `INSERT INTO sede (id, tenant_id, nombre, cct, rvoe, activa, "creadaEn")
-         VALUES (gen_random_uuid(), $1, $2, $3, $4, true, now()) RETURNING id`,
-        [e.id, s.nombre, s.cct, s.rvoe],
+        `INSERT INTO sede (id, tenant_id, nombre, cct, activa, "creadaEn")
+         VALUES (gen_random_uuid(), $1, $2, $3, true, now()) RETURNING id`,
+        [e.id, s.nombre, s.cct],
       );
       sedeIds.push(rows[0].id);
+
+      for (const r of s.rvoes ?? []) {
+        await q(
+          `INSERT INTO rvoe (id, tenant_id, sede_id, nivel_educativo, acuerdo, creado_en)
+           VALUES (gen_random_uuid(), $1, $2, $3::"NivelEducativo", $4, now())`,
+          [e.id, rows[0].id, r.nivel, r.acuerdo],
+        );
+      }
     }
 
     const idsDeUsuario = {};
@@ -343,9 +375,10 @@ try {
         `INSERT INTO concepto_cargo
            (id, tenant_id, clave, nombre, periodicidad, monto_base, dia_vencimiento,
             deducible_iedu, nivel_educativo, es_colegiatura, acepta_saldo_a_favor,
-            vigente_desde, avisado_en, activo, creado_en, actualizado_en)
+            obligatoriedad, vigente_desde, avisado_en, activo, creado_en, actualizado_en)
          VALUES (gen_random_uuid(), $1, $2, $3, $4::"Periodicidad", $5, $6, $7,
-                 $8::"NivelEducativo", $9, $10, $11::date, $12::date, true, now(), now())`,
+                 $8::"NivelEducativo", $9, $10, $11::"Obligatoriedad", $12::date, $13::date,
+                 true, now(), now())`,
         [
           e.id,
           c.clave,
@@ -357,6 +390,7 @@ try {
           c.nivel,
           c.esColegiatura ?? false,
           c.aceptaSaldoAFavor ?? true,
+          c.obligatoriedad ?? 'OBLIGATORIA',
           e.periodo.inicio,
           // Avisado con mas de 60 dias de anticipacion respecto a la vigencia,
           // como exige el Articulo 5-I: la demo tiene que ser un ejemplo valido.
@@ -392,10 +426,14 @@ try {
         [e.id, a.nombre, a.apellidos, a.nacimiento],
       );
       alumnoIds.push(rows[0].id);
+      // La fecha de alta manda el PRORRATEO (AZ-M4.1), asi que se siembra con
+      // intencion y no con `now()`: quien se inscribe al arrancar el ciclo paga
+      // el periodo completo, y `altaTardia` deja a un alumno entrando a mitad
+      // para que la demo ensene el prorrateo de verdad.
       await q(
         `INSERT INTO inscripcion (id, tenant_id, alumno_id, cohorte_id, estado, alta_en)
-         VALUES (gen_random_uuid(), $1, $2, $3, 'ACTIVA', now())`,
-        [e.id, rows[0].id, cohorteIds[a.cohorte]],
+         VALUES (gen_random_uuid(), $1, $2, $3, 'ACTIVA', $4::date)`,
+        [e.id, rows[0].id, cohorteIds[a.cohorte], a.altaTardia ?? e.periodo.inicio],
       );
     }
 
@@ -476,8 +514,8 @@ try {
       );
       await q(
         `INSERT INTO inscripcion (id, tenant_id, alumno_id, cohorte_id, estado, alta_en)
-         VALUES (gen_random_uuid(), $1, $2, $3, 'ACTIVA', now())`,
-        [e.id, rows[0].id, cohorteIds[c.cohorte]],
+         VALUES (gen_random_uuid(), $1, $2, $3, 'ACTIVA', $4::date)`,
+        [e.id, rows[0].id, cohorteIds[c.cohorte], e.periodo.inicio],
       );
     }
 

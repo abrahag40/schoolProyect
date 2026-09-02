@@ -55,11 +55,11 @@ fila y se prioriza; no se reabre el plan.
 | 5   | El Artículo 7 cuenta colegiaturas, no adeudos                                      | `§52`      | primaria Acuerdo 7.º               | Must   | **Soportado** (S5)         |
 | 6   | El Acuerdo no aplica a educación superior ni a academias                           | `§51`      | primaria Acuerdo 1.º               | Must   | **Soportado** (S5)         |
 | 7   | Responsabilidad residual del pagador; facturación dividida                         | `AZ-M4.5`  | proveedor brightwheel              | Must   | **Soportado** (S4)         |
-| 8   | Pago adelantado del periodo con descuento por pronto pago                          | `AZ-M4.3b` | primaria UPAEP I.1                 | Must   | No — Sprint 6              |
-| 9   | Becas con vigencia, en porcentaje o monto fijo; el 5 % legal                       | `AZ-M4.3a` | primaria LGE 149-III · LGES 70     | Must   | No — Sprint 6              |
-| 10  | Prorrateo de la primera colegiatura al alta a mitad de periodo                     | `AZ-M4.1`  | plan (S4, no entregado)            | Must   | No — Sprint 6              |
-| 11  | Cuotas extraordinarias: no pueden generarse como obligatorias                      | `AZ-M4.2`  | primaria Acuerdo 3.º y 5.º-III     | Must   | No — Sprint 6              |
-| 12  | El RVOE va por nivel educativo, no por sede                                        | `AZ-A1`    | primaria estándar IEDU             | Must   | No — Sprint 6 (defecto)    |
+| 8   | Pago adelantado del periodo con descuento por pronto pago                          | `AZ-M4.3b` | primaria UPAEP I.1                 | Must   | **Soportado** (S6)         |
+| 9   | Becas con vigencia, en porcentaje o monto fijo; el 5 % legal                       | `AZ-M4.3a` | primaria LGE 149-III · LGES 70     | Must   | **Soportado** (S6)         |
+| 10  | Prorrateo de la primera colegiatura al alta a mitad de periodo                     | `AZ-M4.1`  | plan (S4, no entregado)            | Must   | **Soportado** (S6)         |
+| 11  | Cuotas extraordinarias: no pueden generarse como obligatorias                      | `AZ-M4.2`  | primaria Acuerdo 3.º y 5.º-III     | Must   | **Soportado** (S6)         |
+| 12  | El RVOE va por nivel educativo, no por sede                                        | `AZ-A1`    | primaria estándar IEDU             | Must   | **Soportado** (S6)         |
 | 13  | Taxonomía de 4 niveles de referencia bancaria en la conciliación                   | `AZ-M4.8`  | proveedor GES                      | Must   | No — Sprint 7 (pasarela)   |
 | 14  | Sustitución de plan preguntando qué hacer con lo ya pagado (3 opciones)            | `AZ-M4.4`  | primaria UPAEP I.1 · GES           | Should | No — backlog E4            |
 | 15  | Ventana de gracia distinta por programa (16 días; día 20 en Sistema Abierto)       | `AZ-M4.11` | primaria UPAEP I.6                 | Should | No — backlog E4            |
@@ -71,9 +71,15 @@ fila y se prioriza; no se reabre el plan.
 | 21  | Cobro prorrateado por carga: 25 % de colegiatura por materia                       | `AZ-M4.1b` | primaria UPAEP A.1                 | Could  | No — Release 2             |
 | 22  | Cuatro unidades de cobro: colegiatura, crédito, unidad, materia                    | `AZ-M4.1b` | primaria UPAEP I.5                 | Could  | No — Release 2             |
 | 23  | Seguro que cubre los pagos restantes si fallece el tutor                           | —          | primaria UPAEP E.1                 | Won't  | **Descartado** (ver abajo) |
-| 24  | Periodicidad de cobro distinta de la mensual: bimestral, semestral, cuatrimestral  | `AZ-M4.1c` | primaria UPAEP I.1 · pregunta CEO  | Must   | No — ver abajo             |
+| 24  | Periodicidad de cobro distinta de la mensual: bimestral, semestral, cuatrimestral  | `AZ-M4.1c` | primaria UPAEP I.1 · pregunta CEO  | Must   | **Soportado** (S6)         |
 
-**Marcador al 29-ago-2026: 7 de 24 soportados · 7 de 14 `Must` soportados.**
+**Marcador al 2-sep-2026 (cierre del Sprint 6): 13 de 24 soportados · 13 de 14
+`Must` soportados.**
+
+El único `Must` que falta es el escenario 13 —la taxonomía de referencias
+bancarias—, y no se puede hacer antes: es parte de la conciliación, que llega
+con la pasarela en el Sprint 7. Los `Should` siguen en el backlog ordenado de la
+épica E4, sin fecha y a la vista.
 
 ### El escenario 24, y cómo apareció
 

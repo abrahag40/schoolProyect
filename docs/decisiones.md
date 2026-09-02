@@ -246,3 +246,43 @@ true)` dentro de una transaccion, nunca como ajuste de sesion. _(Motivo: con
   "historial completo de pagos" viola la ley por construcción. Se escribe ahora
   aunque la purga se implemente en el sprint de reportes, porque el dato que hoy
   se acumula es el que mañana hay que borrar.)_
+- **§55** — El **orden de aplicación del dinero se declara y se prueba**:
+  prorrateo → beca → descuento, cada uno sobre lo que quedó. _(Con una beca del
+  50 % y un pronto pago del 10 %, en cascada la familia paga el 45 % del precio
+  de lista; sumando los porcentajes pagaría el 40 %. Sobre una colegiatura de
+  2,450 son 122.50 pesos AL MES. Lo caro no es elegir mal: es que dos partes del
+  sistema elijan distinto y el corte no cuadre sin que nadie sepa explicarlo. El
+  prorrateo abre la fila porque no es un descuento — fija el precio real de lo
+  que se cobra, y aplicar la beca antes becaría días que el alumno no estuvo.)_
+- **§56** — Una **beca es un asiento, no un campo** en el cargo, y lleva
+  **motivo obligatorio**. El cargo conserva su precio de lista y el descuento se
+  registra encima. _(Un cargo de 2,205 y nada más no puede contestar "¿por qué
+  2,205 y no 2,450?". Y la beca del 5 % de la matrícula es obligación legal —LGE
+  art. 149-III, LGES art. 70—, no cortesía: una autoridad puede pedir a quién se
+  otorgó y con qué criterio, y "el monto ya venía rebajado" no es prueba. El
+  CHECK del motivo está en la base, no solo en el servicio.)_
+- **§57** — El **prorrateo solo se aplica DENTRO del periodo**. Si la fecha de
+  alta es posterior al periodo, se cobra completo. _(La fecha de alta es cuando
+  el alumno entró a NUESTRO SISTEMA, no a la escuela. Una escuela que migra en
+  noviembre y genera los cargos de agosto a octubre tiene a todos sus alumnos
+  con alta de noviembre: prorratear ahí dejaría el trimestre en CERO, sin un
+  solo error, y perdería un trimestre de ingresos sin enterarse hasta el corte.
+  El error contrario —cobrarle agosto a quien llegó tarde— lo reclama la familia
+  el mismo día. Entre un fallo silencioso que cuesta dinero y uno ruidoso que se
+  corrige en un minuto, se elige el ruidoso. Tampoco se prorratea un concepto
+  UNICO: una inscripción cuesta lo que cuesta.)_
+- **§58** — Una **cuota voluntaria solo genera cargo a quien la aceptó**, y no
+  puede marcarse como colegiatura. _(El Acuerdo DOF 10-mar-1992, arts. 3 y 5-III,
+  prohíbe condicionar el servicio educativo a un pago voluntario. Generarle una
+  "cooperación" a los 400 alumnos de golpe la vuelve obligatoria de hecho, por
+  más que la etiqueta diga otra cosa. Y voluntaria + colegiatura es la
+  combinación que convierte dos reglas correctas en una ilegal: contaría para el
+  Artículo 7 y acercaría a la familia a la suspensión por no pagar algo que la
+  ley dice que es opcional.)_
+- **§59** — Una **regla que no se puede satisfacer es un defecto**, por correcta
+  que sea. Todo gate que exija un dato nace con la pantalla donde capturarlo.
+  _(El catálogo rechaza crear un concepto deducible sin el RVOE de su nivel. Sin
+  la pantalla de datos fiscales, ese gate deja de proteger y se vuelve un muro:
+  la escuela no puede avanzar y no sabe por qué. Lo mismo con las aceptaciones
+  de cuota voluntaria — sin dónde registrarlas, marcar una cuota como voluntaria
+  la vuelve incobrable en silencio.)_

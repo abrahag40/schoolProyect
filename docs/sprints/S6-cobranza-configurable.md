@@ -2,8 +2,8 @@
 
 | Campo    | Valor                                                                    |
 | -------- | ------------------------------------------------------------------------ |
-| Estado   | PROPUESTO — pendiente de arranque por el CEO                             |
-| Rama     | `sprint-6-cobranza-configurable` (al arrancar)                           |
+| Estado   | CERRADO — ceremonia completa el 2-sep-2026                               |
+| Rama     | `sprint-6-cobranza-configurable`                                         |
 | Cambio   | **C3** — sprint insertado; el MVP pasa del S12 al S14 (decisión **D14**) |
 | Vigencia | Vivo durante el sprint; se congela al cerrarlo                           |
 
@@ -20,9 +20,32 @@ entregó un subconjunto**. La revisión v1.2 lo reconoció y no lo reprogramó: 
 pendiente sin sprint asignado no es un pendiente, es un olvido con buena
 redacción. Aquí se le asigna sprint.
 
-De los 23 escenarios del [catálogo de cobranza](../mercado/escenarios-cobranza.md),
-este sprint mueve **cinco `Must`** — y solo dos de ellos son escenarios nuevos
+De los 24 escenarios del [catálogo de cobranza](../mercado/escenarios-cobranza.md),
+este sprint mueve **seis `Must`** — y solo tres de ellos son escenarios nuevos
 salidos del estudio.
+
+### Intercambio al arrancar (§8), decidido por el CEO el 29-ago-2026
+
+Al arrancar el sprint entró el **escenario 24** (periodicidad de cobro distinta
+de la mensual, `AZ-M4.1c`), que salió de una pregunta del CEO y no de un barrido
+de fuentes. El mecanismo de tres salidas obliga a que algo salga, y sale el
+**mutation testing** del módulo de dinero.
+
+**Por qué entra donde entra.** No es alcance suelto: la periodicidad toca
+exactamente el mismo código que M4.1 —el enum de periodicidad, la clave del
+periodo, el anclaje de la generación y el cálculo de vencimientos—. Hacerlas
+juntas cuesta menos que hacerlas en dos sprints, porque el cambio de la clave de
+periodo es una sola cirugía.
+
+**Qué cuesta lo que sale, dicho sin adornos.** El mutation testing es el gate que
+comprueba que las pruebas del dinero de verdad detectan cambios en la aritmética,
+no solo que pasan. Diferirlo significa que el código de becas, descuentos y
+prorrateo —el más delicado del producto— llega al **Sprint 13 (Hardening)** sin
+esa comprobación. Se mitiga con la invariante `I1` por property-based testing,
+que sí entra y que cubre la propiedad más importante (que el dinero cuadre), pero
+**no la sustituye**: I1 prueba que la suma cierra, el mutation testing prueba que
+las pruebas muerden. Por §46 esto queda **diferido en gate y con fecha**, no
+reciclado en silencio.
 
 ## 1 · Sprint Goal
 
@@ -36,12 +59,15 @@ salidos del estudio.
 | ID       | Elemento                                                                 | MoSCoW |
 | -------- | ------------------------------------------------------------------------ | ------ |
 | AZ-M4.1  | Planes configurables y prorrateo al alta a mitad de periodo              | Must   |
+| AZ-M4.1c | Periodicidad de cobro configurable: bimestral, cuatrimestral, semestral  | Must   |
 | AZ-M4.3a | Becas con vigencia (desde/hasta), en porcentaje o monto fijo             | Must   |
 | AZ-M4.3b | Descuento por pronto pago y por pago del periodo completo                | Must   |
 | AZ-M4.2  | Guard de cuotas extraordinarias: no se generan como obligatorias         | Must   |
 | AZ-A1    | RVOE por nivel educativo, no por sede (**defecto** de datos maestros)    | Must   |
 | —        | Ledger con invariante `I1` (Σ cargos = Σ abonos + saldo), property-based | Must   |
-| —        | Mutation testing dirigido al módulo de dinero, score ≥ 80 % como gate    | Should |
+
+**Salió del alcance al arrancar (§8):** mutation testing del módulo de dinero,
+diferido al **Sprint 13 (Hardening)** con su riesgo escrito arriba.
 
 **Fuera de alcance, explícito** —para que nadie lo dé por supuesto—: cargos
 combinables completos (M4.2 más allá del guard), cambio de plan con tres opciones
@@ -51,11 +77,18 @@ backlog ordenado de E4. Y la pasarela, que es el Sprint 7.
 
 ## 3 · Cómo se hace (diseño técnico)
 
-1. **La beca y el descuento son asientos, no un campo en el cargo.** Igual que el
+1. **La clave del periodo deja de ser un mes.** Hoy es `AAAA-MM` y está validada
+   como mes calendario, así que un semestre no se puede expresar: `ANUAL` lo
+   cobraría una vez cuando deberían ser dos, y `MENSUAL` doce. La clave pasa a
+   nombrar el periodo real del plan (`2026-S1`, `2026-B3`, `2026-09`) y la
+   idempotencia se mantiene sobre ella. Es la pieza que hace que una universidad
+   con cuatrimestres pueda usar el sistema — y por eso va junto a M4.1 y no en
+   otro sprint: son el mismo código.
+2. **La beca y el descuento son asientos, no un campo en el cargo.** Igual que el
    pago (§48): el cargo conserva su importe de lista y el descuento se aplica
    encima. Sin esto no se puede auditar cuánto se becó — que es exactamente lo
    que la obligación del 5 % exige poder demostrar.
-2. **La vigencia va en la beca, no en el alumno.** Una beca que expira a mitad de
+3. **La vigencia va en la beca, no en el alumno.** Una beca que expira a mitad de
    ciclo debe dejar de aplicarse sola en el siguiente periodo generado, sin que
    nadie se acuerde de quitarla.
 3. **El prorrateo se congela al generar**, igual que el reparto entre pagadores

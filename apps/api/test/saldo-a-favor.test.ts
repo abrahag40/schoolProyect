@@ -111,6 +111,8 @@ beforeAll(async () => {
     'cohorte',
     'periodo',
     'aviso_privacidad',
+    'rvoe',
+    'aceptacion_de_cuota',
     'usuario_rol',
     'usuario',
     'sede',
@@ -149,6 +151,16 @@ beforeAll(async () => {
        (gen_random_uuid(),$2,'Cancha S',true,now()) RETURNING id, tenant_id`,
     [ID_COLEGIO, ID_ACADEMIA],
   );
+
+  // El RVOE va POR NIVEL (AZ-A1). Sin el capturado, el catalogo rechaza crear
+  // un concepto deducible: el complemento IEDU lo exige.
+  for (const s of sedes) {
+    await owner.query(
+      `INSERT INTO rvoe (id, tenant_id, sede_id, nivel_educativo, acuerdo, creado_en)
+       VALUES (gen_random_uuid(), $1, $2, 'PRIMARIA', 'ACUERDO PRUEBA/2024', now())`,
+      [s.tenant_id, s.id],
+    );
+  }
   const { rows: periodos } = await owner.query(
     `INSERT INTO periodo (id, tenant_id, nombre, tipo, inicio, activo, creado_en) VALUES
        (gen_random_uuid(),$1,'Ciclo S','CICLO_ESCOLAR',$3::date,true,now()),
@@ -562,5 +574,223 @@ describe('devolución del saldo a favor', () => {
     expect(cuerpo.saldoAFavor).toBe('200.00');
     expect(cuerpo.devolucionDeSaldo.permitido).toBe(false);
     expect(cuerpo.devolucionDeSaldo.motivo).toMatch(/cargos vencidos/);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AZ-M4.2 — el guard de cuotas voluntarias, por el camino real
+// ---------------------------------------------------------------------------
+
+describe('una cuota voluntaria NO se le cobra a quien no la aceptó', () => {
+  it('generar no crea un solo cargo de la cuota voluntaria', async () => {
+    // El Acuerdo DOF 10-mar-1992 (arts. 3 y 5-III) prohíbe condicionar el
+    // servicio educativo a un pago voluntario. Generarle una "cooperación" a
+    // los 400 alumnos de golpe la vuelve obligatoria de hecho: aparece en su
+    // estado de cuenta, suma al adeudo y entra a la lista de morosos.
+    const admin = await entrar('colegio-s', 'admin@s.mx');
+    await post(admin, '/catalogo-cargos', {
+      clave: 'festival',
+      nombre: 'Festival de fin de año',
+      periodicidad: 'UNICO',
+      monto: '250.00',
+      diaVencimiento: 20,
+      vigenteDesde: INICIO_CICLO,
+      obligatoriedad: 'VOLUNTARIA',
+    });
+    await post(admin, '/cargos/generar', { periodo: MES_3 });
+
+    const { rows } = await owner.query(
+      `SELECT count(*)::int AS n FROM cargo c JOIN concepto_cargo cc ON cc.id = c.concepto_id
+        WHERE cc.clave = 'festival'`,
+    );
+    expect(rows[0].n, 'se generó una cuota voluntaria sin aceptación').toBe(0);
+  });
+
+  it('y SÍ se le cobra a quien la aceptó: el guard no es un muro', async () => {
+    // La aceptación es la prueba de que la escuela informó y la familia eligió.
+    const admin = await entrar('colegio-s', 'admin@s.mx');
+    const { rows: concepto } = await owner.query(
+      `SELECT id FROM concepto_cargo WHERE clave = 'festival'`,
+    );
+    await owner.query(
+      `INSERT INTO aceptacion_de_cuota (id, tenant_id, alumno_id, concepto_id, aceptada_en)
+       VALUES (gen_random_uuid(), $1, $2, $3, now())`,
+      [ID_COLEGIO, ids.mariana!, concepto[0].id],
+    );
+
+    await post(admin, '/cargos/generar', { periodo: MES_3 });
+
+    const { rows } = await owner.query(
+      `SELECT count(*)::int AS n FROM cargo c JOIN concepto_cargo cc ON cc.id = c.concepto_id
+        WHERE cc.clave = 'festival'`,
+    );
+    expect(rows[0].n).toBe(1);
+  });
+
+  it('NO-camino: una cuota voluntaria no puede ser colegiatura', async () => {
+    // Si lo fuera, entraría al contador del Artículo 7 — el defecto que §52
+    // acaba de cerrar. Y la colegiatura ES la contraprestación del servicio: si
+    // fuera voluntaria, no habría nada que cobrar.
+    const admin = await entrar('colegio-s', 'admin@s.mx');
+    const { estado } = await post(admin, '/catalogo-cargos', {
+      clave: 'cooperacion',
+      nombre: 'Cooperación mensual',
+      periodicidad: 'MENSUAL',
+      monto: '100.00',
+      vigenteDesde: INICIO_CICLO,
+      obligatoriedad: 'VOLUNTARIA',
+      esColegiatura: true,
+    });
+    expect(estado).toBe(400);
+  });
+});
+
+describe('el RVOE va por nivel educativo (AZ-A1)', () => {
+  it('un concepto deducible de un nivel SIN RVOE se rechaza', async () => {
+    // El complemento IEDU exige el acuerdo del nivel que se factura. Sin él, el
+    // SAT rechaza el CFDI al timbrar — y para entonces ya hay cien escuelas con
+    // el dato incompleto y facturas que corregir cancelando (CFF 29-A).
+    const admin = await entrar('colegio-s', 'admin@s.mx');
+    const { estado, cuerpo } = await post<{ message?: string }>(admin, '/catalogo-cargos', {
+      clave: 'colegiatura-secundaria',
+      nombre: 'Colegiatura de secundaria',
+      periodicidad: 'MENSUAL',
+      monto: '3200.00',
+      vigenteDesde: INICIO_CICLO,
+      deducibleIedu: true,
+      nivelEducativo: 'SECUNDARIA',
+      esColegiatura: true,
+    });
+    expect(estado).toBe(400);
+    expect(cuerpo.message).toMatch(/RVOE/);
+  });
+
+  it('con el RVOE de ese nivel capturado, entra', async () => {
+    const { rows: sede } = await owner.query(`SELECT id FROM sede WHERE tenant_id = $1 LIMIT 1`, [
+      ID_COLEGIO,
+    ]);
+    await owner.query(
+      `INSERT INTO rvoe (id, tenant_id, sede_id, nivel_educativo, acuerdo, creado_en)
+       VALUES (gen_random_uuid(), $1, $2, 'SECUNDARIA', 'ACUERDO 789/2024', now())`,
+      [ID_COLEGIO, sede[0].id],
+    );
+
+    const admin = await entrar('colegio-s', 'admin@s.mx');
+    const { estado } = await post(admin, '/catalogo-cargos', {
+      clave: 'colegiatura-secundaria',
+      nombre: 'Colegiatura de secundaria',
+      periodicidad: 'MENSUAL',
+      monto: '3200.00',
+      vigenteDesde: INICIO_CICLO,
+      deducibleIedu: true,
+      nivelEducativo: 'SECUNDARIA',
+      esColegiatura: true,
+    });
+    expect(estado).toBe(201);
+  });
+
+  it('dos niveles en la misma sede llevan acuerdos DISTINTOS', async () => {
+    // Es todo el defecto en una consulta: con una sola columna por sede, la
+    // secundaria habría facturado con el acuerdo de primaria.
+    const { rows } = await owner.query(
+      `SELECT nivel_educativo, acuerdo FROM rvoe WHERE tenant_id = $1 ORDER BY nivel_educativo`,
+      [ID_COLEGIO],
+    );
+    expect(rows.length).toBeGreaterThanOrEqual(1);
+    expect(new Set(rows.map((r) => r.acuerdo)).size).toBe(rows.length);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// AZ-M4.2 — el guard de las cuotas voluntarias, por el camino real
+// ---------------------------------------------------------------------------
+
+/**
+ * El Acuerdo DOF 10-mar-1992 (arts. 3 y 5-III) obliga a informar qué pagos son
+ * obligatorios y cuáles voluntarios, y prohíbe condicionar el servicio a los
+ * voluntarios. Un sistema que permite generarle una "cooperación" a los 400
+ * alumnos de golpe la vuelve obligatoria de hecho, por más que la llame
+ * voluntaria — y ese era exactamente el riesgo registrado en el catálogo de
+ * escenarios.
+ */
+describe('una cuota voluntaria solo se le cobra a quien la aceptó (§AZ-M4.2)', () => {
+  it('sin aceptaciones no genera un solo cargo, aunque haya alumnos activos', async () => {
+    const admin = await entrar('colegio-s', 'admin@s.mx');
+    await post(admin, '/catalogo-cargos', {
+      clave: 'kermes',
+      nombre: 'Kermés anual',
+      periodicidad: 'UNICO',
+      monto: '250.00',
+      diaVencimiento: 20,
+      vigenteDesde: INICIO_CICLO,
+      obligatoriedad: 'VOLUNTARIA',
+    });
+
+    await post(admin, '/cargos/generar', { periodo: MES_3 });
+
+    const { rows } = await owner.query(
+      `SELECT count(*)::int AS n FROM cargo c
+         JOIN concepto_cargo cc ON cc.id = c.concepto_id
+        WHERE cc.clave = 'kermes'`,
+    );
+    expect(rows[0].n, 'una cuota voluntaria se cobró sin que nadie la aceptara').toBe(0);
+  });
+
+  it('tras registrar UNA aceptación, se genera exactamente ese cargo', async () => {
+    const admin = await entrar('colegio-s', 'admin@s.mx');
+    const { cuerpo: conceptos } = await get<Array<{ id: string; clave: string }>>(
+      admin,
+      '/catalogo-cargos',
+    );
+    const kermes = conceptos.find((c) => c.clave === 'kermes')!;
+
+    const { estado } = await post(admin, `/catalogo-cargos/${kermes.id}/aceptaciones`, {
+      alumnoId: ids.mariana!,
+    });
+    expect(estado).toBe(201);
+
+    await post(admin, '/cargos/generar', { periodo: MES_3 });
+
+    const { rows } = await owner.query(
+      `SELECT a.nombre FROM cargo c
+         JOIN concepto_cargo cc ON cc.id = c.concepto_id
+         JOIN alumno a ON a.id = c.alumno_id
+        WHERE cc.clave = 'kermes'`,
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0].nombre).toBe('Mariana');
+  });
+
+  it('NO-camino: una cuota obligatoria no admite aceptaciones', async () => {
+    // Registrarlas no haría daño, pero sí confundiría: sugeriría que quien no
+    // aparece en la lista no la debe. Y sí la debe.
+    const admin = await entrar('colegio-s', 'admin@s.mx');
+    const { cuerpo: conceptos } = await get<Array<{ id: string; clave: string }>>(
+      admin,
+      '/catalogo-cargos',
+    );
+    const colegiatura = conceptos.find((c) => c.clave === 'colegiatura')!;
+
+    const { estado } = await post(admin, `/catalogo-cargos/${colegiatura.id}/aceptaciones`, {
+      alumnoId: ids.mariana!,
+    });
+    expect(estado).toBe(400);
+  });
+
+  it('NO-camino: una cuota voluntaria no puede ser colegiatura', async () => {
+    // Contaría para el Artículo 7 y acercaría a la familia a la suspensión por
+    // no pagar algo que la ley dice que es voluntario. Es la combinación que
+    // convierte dos reglas correctas en una ilegal.
+    const admin = await entrar('colegio-s', 'admin@s.mx');
+    const { estado } = await post(admin, '/catalogo-cargos', {
+      clave: 'cooperacion',
+      nombre: 'Cooperación voluntaria',
+      periodicidad: 'MENSUAL',
+      monto: '100.00',
+      vigenteDesde: INICIO_CICLO,
+      obligatoriedad: 'VOLUNTARIA',
+      esColegiatura: true,
+    });
+    expect(estado).toBe(400);
   });
 });

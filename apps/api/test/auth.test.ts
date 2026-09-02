@@ -31,7 +31,12 @@ interface SesionRespuesta {
 
 interface EscuelaRespuesta {
   escuela: { nombre: string; vertical: string } | null;
-  sedes: Array<{ id: string; nombre: string; cct: string | null; rvoe: string | null }>;
+  sedes: Array<{
+    id: string;
+    nombre: string;
+    cct: string | null;
+    rvoes: Array<{ nivelEducativo: string; acuerdo: string }>;
+  }>;
   misRoles: string[];
 }
 
@@ -55,6 +60,7 @@ beforeAll(async () => {
     'cohorte',
     'periodo',
     'aviso_privacidad',
+    'rvoe',
     'usuario_rol',
     'usuario',
     'sede',
@@ -70,11 +76,19 @@ beforeAll(async () => {
        ($2,'Academia Prueba','academia-prueba','ACADEMIA_DEPORTIVA',true,now())`,
     [ID_COLEGIO, ID_ACADEMIA],
   );
-  await owner.query(
-    `INSERT INTO sede (id, tenant_id, nombre, cct, rvoe, activa, "creadaEn") VALUES
-       (gen_random_uuid(),$1,'Campus Unico','31PPR9999Z','ACUERDO 999/2024',true,now()),
-       (gen_random_uuid(),$2,'Cancha Unica',NULL,NULL,true,now())`,
+  const { rows: sedes } = await owner.query(
+    `INSERT INTO sede (id, tenant_id, nombre, cct, activa, "creadaEn") VALUES
+       (gen_random_uuid(),$1,'Campus Unico','31PPR9999Z',true,now()),
+       (gen_random_uuid(),$2,'Cancha Unica',NULL,true,now())
+     RETURNING id, tenant_id`,
     [ID_COLEGIO, ID_ACADEMIA],
+  );
+  // El RVOE vive en su propia tabla desde el Sprint 6: se otorga por NIVEL, no
+  // por plantel (AZ-A1). La academia no tiene ninguno, que es su caso real.
+  await owner.query(
+    `INSERT INTO rvoe (id, tenant_id, sede_id, nivel_educativo, acuerdo, creado_en)
+     VALUES (gen_random_uuid(), $1, $2, 'PRIMARIA', 'ACUERDO 999/2024', now())`,
+    [ID_COLEGIO, sedes.find((s) => s.tenant_id === ID_COLEGIO)!.id],
   );
   await owner.query(
     `INSERT INTO usuario (id, tenant_id, email, password_hash, nombre, activo, "creadoEn") VALUES
@@ -223,7 +237,8 @@ describe('datos protegidos', () => {
     });
     const datos = (await r.json()) as EscuelaRespuesta;
     expect(datos.sedes[0]!.cct).toBeNull();
-    expect(datos.sedes[0]!.rvoe).toBeNull();
+    // Una academia deportiva no tiene RVOE: la lista viene vacia, no con nulos.
+    expect(datos.sedes[0]!.rvoes).toEqual([]);
 
     const colegio = await login('colegio-prueba');
     const r2 = await fetch(`${base}/mi-escuela`, {
@@ -231,7 +246,9 @@ describe('datos protegidos', () => {
     });
     const datos2 = (await r2.json()) as EscuelaRespuesta;
     expect(datos2.sedes[0]!.cct).toBe('31PPR9999Z');
-    expect(datos2.sedes[0]!.rvoe).toBe('ACUERDO 999/2024');
+    expect(datos2.sedes[0]!.rvoes).toEqual([
+      { nivelEducativo: 'PRIMARIA', acuerdo: 'ACUERDO 999/2024' },
+    ]);
   });
 
   it('la respuesta no filtra columnas internas (contrato explicito, §31)', async () => {

@@ -15,12 +15,24 @@ import {
   esPeriodoValido,
   fechaLimiteSinRecargo,
   fechaDelPeriodo,
-  periodoDe,
   repartir,
   RepartoInvalidoError,
 } from './reglas.js';
 import { diasDeAvisoExigidos, pisoDeGracia, type Vertical } from './marco-legal.js';
 import { aplicarSaldoAFavorPendiente } from './saldo-a-favor.js';
+import {
+  esPeriodoValido as esClaveDePeriodoValida,
+  mesesDelPeriodo,
+  periodoDeFecha,
+  primerMes,
+} from './periodos.js';
+import {
+  becasAplicables,
+  calcularDescuentos,
+  descuentoPorProrrateo,
+  proporcionDelPeriodo,
+  type DescuentoAplicable,
+} from './descuentos.js';
 
 /**
  * Quien administra el dinero de la escuela.
@@ -55,6 +67,9 @@ export interface ConceptoResumen {
   esColegiatura: boolean;
   /// Si puede saldarse con el dinero que la familia ya tiene a favor.
   aceptaSaldoAFavor: boolean;
+  /// OBLIGATORIA o VOLUNTARIA. Una voluntaria solo se le cobra a quien la
+  /// acepto (Acuerdo DOF 10-mar-1992, arts. 3 y 5-III).
+  obligatoriedad: string;
   vigenteDesde: string;
   activo: boolean;
 }
@@ -100,6 +115,10 @@ export interface ResultadoGeneracion {
   /// acaba de dejar de estar disponible para otra cosa (AZ-M4.10).
   saldoAFavorAplicado: string;
   familiasConSaldoAplicado: number;
+  /// Cuanto se dejo de cobrar por becas en esta corrida. Es el numero que
+  /// demuestra el cumplimiento del 5% que exige la ley (LGE 149-III), y por eso
+  /// se reporta en vez de quedarse en la diferencia entre dos totales.
+  becado: string;
 }
 
 @Injectable()
@@ -160,6 +179,7 @@ export class ServicioCobranza {
         nivelEducativo: c.nivelEducativo,
         esColegiatura: c.esColegiatura,
         aceptaSaldoAFavor: c.aceptaSaldoAFavor,
+        obligatoriedad: c.obligatoriedad,
         vigenteDesde: c.vigenteDesde.toISOString().slice(0, 10),
         activo: c.activo,
       }));
@@ -179,6 +199,7 @@ export class ServicioCobranza {
       nivelEducativo?: NivelEducativo;
       esColegiatura?: boolean;
       aceptaSaldoAFavor?: boolean;
+      obligatoriedad?: 'OBLIGATORIA' | 'VOLUNTARIA';
       vigenteDesde: string;
       avisadoEn?: string;
     },
@@ -198,6 +219,17 @@ export class ServicioCobranza {
     // meses": un cobro de una sola vez —la inscripcion, una credencial— no
     // puede ser una de ellas. Marcarlo asi inflaria el contador de morosidad
     // con algo que la ley no cuenta, que es el defecto que este sprint corrige.
+    // Una cuota voluntaria no puede ser colegiatura: la colegiatura ES la
+    // contraprestacion del servicio educativo. Si fuera voluntaria no habria
+    // nada que cobrar, y ademas entraria al contador del Articulo 7 — el
+    // defecto que §52 acaba de cerrar.
+    if (entrada.obligatoriedad === 'VOLUNTARIA' && entrada.esColegiatura) {
+      throw new BadRequestException(
+        'Una cuota voluntaria no puede ser colegiatura: la colegiatura es lo que se ' +
+          'cobra por el servicio educativo.',
+      );
+    }
+
     if (entrada.esColegiatura && entrada.periodicidad === 'UNICO') {
       throw new BadRequestException(
         'Un cobro de una sola vez no es una colegiatura: el Artículo 7 cuenta meses. ' +
@@ -207,6 +239,22 @@ export class ServicioCobranza {
 
     return conTenant(sesion.tenantId, async (tx) => {
       const { diaVencimientoPorOmision } = await this.parametros(tx);
+
+      // Un concepto deducible necesita el RVOE **de su nivel** capturado: el
+      // complemento IEDU lo exige y sin el, el CFDI se rechaza al timbrar
+      // (AZ-A1). Se detiene aqui y no en el Release 2, cuando ya haya cien
+      // escuelas con el dato incompleto y facturas que corregir cancelando.
+      if (entrada.deducibleIedu && entrada.nivelEducativo) {
+        const tieneRvoe = await tx.rvoe.findFirst({
+          where: { nivelEducativo: entrada.nivelEducativo },
+        });
+        if (!tieneRvoe) {
+          throw new BadRequestException(
+            `No hay RVOE capturado para ${entrada.nivelEducativo}. El complemento IEDU lo ` +
+              `exige, y sin él el SAT rechaza la factura. Regístralo en los datos de la escuela.`,
+          );
+        }
+      }
 
       if (entrada.cohorteId) {
         const existe = await tx.cohorte.findUnique({ where: { id: entrada.cohorteId } });
@@ -226,6 +274,7 @@ export class ServicioCobranza {
           nivelEducativo: entrada.nivelEducativo ?? null,
           esColegiatura: entrada.esColegiatura ?? false,
           aceptaSaldoAFavor: entrada.aceptaSaldoAFavor ?? true,
+          obligatoriedad: entrada.obligatoriedad ?? 'OBLIGATORIA',
           vigenteDesde: new Date(`${entrada.vigenteDesde}T00:00:00.000Z`),
           avisadoEn: entrada.avisadoEn ? new Date(`${entrada.avisadoEn}T00:00:00.000Z`) : null,
         },
@@ -257,6 +306,7 @@ export class ServicioCobranza {
         nivelEducativo: creado.nivelEducativo,
         esColegiatura: creado.esColegiatura,
         aceptaSaldoAFavor: creado.aceptaSaldoAFavor,
+        obligatoriedad: creado.obligatoriedad,
         vigenteDesde: creado.vigenteDesde.toISOString().slice(0, 10),
         activo: creado.activo,
       };
@@ -359,8 +409,12 @@ export class ServicioCobranza {
   async generarCargos(sesion: Sesion, periodo: string): Promise<ResultadoGeneracion> {
     this.exigirRol(sesion);
 
+    // La peticion sigue siendo un MES, aunque los conceptos ya no lo sean: la
+    // administracion dice "genera lo de septiembre" y cada concepto resuelve su
+    // propio periodo (AZ-M4.1c). Un concepto semestral generara su semestre una
+    // sola vez, porque la idempotencia lo impide despues.
     if (!esPeriodoValido(periodo)) {
-      throw new BadRequestException('El periodo debe venir como AAAA-MM.');
+      throw new BadRequestException('El mes debe venir como AAAA-MM.');
     }
 
     return conTenant(sesion.tenantId, async (tx) => {
@@ -376,38 +430,70 @@ export class ServicioCobranza {
         throw new BadRequestException('La escuela no tiene un periodo activo.');
       }
 
-      // Un concepto entra en el periodo si su vigencia empieza EN CUALQUIER DIA
-      // de ese mes, no solo si ya estaba vigente el dia 1.
-      //
-      // DEFECTO REAL cazado en la demo del 25-ago-2026: el ciclo escolar
-      // arranca el 17 de agosto, asi que la colegiatura entra en vigor ese dia
-      // — y comparando contra el dia 1 la generacion de agosto devolvia CERO
-      // cargos, en silencio y sin error. La escuela no habria cobrado su primer
-      // mes. El limite correcto es el ultimo dia del periodo: un aumento que
-      // entra en septiembre sigue quedando fuera de agosto, que es lo que la
-      // regla debe proteger.
-      const ultimoDiaDelPeriodo = fechaDelPeriodo(periodo, 31);
-      const conceptos = await tx.conceptoCargo.findMany({
-        where: {
-          activo: true,
-          vigenteDesde: { lte: new Date(`${ultimoDiaDelPeriodo}T00:00:00.000Z`) },
-        },
+      const inicioDelCiclo = periodoEscolar.inicio.toISOString().slice(0, 10);
+
+      // Todos los conceptos activos: el filtro por vigencia se hace DENTRO del
+      // bucle, porque ahora cada concepto abarca un tramo distinto del ciclo y
+      // no hay un "ultimo dia del periodo" comun a todos.
+      const conceptos = await tx.conceptoCargo.findMany({ where: { activo: true } });
+
+      // Quien acepto cada cuota voluntaria (AZ-M4.2). De una sola consulta, por
+      // la misma razon que las becas: N+1 sobre 400 familias en el proceso que
+      // corre con la escuela entera esperando.
+      const aceptaciones = await tx.aceptacionDeCuota.findMany({
+        select: { alumnoId: true, conceptoId: true },
       });
+      const acepto = new Set(aceptaciones.map((a) => `${a.alumnoId}:${a.conceptoId}`));
+
+      // Las becas del tenant, de una sola consulta y agrupadas por alumno. Una
+      // consulta por alumno seria N+1 sobre 400 familias, y la generacion es
+      // justo el proceso que corre con la escuela entera esperando.
+      const becasVigentes = await tx.beca.findMany({ where: { activa: true } });
+      const becasPorAlumno = new Map<string, typeof becasVigentes>();
+      for (const b of becasVigentes) {
+        const lista = becasPorAlumno.get(b.alumnoId) ?? [];
+        lista.push(b);
+        becasPorAlumno.set(b.alumnoId, lista);
+      }
 
       const problemas: ProblemaDeGeneracion[] = [];
       let generados = 0;
       let omitidos = 0;
       let totalCentavos = 0;
+      /// Cuanto se dejo de cobrar por becas. La escuela tiene que poder verlo:
+      /// es el numero que demuestra el cumplimiento del 5% que exige la ley.
+      let becadoCentavos = 0;
 
       for (const concepto of conceptos) {
-        // Un concepto MENSUAL se cobra en el periodo pedido. Uno UNICO o ANUAL
-        // se ancla al ciclo escolar: la inscripcion se paga una vez por ciclo,
-        // no una vez al mes, y anclarla al periodo pedido la cobraria doce
-        // veces al año.
-        const periodoEfectivo =
-          concepto.periodicidad === 'MENSUAL'
-            ? periodo
-            : periodoDe(periodoEscolar.inicio.toISOString().slice(0, 10));
+        // En que periodo DE ESTE CONCEPTO cae el mes que se pidio. Un concepto
+        // mensual da `2026-09`; uno semestral, `2026-S1`; uno unico, `2026-A1`.
+        // Null = el mes queda fuera del ciclo escolar, y entonces no hay nada
+        // que generar: es informacion, no un error.
+        const periodoEfectivo = periodoDeFecha(
+          `${periodo}-01`,
+          concepto.periodicidad,
+          inicioDelCiclo,
+        );
+        if (periodoEfectivo === null || !esClaveDePeriodoValida(periodoEfectivo)) continue;
+
+        // Los meses que abarca, para saber donde vence y hasta cuando cuenta la
+        // vigencia del concepto.
+        const meses = mesesDelPeriodo(periodoEfectivo, inicioDelCiclo);
+        const mesDeVencimiento = primerMes(periodoEfectivo, inicioDelCiclo);
+        const ultimoMes = meses[meses.length - 1] ?? mesDeVencimiento;
+
+        // Un concepto entra si su vigencia empieza EN CUALQUIER DIA del periodo,
+        // no solo si ya estaba vigente el primer dia.
+        //
+        // DEFECTO REAL cazado en la demo del 25-ago-2026: el ciclo escolar
+        // arranca el 17 de agosto, asi que la colegiatura entra en vigor ese dia
+        // — y comparando contra el dia 1 la generacion de agosto devolvia CERO
+        // cargos, en silencio y sin error. La escuela no habria cobrado su primer
+        // mes. El limite correcto es el ultimo dia del periodo: un aumento que
+        // entra en septiembre sigue quedando fuera de agosto, que es lo que la
+        // regla debe proteger.
+        const finDeVigencia = fechaDelPeriodo(ultimoMes, 31);
+        if (concepto.vigenteDesde > new Date(`${finDeVigencia}T00:00:00.000Z`)) continue;
 
         const inscripciones = await tx.inscripcion.findMany({
           where: {
@@ -432,18 +518,57 @@ export class ServicioCobranza {
           },
         });
 
-        const vencimiento = fechaDelPeriodo(periodoEfectivo, concepto.diaVencimiento);
+        // Los limites del periodo en dias, para el prorrateo.
+        const primerDiaDelPeriodo = `${mesDeVencimiento}-01`;
+        const ultimoDiaDelPeriodo = fechaDelPeriodo(ultimoMes, 31);
+
+        // El cargo vence en el PRIMER mes del periodo: un semestre que arranca
+        // en agosto se cobra en agosto, no en enero.
+        const vencimiento = fechaDelPeriodo(mesDeVencimiento, concepto.diaVencimiento);
         const limite = fechaLimiteSinRecargo(
-          periodoEfectivo,
+          mesDeVencimiento,
           concepto.diaVencimiento,
           diasGraciaSinRecargo,
           piso,
         );
+        // La beca se juzga vigente al ARRANCAR el periodo que se cobra, no el
+        // dia en que alguien pulsa "generar": generar tarde no debe quitarle la
+        // beca a nadie.
+        const inicioDelPeriodo = `${mesDeVencimiento}-01`;
+
+        // Pronto pago, congelado en el cargo. Se recorta al limite sin recargo
+        // porque premiar por "pagar temprano" un dia en que ya corre la mora
+        // seria premiar y penalizar el mismo acto — y la base lo rechazaria.
+        const diaProntoPago = concepto.diaProntoPago;
+        const limiteProntoPago =
+          diaProntoPago === null || concepto.descuentoProntoPagoPorcentaje === null
+            ? null
+            : (() => {
+                const candidato = fechaDelPeriodo(mesDeVencimiento, diaProntoPago);
+                return candidato <= limite ? candidato : limite;
+              })();
         const montoCentavos = aCentavos(concepto.montoBase.toFixed(2));
 
         for (const inscripcion of inscripciones) {
           const alumno = inscripcion.alumno;
           if (!alumno.activo) continue;
+
+          // --- Guard de cuotas voluntarias (AZ-M4.2) ---
+          // El Acuerdo DOF 10-mar-1992 (arts. 3 y 5-III) prohibe condicionar el
+          // servicio educativo a un pago voluntario. Generarle una
+          // "cooperacion" a los 400 alumnos de golpe la vuelve obligatoria de
+          // hecho: aparece en su estado de cuenta, suma al adeudo y entra a la
+          // lista de morosos. Llamarla voluntaria en la pantalla no cambia lo
+          // que el sistema hace con ella.
+          //
+          // Solo se le cobra a quien la acepto, y esa fila es la prueba de que
+          // la escuela informo y la familia eligio.
+          if (
+            concepto.obligatoriedad === 'VOLUNTARIA' &&
+            !acepto.has(`${alumno.id}:${concepto.id}`)
+          ) {
+            continue;
+          }
 
           const clave = claveDeCargo(alumno.id, concepto.id, periodoEfectivo);
 
@@ -455,23 +580,108 @@ export class ServicioCobranza {
             continue;
           }
 
+          // --- Becas: el cargo guarda su PRECIO DE LISTA y el descuento va
+          //     encima como asiento (AZ-M4.3a) ---
+          const aplicables = becasAplicables(
+            (becasPorAlumno.get(alumno.id) ?? []).map((b) => ({
+              id: b.id,
+              tipo: b.tipo,
+              valor: Number(b.valor),
+              motivo: b.motivo,
+              conceptoId: b.conceptoId,
+              vigenteDesde: b.vigenteDesde.toISOString().slice(0, 10),
+              vigenteHasta: b.vigenteHasta?.toISOString().slice(0, 10) ?? null,
+            })),
+            { conceptoId: concepto.id, fecha: inicioDelPeriodo },
+          );
+
+          const descuentos: DescuentoAplicable[] = aplicables.map((b) => ({
+            referencia: b.id,
+            categoria: 'BECA',
+            tipo: b.tipo,
+            // Un porcentaje viaja tal cual; un monto fijo se convierte a
+            // centavos, que es la unidad de este dominio (§43).
+            valor: b.tipo === 'PORCENTAJE' ? b.valor : aCentavos(b.valor.toFixed(2)),
+            concepto: b.motivo,
+          }));
+
+          // --- Prorrateo por alta a mitad de periodo (AZ-M4.1) ---
+          // Va PRIMERO en la cascada: fija el precio real de lo que se cobra.
+          // Aplicar la beca antes becaria dias que el alumno no estuvo.
+          //
+          // NO se prorratea un concepto UNICO: la inscripcion, una credencial o
+          // un examen extraordinario cuestan lo que cuestan. No son un servicio
+          // que se consuma con el tiempo, asi que entrar en noviembre no hace
+          // que la inscripcion valga menos. Prorratearla seria regalar dinero
+          // por llegar tarde.
+          const alta = inscripcion.altaEn.toISOString().slice(0, 10);
+          const proporcion =
+            concepto.periodicidad === 'UNICO'
+              ? { diasCubiertos: 1, diasTotales: 1 }
+              : proporcionDelPeriodo({
+                  altaEn: alta,
+                  inicioDelPeriodo: primerDiaDelPeriodo,
+                  finDelPeriodo: ultimoDiaDelPeriodo,
+                });
+          const prorrateo = descuentoPorProrrateo(montoCentavos, proporcion);
+          if (prorrateo > 0) {
+            descuentos.push({
+              referencia: `prorrateo:${inscripcion.id}`,
+              categoria: 'PRORRATEO',
+              tipo: 'MONTO_FIJO',
+              valor: prorrateo,
+              concepto:
+                `Prorrateo por alta el ${alta} ` +
+                `(${proporcion.diasCubiertos} de ${proporcion.diasTotales} días)`,
+            });
+          }
+
+          const { aplicados, netoCentavos } = calcularDescuentos(montoCentavos, descuentos);
+
           const cargo = await tx.cargo.create({
             data: {
               tenantId: sesion.tenantId,
               alumnoId: alumno.id,
               conceptoId: concepto.id,
               periodo: periodoEfectivo,
+              // Precio de LISTA, no el neto: sin el, el estado de cuenta no
+              // puede explicar por que se cobra lo que se cobra.
               monto: concepto.montoBase,
               fechaVencimiento: new Date(`${vencimiento}T00:00:00.000Z`),
               fechaLimiteSinRecargo: new Date(`${limite}T00:00:00.000Z`),
+              fechaLimiteProntoPago:
+                limiteProntoPago === null ? null : new Date(`${limiteProntoPago}T00:00:00.000Z`),
+              descuentoProntoPagoPorcentaje:
+                limiteProntoPago === null ? null : concepto.descuentoProntoPagoPorcentaje,
               clave,
               generadoPor: sesion.usuarioId,
             },
           });
           generados++;
-          totalCentavos += montoCentavos;
+          totalCentavos += netoCentavos;
+          becadoCentavos += montoCentavos - netoCentavos;
+
+          if (aplicados.length > 0) {
+            await tx.descuentoDeCargo.createMany({
+              // El prorrateo NO tiene beca detras: su referencia es sintetica.
+              // Guardarla como `becaId` seria una llave foranea rota.
+              data: aplicados.map((d) => ({
+                tenantId: sesion.tenantId,
+                cargoId: cargo.id,
+                becaId: d.referencia.startsWith('prorrateo:') ? null : d.referencia,
+                categoria: d.referencia.startsWith('prorrateo:')
+                  ? ('PRORRATEO' as const)
+                  : ('BECA' as const),
+                concepto: d.concepto,
+                monto: aMonto(d.centavos),
+              })),
+            });
+          }
 
           // --- El reparto, congelado en este momento ---
+          // Sobre el NETO, que es lo que la familia debe de verdad. Repartir el
+          // precio de lista le cobraria a los pagadores la beca que la escuela
+          // ya concedio.
           const pagadores = alumno.tutores
             .filter((t) => t.porcentajePago !== null)
             .map((t) => ({ referencia: t.tutorId, porcentaje: Number(t.porcentajePago) }));
@@ -486,7 +696,7 @@ export class ServicioCobranza {
           }
 
           try {
-            const partes = repartir(montoCentavos, pagadores);
+            const partes = repartir(netoCentavos, pagadores);
             await tx.parteDeCargo.createMany({
               data: partes.map((parte) => ({
                 tenantId: sesion.tenantId,
@@ -535,6 +745,7 @@ export class ServicioCobranza {
             omitidos,
             problemas: problemas.length,
             importe: aMonto(totalCentavos),
+            becado: aMonto(becadoCentavos),
             saldoAFavorAplicado: credito.aplicado,
           },
         },
@@ -549,6 +760,7 @@ export class ServicioCobranza {
         generados,
         omitidos,
         importeTotal: aMonto(totalCentavos),
+        becado: aMonto(becadoCentavos),
         problemas,
         saldoAFavorAplicado: credito.aplicado,
         familiasConSaldoAplicado: credito.tutores,
@@ -559,8 +771,12 @@ export class ServicioCobranza {
   /** Los cargos de un periodo, con su reparto. Lectura para la pantalla. */
   async listarCargos(sesion: Sesion, periodo: string): Promise<CargoResumen[]> {
     this.exigirRol(sesion);
+    // La peticion sigue siendo un MES, aunque los conceptos ya no lo sean: la
+    // administracion dice "genera lo de septiembre" y cada concepto resuelve su
+    // propio periodo (AZ-M4.1c). Un concepto semestral generara su semestre una
+    // sola vez, porque la idempotencia lo impide despues.
     if (!esPeriodoValido(periodo)) {
-      throw new BadRequestException('El periodo debe venir como AAAA-MM.');
+      throw new BadRequestException('El mes debe venir como AAAA-MM.');
     }
 
     return conTenant(sesion.tenantId, async (tx) => {

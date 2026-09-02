@@ -88,6 +88,8 @@ beforeAll(async () => {
     'cohorte',
     'periodo',
     'aviso_privacidad',
+    'rvoe',
+    'aceptacion_de_cuota',
     'usuario_rol',
     'usuario',
     'sede',
@@ -124,6 +126,17 @@ beforeAll(async () => {
        (gen_random_uuid(),$2,'Cancha C',true,now()) RETURNING id, tenant_id`,
     [ID_COLEGIO, ID_ACADEMIA],
   );
+
+  // El RVOE va POR NIVEL (AZ-A1). Sin el capturado, el catalogo rechaza crear
+  // un concepto deducible: el complemento IEDU lo exige y sin el, el SAT
+  // rechaza la factura al timbrar.
+  for (const s of sedes) {
+    await owner.query(
+      `INSERT INTO rvoe (id, tenant_id, sede_id, nivel_educativo, acuerdo, creado_en)
+       VALUES (gen_random_uuid(), $1, $2, 'PRIMARIA', 'ACUERDO PRUEBA/2024', now())`,
+      [s.tenant_id, s.id],
+    );
+  }
   const { rows: periodos } = await owner.query(
     `INSERT INTO periodo (id, tenant_id, nombre, tipo, inicio, activo, creado_en) VALUES
        (gen_random_uuid(),$1,'Ciclo C','CICLO_ESCOLAR',$3::date,true,now()),
@@ -376,13 +389,20 @@ describe('generacion de cargos (AZ-M4.2)', () => {
     expect(cuerpo.importeTotal).toBe('22050.00');
   });
 
-  it('el concepto UNICO se ancla al ciclo, no al mes pedido', async () => {
+  it('el concepto UNICO se ancla al CICLO y lleva su propia clave', async () => {
     // Anclar la inscripcion al periodo pedido la cobraria doce veces al año.
+    //
+    // CAMBIO DELIBERADO DEL SPRINT 6 (AZ-M4.1c): antes la clave era `2026-08`,
+    // el MES en que arrancaba el ciclo — un mes disfrazado de ciclo, que
+    // funcionaba de casualidad porque nada mas usaba esa forma. Ahora un cobro
+    // de una sola vez tiene su propia clave, `2026-A1`, y es indistinguible de
+    // los demas periodos ciclicos. Sin esto, un semestre y el mes de arranque
+    // del ciclo competirian por el mismo identificador.
     const { rows } = await owner.query(
       `SELECT DISTINCT periodo FROM cargo WHERE concepto_id = $1`,
       [ids.inscripcion!],
     );
-    expect(rows.map((r) => r.periodo)).toEqual([PERIODO_CICLO]);
+    expect(rows.map((r) => r.periodo)).toEqual([`${PERIODO_CICLO.slice(0, 4)}-A1`]);
   });
 
   it('un concepto que entra en vigor A MEDIADOS del mes SI se cobra ese mes', async () => {
@@ -466,16 +486,29 @@ describe('el reparto cuadra al centavo (AZ-M4.3)', () => {
     expect(rows.map((r) => r.monto)).toEqual(['1470.00', '980.00']);
   });
 
-  it('INVARIANTE contra la base: la suma de las partes es el monto del cargo', async () => {
+  it('INVARIANTE contra la base: precio de lista − descuentos = suma de las partes', async () => {
     // La condicion no se puede expresar como CHECK —es entre filas— asi que se
     // verifica aqui, contra los datos reales, para todos los cargos repartidos.
+    //
+    // La invariante crecio en el Sprint 6: el cargo guarda su PRECIO DE LISTA y
+    // los descuentos de emision (prorrateo, becas) viven como asientos, asi que
+    // lo que se reparte entre los pagadores es el neto. Si esto no cierra, hay
+    // un renglon del estado de cuenta que nadie puede justificar.
+    //
+    // Solo cuentan los descuentos SIN parte: los de emision. Un pronto pago se
+    // ata a la parte de quien pago temprano y salda su saldo, no rebaja el
+    // reparto — por eso se excluye aqui y se verifica en `saldos`.
     const { rows } = await owner.query(
       `SELECT c.id, c.monto::text AS monto, sum(p.monto)::text AS partes
-         FROM cargo c JOIN parte_de_cargo p ON p.cargo_id = c.id
+         FROM cargo c
+         JOIN parte_de_cargo p ON p.cargo_id = c.id
         GROUP BY c.id, c.monto
-       HAVING c.monto <> sum(p.monto)`,
+       HAVING c.monto - coalesce((
+                SELECT sum(d.monto) FROM descuento_de_cargo d
+                 WHERE d.cargo_id = c.id AND d.parte_de_cargo_id IS NULL), 0)
+              <> sum(p.monto)`,
     );
-    expect(rows, 'hay cargos cuyo reparto no cuadra').toHaveLength(0);
+    expect(rows, 'hay cargos cuyo reparto no cuadra con sus descuentos').toHaveLength(0);
   });
 
   it('un pagador unico se queda con el total', async () => {

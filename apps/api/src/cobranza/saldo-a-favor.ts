@@ -88,13 +88,16 @@ export async function aplicarSaldoAFavorPendiente(
         concepto: { aceptaSaldoAFavor: true },
       },
     },
-    include: { cargo: true, aplicaciones: true },
+    include: { cargo: true, aplicaciones: true, descuentos: true },
   });
 
   const abiertasPorTutor = new Map<string, ParteAbierta[]>();
   for (const parte of partes) {
     const aplicado = parte.aplicaciones.reduce((a, x) => a + aCentavos(x.monto.toFixed(2)), 0);
-    const saldo = saldoDeParte(aCentavos(parte.monto.toFixed(2)), aplicado);
+    // Lo condonado a esta parte cuenta como saldado: si un pronto pago ya la
+    // cerro, el saldo a favor no debe volver a cubrirla.
+    const condonado = parte.descuentos.reduce((a, x) => a + aCentavos(x.monto.toFixed(2)), 0);
+    const saldo = saldoDeParte(aCentavos(parte.monto.toFixed(2)), aplicado + condonado);
     if (saldo <= 0) continue;
 
     const lista = abiertasPorTutor.get(parte.tutorId) ?? [];

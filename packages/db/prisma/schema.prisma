@@ -162,16 +162,19 @@ model Sede {
   nombre   String
   /// Clave del Centro de Trabajo (SEP). Solo aplica a incorporadas.
   cct      String?
-  /// Acuerdo RVOE. Dato maestro del complemento IEDU (A1), capturado desde S0
-  /// aunque la facturacion llegue en R2: recapturar despues seria un retrabajo
-  /// por cada escuela (principio 4, captura unica).
-  rvoe     String?
   activa   Boolean  @default(true)
   creadaEn DateTime @default(now()) @db.Timestamptz(6)
 
+  /// DEFECTO CORREGIDO EN EL SPRINT 6: aqui vivia una columna `rvoe` unica por
+  /// sede. El RVOE se otorga POR NIVEL EDUCATIVO, no por plantel: una escuela
+  /// con preescolar, primaria y secundaria tiene TRES acuerdos distintos. Con
+  /// una sola columna, dos de cada tres facturas saldrian con el RVOE
+  /// equivocado — y eso explota en el Release 2, con escuelas ya cargadas.
+  /// Ahora vive en `Rvoe`, una fila por sede y nivel.
   tenant   Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   cohortes Cohorte[]
   roles    UsuarioRol[]
+  rvoes    Rvoe[]
 
   @@index([tenantId])
   @@map("sede")
@@ -303,6 +306,8 @@ model Alumno {
   tutores       TutorAlumno[]
   asistencias   Asistencia[]
   cargos        Cargo[]
+  becas         Beca[]
+  aceptaciones  AceptacionDeCuota[]
 
   @@index([tenantId])
   @@index([tenantId, activo])
@@ -671,6 +676,24 @@ model ConceptoCargo {
   /// cuando la ley aun no se lo permite —multa—. Ante la duda, el lado seguro.
   esColegiatura Boolean @default(false) @map("es_colegiatura")
 
+  /// --- Cuotas voluntarias (AZ-M4.2) ---
+  /// Si la escuela puede cobrarla a todos o solo a quien la acepto. Nace
+  /// OBLIGATORIA porque es lo que era todo hasta el Sprint 6; marcar una cuota
+  /// como voluntaria es lo que activa el guard del Acuerdo (arts. 3 y 5-III).
+  obligatoriedad Obligatoriedad @default(OBLIGATORIA)
+
+  /// --- Pronto pago (AZ-M4.3b) ---
+  /// Descuento por pagar antes de tiempo, y hasta que dia del mes se gana.
+  /// Los dos van juntos o ninguno: un porcentaje sin fecha no se puede aplicar,
+  /// y una fecha sin porcentaje no descuenta nada. Lo impone un CHECK.
+  ///
+  /// NO se aplica al generar el cargo —no se sabe cuando pagara la familia—
+  /// sino al registrar el pago. Se CONGELA en cada cargo al emitirlo, igual que
+  /// la fecha limite sin recargo: la prueba de lo que se ofrecio es la columna
+  /// del cargo, no la configuracion vigente meses despues (§44).
+  descuentoProntoPagoPorcentaje Decimal? @map("descuento_pronto_pago_porcentaje") @db.Decimal(5, 2)
+  diaProntoPago                 Int?     @map("dia_pronto_pago")
+
   /// --- Saldo a favor (AZ-M4.10) ---
   /// Si un cargo de este concepto puede saldarse solo con el dinero que la
   /// familia ya tiene a favor. Casi siempre si; la excepcion son los conceptos
@@ -691,7 +714,9 @@ model ConceptoCargo {
 
   tenant  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   cohorte Cohorte? @relation(fields: [cohorteId], references: [id], onDelete: Cascade)
-  cargos  Cargo[]
+  cargos       Cargo[]
+  becas        Beca[]
+  aceptaciones AceptacionDeCuota[]
 
   @@unique([tenantId, clave])
   @@index([tenantId, activo])
@@ -730,6 +755,13 @@ model Cargo {
   /// se conserva en el enum por compatibilidad con los datos ya escritos.
   estado EstadoCargo @default(PENDIENTE)
 
+  /// --- Pronto pago congelado al emitir (AZ-M4.3b) ---
+  /// Hasta cuando se gana el descuento y de cuanto es. Congelado a proposito:
+  /// si la escuela cambia su politica en noviembre, los cargos de septiembre
+  /// conservan lo que se le ofrecio a la familia cuando se emitieron.
+  fechaLimiteProntoPago         DateTime? @map("fecha_limite_pronto_pago") @db.Date
+  descuentoProntoPagoPorcentaje Decimal?  @map("descuento_pronto_pago_porcentaje") @db.Decimal(5, 2)
+
   /// Clave de idempotencia (§15): {alumno}:{concepto}:{periodo}. La unicidad la
   /// impone la base, no la aplicacion: dos administradores generando a la vez
   /// no pueden duplicar un cargo.
@@ -743,9 +775,10 @@ model Cargo {
   /// agujero en la contabilidad de la escuela.
   motivoCancelacion String?   @map("motivo_cancelacion")
 
-  alumno   Alumno         @relation(fields: [alumnoId], references: [id], onDelete: Cascade)
-  concepto ConceptoCargo  @relation(fields: [conceptoId], references: [id])
-  partes   ParteDeCargo[]
+  alumno     Alumno            @relation(fields: [alumnoId], references: [id], onDelete: Cascade)
+  concepto   ConceptoCargo     @relation(fields: [conceptoId], references: [id])
+  partes     ParteDeCargo[]
+  descuentos DescuentoDeCargo[]
 
   @@unique([tenantId, clave])
   @@index([tenantId, periodo])
@@ -777,6 +810,7 @@ model ParteDeCargo {
   cargo        Cargo              @relation(fields: [cargoId], references: [id], onDelete: Cascade)
   tutor        Tutor              @relation(fields: [tutorId], references: [id], onDelete: Cascade)
   aplicaciones AplicacionDePago[]
+  descuentos   DescuentoDeCargo[]
 
   @@unique([cargoId, tutorId])
   @@index([tenantId, tutorId])
@@ -784,13 +818,25 @@ model ParteDeCargo {
   @@schema("public")
 }
 
+/// Cada cuanto se cobra un concepto (AZ-M4.1c).
+///
+/// Las tres periodicidades ciclicas se agregaron en el Sprint 6: sin ellas una
+/// universidad con cuatrimestres o una prepa con semestres no podia usar el
+/// sistema. El periodo de cada una se ancla al CICLO ESCOLAR y no al año
+/// calendario — ver `periodos.ts`, que es donde vive la aritmetica.
 enum Periodicidad {
-  /// Se genera cada mes: la colegiatura.
+  /// Se genera cada mes: la colegiatura. Clave `2026-09`.
   MENSUAL
-  /// Una sola vez: inscripcion, examen extraordinario, credencial.
-  UNICO
-  /// Una vez por ciclo.
+  /// Cada dos meses. Clave `2026-B3`.
+  BIMESTRAL
+  /// Cada cuatro meses. Clave `2026-C2`.
+  CUATRIMESTRAL
+  /// Cada seis meses. Clave `2026-S1`.
+  SEMESTRAL
+  /// Una vez por ciclo. Clave `2026-A1`.
   ANUAL
+  /// Una sola vez: inscripcion, examen extraordinario, credencial. Clave `2026-A1`.
+  UNICO
 
   @@schema("public")
 }
@@ -890,6 +936,197 @@ enum MetodoPago {
   DEPOSITO
   TARJETA
   OTRO
+
+  @@schema("public")
+}
+
+/// UNA BECA O UN CONVENIO (AZ-M4.3a).
+///
+/// No es un campo en el alumno ni un descuento escrito en el cargo: es una
+/// entidad con VIGENCIA propia, porque una beca que expira a mitad de ciclo
+/// tiene que dejar de aplicarse **sola** en el siguiente periodo generado. Si
+/// dependiera de que alguien la desactive a mano, la escuela seguiria becando
+/// meses de mas, y esa fuga no se detecta hasta la auditoria anual.
+///
+/// POR QUE LLEVA `motivo` OBLIGATORIO: la beca del 5% de la matricula es una
+/// obligacion legal (LGE art. 149-III, LGES art. 70), no un descuento
+/// comercial. Una autoridad puede pedir la prueba de a quien se beco y por que,
+/// y "estaba en el sistema" no es prueba si nadie escribio el porque.
+model Beca {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  alumnoId String @map("alumno_id") @db.Uuid
+
+  tipo  TipoDescuento
+  /// Porcentaje (5.00 = 5%) o importe fijo en pesos. Decimal, nunca float (§43).
+  valor Decimal       @db.Decimal(10, 2)
+
+  /// Alcance. Null = todos los conceptos; con valor = solo ese. Asi una beca
+  /// puede cubrir la colegiatura y no el comedor, que es el caso normal.
+  conceptoId String? @map("concepto_id") @db.Uuid
+
+  /// Los dos extremos son INCLUSIVOS. `vigenteHasta` null = sin fecha de fin.
+  vigenteDesde DateTime  @map("vigente_desde") @db.Date
+  vigenteHasta DateTime? @map("vigente_hasta") @db.Date
+
+  /// Por que se otorgo. Obligatorio: ver arriba.
+  motivo String
+  /// Si es la beca que la ley exige otorgar. Se marca para poder demostrar el
+  /// cumplimiento del 5% sin tener que interpretar los motivos a mano.
+  esObligacionLegal Boolean @default(false) @map("es_obligacion_legal")
+
+  activa      Boolean  @default(true)
+  otorgadaPor String?  @map("otorgada_por") @db.Uuid
+  creadaEn    DateTime @default(now()) @map("creada_en") @db.Timestamptz(6)
+
+  alumno     Alumno             @relation(fields: [alumnoId], references: [id], onDelete: Cascade)
+  concepto   ConceptoCargo?     @relation(fields: [conceptoId], references: [id], onDelete: Cascade)
+  aplicadas  DescuentoDeCargo[]
+
+  @@index([tenantId, alumnoId])
+  @@index([tenantId, activa])
+  @@map("beca")
+  @@schema("public")
+}
+
+/// EL ASIENTO: cuanto se descontó de este cargo y por que (AZ-M4.3a / AZ-M4.3b).
+///
+/// El cargo conserva su **precio de lista** en `monto` y el descuento se
+/// registra aqui encima, igual que un pago (§48). Sin esto, un cargo de 2,205
+/// no podria contestar "¿por que 2,205 y no 2,450?", y la escuela no podria
+/// demostrar cuanto beco.
+///
+/// INVARIANTE, probada contra la base: `cargo.monto − Σ descuentos = Σ partes`.
+/// El reparto entre pagadores se hace sobre el NETO, que es lo que la familia
+/// debe de verdad.
+model DescuentoDeCargo {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  cargoId  String @map("cargo_id") @db.Uuid
+
+  /// De que beca salio. Null cuando es un descuento del propio cargo —pronto
+  /// pago, prorrateo— que no viene de una beca otorgada.
+  becaId String? @map("beca_id") @db.Uuid
+
+  /// A QUE PARTE se le condono, cuando el descuento nace despues del reparto.
+  ///
+  /// Null = descuento de EMISION (prorrateo, beca): redujo la base antes de
+  /// repartir, asi que ya esta dentro de `Σ partes`.
+  /// Con valor = descuento del MOMENTO DEL PAGO (pronto pago): el reparto ya
+  /// estaba congelado, asi que se salda la parte de ese pagador concreto.
+  ///
+  /// Distinguirlos es lo que mantiene la contabilidad legible: sin este campo,
+  /// un pronto pago descuadraria la invariante `monto − Σ descuentos = Σ partes`
+  /// y nadie sabria si el defecto estaba en el reparto o en el descuento.
+  parteDeCargoId String? @map("parte_de_cargo_id") @db.Uuid
+
+  categoria CategoriaDescuento
+  /// Texto para el estado de cuenta: "Beca de hermanos", "Pronto pago".
+  concepto  String
+  /// Lo que de verdad se aplico, ya recortado al remanente. NO la intencion:
+  /// guardar 5,000 cuando solo se aplicaron 2,450 daria un total que no cuadra
+  /// con la diferencia de importes.
+  monto     Decimal            @db.Decimal(10, 2)
+
+  creadoEn DateTime @default(now()) @map("creado_en") @db.Timestamptz(6)
+
+  cargo Cargo         @relation(fields: [cargoId], references: [id], onDelete: Cascade)
+  beca  Beca?         @relation(fields: [becaId], references: [id])
+  parte ParteDeCargo? @relation(fields: [parteDeCargoId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, cargoId])
+  @@index([tenantId, parteDeCargoId])
+  @@map("descuento_de_cargo")
+  @@schema("public")
+}
+
+/// EL RVOE, POR NIVEL EDUCATIVO (AZ-A1).
+///
+/// El Reconocimiento de Validez Oficial de Estudios se otorga por programa y
+/// nivel, no por plantel. Una escuela con preescolar, primaria y secundaria
+/// tiene tres acuerdos con numeros distintos, y el complemento IEDU del SAT
+/// exige el que corresponde al nivel del concepto facturado.
+///
+/// Hasta el Sprint 6 guardabamos uno solo por sede. Con tres niveles, dos de
+/// cada tres CFDI habrian salido con el acuerdo equivocado — un dato fiscal
+/// incorrecto en un comprobante ya timbrado, que se corrige cancelando y
+/// reemitiendo con la ventana dura del CFF 29-A. Se movio ahora porque no hay
+/// escuelas reales cargadas: es el momento barato.
+model Rvoe {
+  id       String @id @default(uuid()) @db.Uuid
+  tenantId String @map("tenant_id") @db.Uuid
+  sedeId   String @map("sede_id") @db.Uuid
+
+  nivelEducativo NivelEducativo @map("nivel_educativo")
+  /// Numero de acuerdo tal como lo emitio la autoridad.
+  acuerdo        String
+
+  creadoEn DateTime @default(now()) @map("creado_en") @db.Timestamptz(6)
+
+  sede Sede @relation(fields: [sedeId], references: [id], onDelete: Cascade)
+
+  /// Un solo acuerdo por sede y nivel: dos filas para primaria en el mismo
+  /// plantel harian que la factura dependiera de cual leyo la consulta.
+  @@unique([sedeId, nivelEducativo])
+  @@index([tenantId])
+  @@map("rvoe")
+  @@schema("public")
+}
+
+/// QUIEN ACEPTO UNA CUOTA VOLUNTARIA (AZ-M4.2).
+///
+/// El Acuerdo DOF 10-mar-1992 (arts. 3 y 5-III) obliga a informar que pagos son
+/// obligatorios y cuales voluntarios, y prohibe condicionar el servicio a los
+/// voluntarios. Un sistema que permite generarle una "cooperacion" a los 400
+/// alumnos de golpe la vuelve obligatoria de hecho, por mas que la llame
+/// voluntaria.
+///
+/// Por eso un concepto VOLUNTARIO no se genera masivamente: solo se le cobra a
+/// quien lo acepto, y la aceptacion queda con fecha y con quien la registro.
+/// Es la prueba de que la escuela informo y la familia eligio.
+model AceptacionDeCuota {
+  id         String @id @default(uuid()) @db.Uuid
+  tenantId   String @map("tenant_id") @db.Uuid
+  alumnoId   String @map("alumno_id") @db.Uuid
+  conceptoId String @map("concepto_id") @db.Uuid
+
+  aceptadaEn  DateTime @default(now()) @map("aceptada_en") @db.Timestamptz(6)
+  /// Quien la registro. Null solo si algun dia la familia acepta desde su app.
+  registradaPor String? @map("registrada_por") @db.Uuid
+
+  alumno   Alumno        @relation(fields: [alumnoId], references: [id], onDelete: Cascade)
+  concepto ConceptoCargo @relation(fields: [conceptoId], references: [id], onDelete: Cascade)
+
+  @@unique([alumnoId, conceptoId])
+  @@index([tenantId, conceptoId])
+  @@map("aceptacion_de_cuota")
+  @@schema("public")
+}
+
+enum Obligatoriedad {
+  /// La escuela puede cobrarla a todos: colegiatura, inscripcion.
+  OBLIGATORIA
+  /// Solo a quien la acepto. Excursiones, cooperaciones, eventos.
+  VOLUNTARIA
+
+  @@schema("public")
+}
+
+enum TipoDescuento {
+  PORCENTAJE
+  MONTO_FIJO
+
+  @@schema("public")
+}
+
+/// Decide el ORDEN de aplicacion, y por eso es un dato y no un comentario:
+/// beca primero, descuento despues, cada uno sobre lo que quedo.
+enum CategoriaDescuento {
+  /// Ajuste por alta a mitad de periodo. Va PRIMERO: no es un descuento, fija
+  /// el precio real de lo que se cobra.
+  PRORRATEO
+  BECA
+  DESCUENTO
 
   @@schema("public")
 }

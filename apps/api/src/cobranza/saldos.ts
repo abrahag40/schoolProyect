@@ -81,6 +81,117 @@ export function aplicarPago(montoCentavos: number, partes: ParteAbierta[]): Resu
 }
 
 // ---------------------------------------------------------------------------
+// Pronto pago (AZ-M4.3b)
+// ---------------------------------------------------------------------------
+
+/**
+ * El premio por pagar antes de tiempo, tal como quedo congelado en el cargo.
+ *
+ * POR QUE ESTO NO SE PUDO HACER AL GENERAR, que era el plan original: una beca
+ * se sabe cuando se emite el cargo, pero un pronto pago depende de **cuando
+ * pague la familia**, y eso no se sabe hasta que paga. Es un descuento del
+ * momento del pago, no de la emision. El diseño se movio por eso.
+ */
+export interface ProntoPago {
+  /// Ultimo dia en que se gana el descuento. Congelado en el cargo al generar,
+  /// igual que la fecha limite sin recargo: la prueba de lo que se ofrecio es
+  /// esa columna, no la configuracion vigente meses despues (§44).
+  hasta: string;
+  /// Porcentaje sobre el saldo de la parte.
+  porcentaje: number;
+}
+
+export interface ParteConProntoPago extends ParteAbierta {
+  prontoPago: ProntoPago | null;
+}
+
+export interface AplicacionConDescuento {
+  referencia: string;
+  /// Dinero de verdad que se aplico a esta parte.
+  centavos: number;
+  /// Lo que la escuela condono por pagar antes de tiempo. Cero casi siempre.
+  descuentoCentavos: number;
+}
+
+export interface ResultadoPagoConProntoPago {
+  aplicaciones: AplicacionConDescuento[];
+  sobranteCentavos: number;
+  descuentoTotalCentavos: number;
+}
+
+/**
+ * Aplica un pago reconociendo el descuento por pronto pago.
+ *
+ * EL PROBLEMA QUE RESUELVE, y por que no bastaba con restar despues: el
+ * descuento **cambia cuanto dinero hace falta** para saldar una parte. Si el
+ * pago se repartiera primero y el descuento se restara despues, una madre que
+ * paga justo lo que se le pidio acabaria con un sobrante — y la parte siguiente
+ * recibiria dinero que no le tocaba. Hay que calcular el descuento ANTES de
+ * repartir.
+ *
+ * LA REGLA QUE HAY QUE SABER: **el pronto pago solo se gana si el pago alcanza
+ * a saldar la parte completa** dentro de la ventana. Un abono parcial no lo
+ * gana, y es deliberado: el descuento premia liquidar temprano, no dar un
+ * anticipo temprano. La alternativa —descontar proporcionalmente sobre abonos—
+ * dejaria a la escuela regalando dinero sobre deuda que sigue abierta.
+ *
+ * Se mantiene el orden FIFO de `aplicarPago` por la misma razon de siempre: los
+ * meses vencidos son lo que cuenta el Articulo 7, no los pesos.
+ */
+export function aplicarPagoConProntoPago(
+  montoCentavos: number,
+  partes: ParteConProntoPago[],
+  fechaDePago: string,
+): ResultadoPagoConProntoPago {
+  const abiertas = partes
+    .filter((p) => p.saldoCentavos > 0)
+    .sort((a, b) => a.vence.localeCompare(b.vence) || a.referencia.localeCompare(b.referencia));
+
+  const aplicaciones: AplicacionConDescuento[] = [];
+  let restante = Math.max(0, Math.trunc(montoCentavos));
+  let descuentoTotal = 0;
+
+  for (const parte of abiertas) {
+    if (restante <= 0) break;
+
+    const ganaDescuento = parte.prontoPago !== null && fechaDePago <= parte.prontoPago.hasta;
+    const descuento = ganaDescuento
+      ? Math.min(
+          parte.saldoCentavos,
+          // Mismo redondeo que en todo el sistema: al centavo, medio arriba (§43).
+          Math.round((parte.saldoCentavos * Math.round(parte.prontoPago!.porcentaje * 100)) / 10_000),
+        )
+      : 0;
+
+    // Lo que hace falta EN DINERO para saldar esta parte con el descuento.
+    const necesario = parte.saldoCentavos - descuento;
+
+    if (descuento > 0 && restante >= necesario) {
+      // Alcanza para liquidarla: se gana el descuento.
+      aplicaciones.push({
+        referencia: parte.referencia,
+        centavos: necesario,
+        descuentoCentavos: descuento,
+      });
+      descuentoTotal += descuento;
+      restante -= necesario;
+      continue;
+    }
+
+    // No alcanza —o no habia descuento—: abono normal, sin premio.
+    const centavos = Math.min(restante, parte.saldoCentavos);
+    aplicaciones.push({ referencia: parte.referencia, centavos, descuentoCentavos: 0 });
+    restante -= centavos;
+  }
+
+  return {
+    aplicaciones,
+    sobranteCentavos: restante,
+    descuentoTotalCentavos: descuentoTotal,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Mora
 // ---------------------------------------------------------------------------
 
