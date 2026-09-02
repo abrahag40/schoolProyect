@@ -5,6 +5,68 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) · Versiona
 Se escribe desde el primer commit, no al final: reconstruir la historia despues
 es caro; anotarla por release es gratis.
 
+## [0.7.0] — 2026-09-02 — Sprint 6: Lo que se cobra, bien calculado
+
+Objetivo: que dos escuelas con esquemas distintos configuren su cobro **real**,
+que el sistema genere el periodo con el prorrateo correcto, y que **ningún
+descuento, beca ni saldo a favor se calcule fuera del sistema**.
+
+**Intercambio al arrancar (§8):** entró `AZ-M4.1c` (periodicidad bimestral,
+cuatrimestral y semestral — el escenario 24, salido de una pregunta del CEO) y
+salió el **mutation testing** del módulo de dinero, diferido al Sprint 13 con su
+riesgo escrito y no reciclado en silencio (§46).
+
+### Agregado
+
+- **Periodicidad de cobro configurable (AZ-M4.1c)** — bimestral, cuatrimestral y
+  semestral, además de las que ya había. La clave del periodo deja de ser un mes
+  (`2026-S1`, `2026-B3`, `2026-C2`) y **se ancla al ciclo escolar, no al año
+  calendario**: un colegio que arranca en agosto tiene su primer semestre de
+  agosto a enero, cruzando el año. Sin esto, una universidad con cuatrimestres
+  no podía usar el sistema.
+- **Becas con vigencia (AZ-M4.3a)** — en porcentaje o monto fijo, para toda la
+  escuela o para un solo concepto. **Caducan solas**: una beca que expira a
+  mitad de ciclo deja de aplicarse en el siguiente periodo generado sin que
+  nadie se acuerde de retirarla. Con motivo obligatorio hasta en la base (§56).
+- **Prorrateo al alta a mitad de periodo (AZ-M4.1)** — contado en días, no en
+  meses, porque los meses no duran lo mismo.
+- **Descuento por pronto pago (AZ-M4.3b)** — se calcula **antes** de repartir el
+  pago, porque cambia cuánto dinero hace falta para saldar un cargo. Se gana solo
+  si el pago liquida el cargo completo dentro de la ventana: premia liquidar
+  temprano, no adelantar algo temprano.
+- **Guard de cuotas voluntarias (AZ-M4.2)** — una cuota voluntaria solo genera
+  cargo a quien la aceptó (§58).
+- **Pantalla de becas, pantalla de datos fiscales y desglose en la app de la
+  familia** — el estado de cuenta ya explica el precio renglón por renglón.
+
+### Corregido
+
+- **El RVOE se otorgaba por sede y va por NIVEL EDUCATIVO (AZ-A1).** Una escuela
+  con preescolar, primaria y secundaria tiene tres acuerdos distintos: con uno
+  solo, dos de cada tres CFDI habrían salido con el número equivocado. Se movió
+  ahora porque no hay escuelas reales cargadas — el momento caro era el Release 2
+  con clientes dentro.
+- **Dos defectos que cazó la revisión en el navegador:** la pantalla de becas
+  mostraba, sin permiso, el mensaje de acceso denegado Y un formulario
+  inservible con un "Cargando…" eterno; y el sembrado daba de alta a los alumnos
+  con `now()`, así que el prorrateo los dejaba a todos a 3/31 y distorsionaba la
+  demo entera.
+- **El panel declaraba `sede.rvoe`,** un campo que ya no existe. El compilador
+  no lo detecta porque el JSON no se valida contra la interfaz.
+
+### Calidad
+
+- **Invariante I1 del ledger, property-based** con fast-check sobre secuencias
+  aleatorias. Se verificó que muerde: al reintroducir el defecto de redondear
+  cada parte por separado, tres propiedades se pusieron rojas con el
+  contraejemplo mínimo — 10 centavos repartidos 16.68/16.66/66.66.
+- La invariante encontró un defecto **en el propio generador de pruebas**, no en
+  el código: permitía dos partes con la misma referencia, cosa que la base
+  impide. Queda escrito, porque relajar una propiedad que se pone roja es
+  exactamente como se pierde un gate.
+- **270 pruebas del API** (eran 192 al cerrar el S5), 23 de aislamiento y 8 de
+  navegador. Cuatro tablas nuevas con RLS forzado (§3).
+
 ## [0.6.0] — 2026-08-27 — Sprint 5: Estado de cuenta, morosidad y saldo a favor
 
 Objetivo: que la familia vea **exactamente lo que debe y por qué**, que la

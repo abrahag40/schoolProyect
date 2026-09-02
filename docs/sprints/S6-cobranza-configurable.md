@@ -2,7 +2,7 @@
 
 | Campo    | Valor                                                                    |
 | -------- | ------------------------------------------------------------------------ |
-| Estado   | EN CURSO — arrancado por el CEO el 29-ago-2026 (gate §8)                |
+| Estado   | CERRADO — ceremonia completa el 2-sep-2026                               |
 | Rama     | `sprint-6-cobranza-configurable`                                         |
 | Cambio   | **C3** — sprint insertado; el MVP pasa del S12 al S14 (decisión **D14**) |
 | Vigencia | Vivo durante el sprint; se congela al cerrarlo                           |
