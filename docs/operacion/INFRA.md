@@ -3,28 +3,44 @@
 Cómo dejar Azahar corriendo en la nube. Arquitectura (ADR-009):
 **Neon** (Postgres) · **Render** (API en contenedor) · **Vercel** (web).
 
-> ## ESTADO ACTUAL: NO DESPLEGADO (24-ago-2026)
+> ## ESTADO ACTUAL: RECURSOS CREADOS, PENDIENTE EL PRIMER DEPLOY (2-sep-2026)
 >
-> La infraestructura está **declarada en el repo** (`render.yaml`,
-> `apps/api/Dockerfile`, `docker-entrypoint.sh`, `apps/web/vercel.json`) pero
-> **no existe ninguna cuenta de nube todavía**. Los pasos 1–3 de abajo los
-> ejecuta **el CEO** (crear cuentas es acción administrativa: correo de la
-> empresa + navegador; sin tarjeta — todo arranca en plan free).
+> Las tres cuentas existen y los recursos están creados. **Falta un solo paso
+> humano**: pegar tres secretos en Render, porque son credenciales y no las
+> maneja el asistente.
 >
-> Cuando algo se despliegue, ESTA tabla se actualiza en el mismo PR — regla
-> heredada de Zentor: una sesión nueva intentó re-desplegar desde cero lo que
-> ya existía porque el estado vivo no estaba documentado. El estado va arriba;
-> los pasos, abajo.
+> | Pieza        | Identificador                        | Estado                          |
+> | ------------ | ------------------------------------ | ------------------------------- |
+> | DB (Neon)    | proyecto `azahar` · `jolly-lake-32570910` | **Creada.** PG 16, AWS us-west-2 |
+> | API (Render) | workspace `Azahar` · blueprint `azahar` | Configurado, sin desplegar      |
+> | Web (Vercel) | proyecto `azahar-web`                | Configurado, sin desplegar      |
 >
-> | Pieza        | URL / id | Estado              |
-> | ------------ | -------- | ------------------- |
-> | Web (Vercel) | —        | pendiente de cuenta |
-> | API (Render) | —        | pendiente de cuenta |
-> | DB (Neon)    | —        | pendiente de cuenta |
+> **Por qué Postgres 16 y no 18:** es la versión con la que corren el desarrollo
+> y `pnpm ensayo:despliegue`. Staging que no coincide con lo que se prueba es
+> staging que miente (§41, en espíritu).
 >
-> **Dominio propio:** no hay y no urge. Los subdominios gratis de cada
-> plataforma bastan para staging/beta. Se vuelve necesario en S6-S7 (el correo
-> transaccional exige dominio verificado). Es compra del CEO (marca + tarjeta).
+> **Por qué el deploy de Vercel espera al de Render:** `NEXT_PUBLIC_API_URL` se
+> incrusta en el bundle en tiempo de compilación. Desplegar la web antes de
+> conocer la URL del API hornearía `http://localhost:3333` dentro del JavaScript
+> que se le sirve a las familias.
+>
+> ### Defecto de repositorio corregido de paso (2-sep-2026)
+>
+> La rama por omisión en GitHub seguía siendo **`sprint-0-fundaciones`**, de
+> siete sprints atrás. Por eso Render y Vercel proponían esa rama al importar, y
+> cualquiera que clonara el repo se llevaba el código del Sprint 0. Corregida a
+> `main`.
+>
+> ### Para el CEO, no es una decisión del equipo
+>
+> **El repositorio es PÚBLICO.** Eso incluye `docs/`, con el Plan Maestro, los
+> estudios de mercado, la comparativa con la competencia y las decisiones de
+> negocio. No lo he cambiado porque hacerlo privado —o dejarlo público— es una
+> decisión comercial tuya, no técnica.
+>
+> **Dominio propio:** no hay y no urge. Los subdominios gratis bastan para
+> staging/beta. Se vuelve necesario cuando entre el correo transaccional (exige
+> dominio verificado). Es compra del CEO (marca + tarjeta).
 
 ```
 Vercel (web)  ──HTTPS──►  Render (API)  ──TCP/SSL──►  Neon (Postgres + RLS)
@@ -34,9 +50,9 @@ Vercel (web)  ──HTTPS──►  Render (API)  ──TCP/SSL──►  Neon (
 
 ## Paso 1 — Neon (Postgres) · lo hace el CEO · ~10 min
 
-1. Crea cuenta en https://neon.tech (con el correo de ZaharDev) y un proyecto
-   **`azahar`**, región AWS us-west-2 (Oregon — misma región que Render, para
-   latencia mínima entre API y base).
+1. ~~Crea cuenta y proyecto~~ **HECHO el 2-sep-2026.** Proyecto `azahar`,
+   Postgres 16, AWS us-west-2 (Oregon — misma región que Render, para latencia
+   mínima entre API y base).
 2. De la pantalla de conexión copia **dos** cadenas:
    - **Pooled** (host con `-pooler`) → será `DATABASE_URL` en Render.
    - **Direct** → será `DATABASE_URL_OWNER` en Render.
