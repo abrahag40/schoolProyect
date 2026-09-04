@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
+import type { MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { APP_FILTER } from '@nestjs/core';
 import { FiltroValidacion } from './comun/validacion.filter.js';
+import { ExigirJsonEnPost } from './comun/exigir-json.middleware.js';
 import { ModuloSalud } from './salud/salud.module.js';
 import { ModuloAuth } from './auth/auth.module.js';
 import { ModuloEscuela } from './escuela/escuela.module.js';
@@ -32,4 +34,10 @@ import { ModuloCobranza } from './cobranza/cobranza.module.js';
     { provide: APP_FILTER, useClass: FiltroValidacion },
   ],
 })
-export class ModuloApp {}
+export class ModuloApp implements NestModule {
+  // Aqui y no en `main.ts`, por la misma razon que el filtro de arriba: una
+  // defensa que solo existe en produccion es una defensa que nadie prueba.
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(ExigirJsonEnPost).forRoutes('*');
+  }
+}

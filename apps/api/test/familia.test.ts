@@ -193,7 +193,13 @@ describe('sesion por cookie (deuda del Sprint 0, pagada)', () => {
   });
 
   it('cerrar sesion retira la cookie del navegador', async () => {
-    const r = await fetch(`${base}/auth/logout`, { method: 'POST' });
+    // El Content-Type es obligatorio desde el 4-sep-2026: cerrar la sesion es
+    // un POST que muta, y forzar el cierre de sesion ajena es CSRF de manual.
+    // Sin el encabezado el API responde 415 (ver `exigir-json.middleware.ts`).
+    const r = await fetch(`${base}/auth/logout`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
     expect(r.status).toBe(204);
     const cookie = r.headers.get('set-cookie') ?? '';
     // Se vacia y se expira: el navegador la borra de verdad.

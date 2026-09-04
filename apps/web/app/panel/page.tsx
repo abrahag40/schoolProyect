@@ -102,7 +102,12 @@ export default function PaginaPanel() {
     // Con cookie httpOnly el cliente NO puede borrarla: se le pide al servidor
     // que la retire. Antes bastaba con limpiar el almacenamiento local; ahora
     // cerrar sesion es una operacion real contra la API.
-    await pedirApi('/auth/logout', { method: 'POST' }).catch(() => null);
+    // El Content-Type no es decorativo: el API rechaza con 415 los POST que no
+    // lo declaran, porque es lo que fuerza el preflight y con el la defensa CSRF.
+    await pedirApi('/auth/logout', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    }).catch(() => null);
     router.replace('/');
   }
 

@@ -25,9 +25,29 @@ export function ponerCookieSesion(res: Response, token: string): void {
     // En produccion solo viaja por HTTPS. En desarrollo local no hay TLS, y
     // exigirlo aqui haria que la cookie nunca se guardara.
     secure: process.env.NODE_ENV === 'production',
-    // 'lax' bloquea el envio en peticiones cross-site de terceros (defensa
-    // CSRF de base) sin romper la navegacion normal del usuario.
-    sameSite: 'lax',
+    // ---------------------------------------------------------------------
+    // 'lax' en local, 'none' en produccion. NO es una relajacion gratuita.
+    //
+    // EL DEFECTO QUE ARREGLA (4-sep-2026, primer despliegue real): en local la
+    // web (3010) y el API (3333) son el MISMO sitio —los dos son `localhost`—
+    // asi que una cookie `Lax` viaja sin problema y todo funciona. En la nube
+    // son `vercel.app` y `onrender.com`: sitios distintos. El navegador GUARDA
+    // la cookie y luego NO la reenvia en las peticiones cross-site, asi que el
+    // login respondia 200 y la peticion siguiente 401. Entrabas y te expulsaba.
+    //
+    // LO QUE SE PIERDE Y COMO SE COMPENSA: `Lax` era una defensa CSRF de base.
+    // Con `None` la cookie SI viaja en peticiones de terceros, asi que la
+    // defensa se traslada al preflight: `main.ts` exige `application/json` en
+    // todo POST, y eso obliga al navegador a preguntar antes (preflight), donde
+    // el CORS —acotado a un unico origen— rechaza cualquier sitio ajeno. Sin
+    // esa regla, esta linea seria un agujero: un POST con formulario NO lleva
+    // preflight, y se comprobo contra el API desplegado que respondia 200.
+    //
+    // LA SOLUCION BUENA es un dominio propio (`app.azahar.mx` + `api.azahar.mx`)
+    // que devuelva a los dos al mismo sitio registrable y permita volver a
+    // `Lax`. Es compra del CEO; hasta entonces, esto.
+    // ---------------------------------------------------------------------
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
     path: '/',
     maxAge: OCHO_HORAS_MS,
   });
@@ -39,7 +59,10 @@ export function limpiarCookieSesion(res: Response): void {
   res.clearCookie(NOMBRE_COOKIE, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
+    // Identico al de `ponerCookieSesion`, incluida la parte condicional: si
+    // aqui dijera 'lax' y alli 'none', el navegador no borraria nada y la
+    // sesion sobreviviria al cierre. Es el mismo error clasico que el `path`.
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
     path: '/',
   });
 }

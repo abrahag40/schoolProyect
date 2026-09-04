@@ -315,3 +315,31 @@ true)` dentro de una transaccion, nunca como ajuste de sesion. _(Motivo: con
   hoy es de pesos, no de miles, y arreglarlo toca el generador — por eso se
   registra para decisión en gate (§8) en vez de colarse en un arreglo de
   pruebas.)_
+
+- **§62** — **La cookie de sesión viaja `SameSite=None` en producción, y a cambio
+  todo `POST` exige `Content-Type: application/json`.** Lo segundo no es un
+  detalle: es lo que sustituye a la defensa que se pierde con lo primero.
+  _(Defecto encontrado el 4-sep-2026 al probar el despliegue en el navegador. En
+  local la web —3010— y el API —3333— son el MISMO sitio, `localhost`, así que
+  una cookie `Lax` viaja y todo funciona. En la nube son `vercel.app` y
+  `onrender.com`: sitios distintos. El navegador guardaba la cookie y no la
+  reenviaba, así que el login respondía `200` y la petición siguiente `401`.
+  **Entrabas y te expulsaba al instante.** Siete sprints de pruebas verdes no
+  podían verlo porque el defecto no está en el código sino en la diferencia
+  entre dos entornos.)_
+  _**Lo que se pierde y por qué se compensa así:** `Lax` era la defensa CSRF de
+  base. Con `None` la cookie sí viaja en peticiones de terceros, y lo único que
+  queda es el preflight del CORS — que solo ocurre si la petición NO es
+  "simple". Un `POST` con `x-www-form-urlencoded`, `multipart/form-data` o
+  `text/plain` es simple y NO lleva preflight; **se comprobó contra el API
+  desplegado que uno así respondía `200` desde un origen ajeno**. Exigir
+  `application/json` obliga al preflight, donde el CORS rechaza por origen._
+  _**Por qué el encabezado y no el contenido:** "solo parseamos JSON" no cierra
+  nada, porque hay endpoints que mutan SIN cuerpo (`/becas/:id/retirar`,
+  `/mis-avisos/:id/leido`). A esos les bastaría un POST vacío._
+  _**Dónde vive:** en el módulo, no en `main.ts` — una defensa que solo existe
+  en producción es una defensa que nadie prueba. Verificado por mordida: al
+  desactivarla, 3 pruebas se ponen rojas._
+  _**La solución buena, para cuando haya dominio propio:** `app.azahar.mx` +
+  `api.azahar.mx` devuelven a los dos al mismo sitio registrable y permiten
+  volver a `Lax`. Es compra del CEO._

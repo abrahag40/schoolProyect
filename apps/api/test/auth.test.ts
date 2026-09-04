@@ -262,3 +262,66 @@ describe('datos protegidos', () => {
     expect(texto).not.toContain('tenant_id');
   });
 });
+
+describe('defensa CSRF: todo POST exige application/json', () => {
+  // EL DEFECTO QUE CLAVAN ESTAS PRUEBAS (4-sep-2026). Al desplegar por primera
+  // vez, la cookie de sesion tuvo que pasar a `SameSite=None` porque la web y
+  // el API viven en dominios distintos. Eso quita la defensa CSRF que daba
+  // `Lax`, y la unica que queda es el preflight del CORS — que solo ocurre si
+  // la peticion NO es "simple". Un POST con formulario lo es, y se comprobo
+  // contra el API desplegado que respondia 200 desde un origen ajeno.
+
+  it('un POST con formulario se rechaza con 415', async () => {
+    // Es el caso peligroso: `x-www-form-urlencoded` NO provoca preflight, asi
+    // que sin esta regla cualquier pagina podria dispararlo con la cookie de la
+    // persona dentro.
+    const r = await fetch(`${base}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'escuela=colegio-prueba&email=admin@prueba.mx&contrasena=prueba-123456',
+    });
+    expect(r.status).toBe(415);
+  });
+
+  it('un POST con text/plain tambien se rechaza', async () => {
+    // El otro tipo que se cuela sin preflight. Se prueba aparte porque cubrir
+    // uno solo dejaria la puerta de al lado abierta.
+    const r = await fetch(`${base}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body: '{"escuela":"colegio-prueba"}',
+    });
+    expect(r.status).toBe(415);
+  });
+
+  it('un POST SIN Content-Type se rechaza, aunque no lleve cuerpo', async () => {
+    // El agujero que no cierra "parsear solo JSON": hay endpoints que mutan sin
+    // cuerpo (`/becas/:id/retirar`, `/mis-avisos/:id/leido`) y les bastaria un
+    // POST vacio. Por eso la regla mira el encabezado y no el contenido.
+    const r = await fetch(`${base}/auth/logout`, { method: 'POST' });
+    expect(r.status).toBe(415);
+  });
+
+  it('CAMINO NORMAL: con application/json pasa, y el charset no estorba', async () => {
+    // La contraparte obligatoria: una defensa que tambien bloquea el uso
+    // legitimo no es una defensa, es una averia. `application/json; charset=utf-8`
+    // es lo que mandan navegadores y clientes reales.
+    const r = await fetch(`${base}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+      body: JSON.stringify({
+        escuela: 'colegio-prueba',
+        email: 'admin@prueba.mx',
+        contrasena: CONTRASENA,
+      }),
+    });
+    expect(r.status).toBe(200);
+  });
+
+  it('un GET no se toca: la regla es solo para POST', async () => {
+    // PUT/PATCH/DELETE ya provocan preflight siempre, y un GET no muta nada
+    // (verificado en los controladores). Ampliar la regla a ellos seria ruido.
+    const r = await fetch(`${base}/salud`);
+    expect(r.status).toBe(200);
+  });
+});
