@@ -5,6 +5,51 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) · Versiona
 Se escribe desde el primer commit, no al final: reconstruir la historia despues
 es caro; anotarla por release es gratis.
 
+## [No publicado] — desde el 2026-09-02
+
+Trabajo posterior al Sprint 6, sin release propio todavía: el primer despliegue
+real y lo que dejó al descubierto.
+
+### Agregado
+
+- **Staging real, por primera vez.** Vercel → Render → Neon, verificado de
+  extremo a extremo desde el navegador. Cierra el impedimento que llevaba
+  abierto desde el Sprint 0 y escalado tres veces. Estado vivo, los cuatro
+  fallos que costó y los gotchas nuevos, en `docs/operacion/INFRA.md`.
+- **Prueba de cableado del prorrateo** (§13, la tercera pata que faltaba) con su
+  NO-camino: un concepto `UNICO` no se prorratea, porque entrar tarde no abarata
+  una inscripción.
+- **El arranque reporta si el dueño de la base puede saltarse RLS**, que es lo
+  que decide si `pnpm db:seed` puede sembrar contra un Postgres administrado.
+- `scripts/cadena-app.mjs` — arma las tres variables de Render a partir de las
+  dos cadenas de Neon, en vez de pedir que se editen a mano.
+
+### Corregido
+
+- **Pruebas atadas al calendario (§60).** Las de cobranza sembraban
+  `alta_en = now()` y esperaban los importes íntegros de `2026-09`; el prorrateo
+  (§57) entraba solo cuando la fecha real caía dentro del periodo. **El acta del
+  Sprint 6 declaró 270 pruebas verdes el 2-sep y ese número no pudo medirse ese
+  día.** Las fechas de siembra ahora son fijas y los conteos se cuentan contra la
+  base.
+- **El CORS ya no falla en silencio (§59).** Sin `NEXT_PUBLIC_WEB_ORIGIN` el API
+  caía a `http://localhost:3000` —puerto que ni siquiera es el nuestro, §35— y
+  arrancaba tan feliz con el navegador bloqueado contra su propia web. En
+  producción ahora es obligatoria; el origen se imprime al arrancar.
+- **El rol de aplicación se verifica, no se impone.** Pedir
+  `NOSUPERUSER NOBYPASSRLS` fallaba en Neon, donde el dueño no es superusuario.
+  Un rol nuevo nace así de todos modos: lo que hacía falta era demostrarlo.
+- **Un error de Postgres ya no se propaga crudo:** arrastra el texto completo de
+  la sentencia, y así fue como una contraseña llegó a los logs de Render.
+
+### Pendiente declarado
+
+- Rotar tres contraseñas expuestas en registros ajenos (tarea del CEO).
+- Sembrar staging: hay esquema y cero datos.
+- **§61 abierta:** las fechas del dominio de dinero se resuelven en UTC y
+  deberían resolverse en la zona de la escuela.
+- `sslmode=require` hoy verifica el certificado y en `pg@9` dejará de hacerlo.
+
 ## [0.7.0] — 2026-09-02 — Sprint 6: Lo que se cobra, bien calculado
 
 Objetivo: que dos escuelas con esquemas distintos configuren su cobro **real**,
