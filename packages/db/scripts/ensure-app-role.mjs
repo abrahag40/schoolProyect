@@ -140,7 +140,9 @@ try {
       console.log(
         `[db] dueno "${d.quien}" ${puede ? 'PUEDE' : 'NO puede'} saltarse RLS ` +
           `(superuser=${d.rolsuper}, bypassrls=${d.rolbypassrls})` +
-          (puede ? '' : ' — `pnpm db:seed` fallara contra estas tablas; siembra con contexto de tenant'),
+          (puede
+            ? ''
+            : ' — `pnpm db:seed` fallara contra estas tablas; siembra con contexto de tenant'),
       );
     }
   }
