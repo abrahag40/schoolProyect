@@ -145,7 +145,7 @@ Vercel (web)  ──HTTPS──►  Render (API)  ──TCP/SSL──►  Neon (
    URL de Vercel (sin esto, CORS rechaza a la web en producción — es a
    propósito: solo ese origen puede llamar al API con credenciales).
 
-## Paso 4 — Sembrar staging · lo hace el equipo
+## Paso 4 — Sembrar staging · HECHO el 4-sep-2026
 
 ```bash
 DATABASE_URL_OWNER='<cadena DIRECTA de Neon>' pnpm db:seed
