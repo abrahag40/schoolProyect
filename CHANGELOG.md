@@ -26,6 +26,21 @@ real y lo que dejó al descubierto.
 
 ### Corregido
 
+- **Se entraba y el sistema expulsaba al instante (§62).** La cookie de sesión
+  iba con `SameSite=Lax`. En local la web (3010) y el API (3333) son el mismo
+  sitio —`localhost`— y funcionaba; en la nube son `vercel.app` y
+  `onrender.com`, y el navegador guardaba la cookie sin reenviarla nunca. Login
+  `200`, petición siguiente `401`, de vuelta al login. Corregido a `SameSite=None`
+  **más** la defensa que lo sustituye: todo `POST` exige
+  `Content-Type: application/json`, que fuerza el preflight y devuelve el control
+  al CORS. Sin esa segunda pieza el arreglo habría abierto un CSRF real — se
+  comprobó contra el API desplegado que un `POST` con formulario desde un origen
+  ajeno respondía `200`.
+- **Cobranza cobraba el precio de lista (§63).** Un alumno con alta a mitad de
+  mes tenía $1,540 de prorrateo: su estado de cuenta pedía $6,660 y el panel de
+  la escuela decía $8,200. Dos pantallas sobre el mismo dinero sin coincidir, y
+  la equivocada era la que dice a quién perseguir. El total general iba $1,540
+  alto. Tampoco se restaba el descuento por pronto pago.
 - **Pruebas atadas al calendario (§60).** Las de cobranza sembraban
   `alta_en = now()` y esperaban los importes íntegros de `2026-09`; el prorrateo
   (§57) entraba solo cuando la fecha real caía dentro del periodo. **El acta del
