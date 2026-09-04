@@ -45,7 +45,8 @@ real y lo que dejó al descubierto.
 ### Pendiente declarado
 
 - Rotar tres contraseñas expuestas en registros ajenos (tarea del CEO).
-- Sembrar staging: hay esquema y cero datos.
+- Sembrar staging: hay esquema (13 migraciones) y cero datos. `pnpm db:seed` funciona
+  contra Neon — medido, no supuesto: el dueño tiene `bypassrls`.
 - **§61 abierta:** las fechas del dominio de dinero se resuelven en UTC y
   deberían resolverse en la zona de la escuela.
 - `sslmode=require` hoy verifica el certificado y en `pg@9` dejará de hacerlo.

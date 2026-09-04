@@ -9,11 +9,11 @@ Cómo dejar Azahar corriendo en la nube. Arquitectura (ADR-009):
 > desde el Sprint 0 —escalado tres veces, siete sprints sin staging— queda
 > cerrado.
 >
-> | Pieza        | Identificador                                   | URL / Estado                                   |
-> | ------------ | ----------------------------------------------- | ---------------------------------------------- |
-> | DB (Neon)    | proyecto `azahar` · `jolly-lake-32570910`       | PG 16, AWS us-west-2 · 8 migraciones aplicadas |
-> | API (Render) | workspace `Azahar` · `srv-dadfc3vqj5pc738shm9g` | https://azahar-api.onrender.com · **Live**     |
-> | Web (Vercel) | proyecto `azahar-web`                           | https://azahar-web-neon.vercel.app · **Ready** |
+> | Pieza        | Identificador                                   | URL / Estado                                    |
+> | ------------ | ----------------------------------------------- | ----------------------------------------------- |
+> | DB (Neon)    | proyecto `azahar` · `jolly-lake-32570910`       | PG 16, AWS us-west-2 · 13 migraciones aplicadas |
+> | API (Render) | workspace `Azahar` · `srv-dadfc3vqj5pc738shm9g` | https://azahar-api.onrender.com · **Live**      |
+> | Web (Vercel) | proyecto `azahar-web`                           | https://azahar-web-neon.vercel.app · **Ready**  |
 >
 > El sufijo `-neon` del dominio de Vercel lo asignó Vercel al azar y **no tiene
 > relación con la base de datos Neon**. Se anota porque induce a error al leerlo.
@@ -147,9 +147,22 @@ Vercel (web)  ──HTTPS──►  Render (API)  ──TCP/SSL──►  Neon (
 
 ## Paso 4 — Sembrar staging · lo hace el equipo
 
-Con la cadena del owner de Neon en un `.env` local temporal:
-`pnpm db:seed`. (Las escuelas demo; en cuanto exista el wizard de plataforma
-—cambio C1— las altas reales se harán desde la consola, no por seed.)
+```bash
+DATABASE_URL_OWNER='<cadena DIRECTA de Neon>' pnpm db:seed
+```
+
+> **El seed BORRA lo que haya antes** (y trunca la bitácora). En una base vacía
+> da igual; en una con datos, no.
+>
+> **Por qué funciona pese al FORCE RLS.** Todas las tablas llevan
+> `FORCE ROW LEVEL SECURITY` (§3), que alcanza tambien al dueño de la tabla —
+> solo se libra quien tenga `superuser` o `bypassrls`. En desarrollo el dueño es
+> el superusuario del contenedor y no se nota. En Neon **no** es superusuario,
+> así que el seed era sospechoso de fallar; el arranque lo MIDE y lo reporta:
+> `[db] dueno "neondb_owner" PUEDE saltarse RLS (superuser=false, bypassrls=true)`.
+> Si algún día ese renglón dice lo contrario, el seed necesitará contexto de
+> tenant por cada escuela en vez de insertar de corrido. (Las escuelas demo; en cuanto exista el wizard de plataforma
+> —cambio C1— las altas reales se harán desde la consola, no por seed.)
 
 ---
 
