@@ -343,3 +343,22 @@ true)` dentro de una transaccion, nunca como ajuste de sesion. _(Motivo: con
   _**La solución buena, para cuando haya dominio propio:** `app.azahar.mx` +
   `api.azahar.mx` devuelven a los dos al mismo sitio registrable y permiten
   volver a `Lax`. Es compra del CEO._
+
+- **§63** — **El panel de morosidad deriva del precio NETO, no del de lista.**
+  Un descuento de emisión (prorrateo, beca) reduce lo que se debe; uno de pronto
+  pago salda la parte de un pagador y cuenta como cobrado. Los dos se restan, y
+  no son lo mismo.
+  _(Defecto encontrado el 4-sep-2026 probando staging con datos reales. Un
+  alumno con alta el 15 de septiembre llevaba $1,540 de prorrateo. Su estado de
+  cuenta —la pantalla de la FAMILIA— lo restaba bien y pedía $6,660. El panel de
+  cobranza —el de la ESCUELA— decía $8,200, porque sumaba `cargo.monto`, que por
+  diseño guarda el precio de lista (§43): los descuentos viven como asientos
+  aparte justamente para poder explicarlos. **Dos pantallas hablando del mismo
+  dinero sin coincidir, y la equivocada era la que le dice a la escuela a quién
+  perseguir.** El total del panel también iba $1,540 alto.)_
+  _**Por qué ninguna prueba lo vio:** las de morosidad usaban cargos sin ningún
+  descuento, así que lista y neto coincidían y el defecto era invisible. La
+  invariante `I1` tampoco lo alcanzaba: verifica que `Σ partes` cuadre con los
+  descuentos, y morosidad no leía las partes. Ahora hay una prueba que compara
+  el saldo del panel contra el neto de un alumno prorrateado, verificada por
+  mordida (sin el arreglo reporta 7350.00 en vez de 6533.33)._

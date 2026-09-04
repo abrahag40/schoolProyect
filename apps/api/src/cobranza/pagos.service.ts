@@ -455,6 +455,9 @@ export class ServicioPagos {
         include: {
           alumno: { select: { id: true, nombre: true, apellidos: true } },
           concepto: { select: { esColegiatura: true } },
+          // Los descuentos NO son opcionales aqui: sin ellos el panel cobra el
+          // precio de lista. Ver el bloque de abajo.
+          descuentos: { select: { monto: true, parteDeCargoId: true } },
           partes: {
             include: {
               tutor: { select: { id: true, nombre: true, apellidos: true } },
@@ -481,11 +484,39 @@ export class ServicioPagos {
 
       for (const c of cargos) {
         const limite = c.fechaLimiteSinRecargo.toISOString().slice(0, 10);
-        const importe = aCentavos(c.monto.toFixed(2));
-        const aplicado = c.partes.reduce(
-          (a, p) => a + p.aplicaciones.reduce((b, x) => b + aCentavos(x.monto.toFixed(2)), 0),
-          0,
-        );
+        // ---------------------------------------------------------------
+        // EL SALDO SE DERIVA DEL PRECIO NETO, NO DEL DE LISTA (§47).
+        //
+        // DEFECTO REAL, visto en staging el 4-sep-2026: un alumno con alta a
+        // mitad de mes tenia $1,540 de prorrateo. Su estado de cuenta —la
+        // pantalla de la FAMILIA— lo restaba bien y pedia $6,660. Este panel
+        // —el de la ESCUELA— seguia diciendo $8,200, porque sumaba
+        // `cargo.monto`, que por diseno guarda el PRECIO DE LISTA (§43): los
+        // descuentos viven como asientos aparte para poder explicarlos.
+        //
+        // Las dos pantallas hablaban del mismo dinero y no coincidian, y la
+        // que se equivocaba era la que le dice a la escuela a quien cobrarle.
+        //
+        // Se restan las dos familias de descuento, que no son lo mismo:
+        //   · sin parte  -> EMISION (prorrateo, beca): bajaron la base antes
+        //                   de repartir, asi que reducen lo que se debe.
+        //   · con parte  -> PRONTO PAGO: nacen despues del reparto y saldan la
+        //                   parte de ese pagador; cuentan como cobrado, no como
+        //                   menor precio. Por eso van con `aplicado` y no aqui.
+        // ---------------------------------------------------------------
+        const deEmision = c.descuentos
+          .filter((d) => d.parteDeCargoId === null)
+          .reduce((a, d) => a + aCentavos(d.monto.toFixed(2)), 0);
+        const condonadoAPartes = c.descuentos
+          .filter((d) => d.parteDeCargoId !== null)
+          .reduce((a, d) => a + aCentavos(d.monto.toFixed(2)), 0);
+
+        const importe = aCentavos(c.monto.toFixed(2)) - deEmision;
+        const aplicado =
+          c.partes.reduce(
+            (a, p) => a + p.aplicaciones.reduce((b, x) => b + aCentavos(x.monto.toFixed(2)), 0),
+            0,
+          ) + condonadoAPartes;
         const saldo = saldoDeParte(importe, aplicado);
 
         cobrado += aplicado;

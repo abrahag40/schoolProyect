@@ -469,6 +469,24 @@ describe('generacion de cargos (AZ-M4.2)', () => {
     );
     expect(partes.map((r) => r.monto)).toEqual(['1633.33']);
 
+    // ------------------------------------------------------------------
+    // Y LA ESCUELA TIENE QUE VER LO MISMO QUE LA FAMILIA.
+    //
+    // DEFECTO REAL visto en staging el 4-sep-2026: el estado de cuenta restaba
+    // el prorrateo y pedia lo correcto, pero el panel de morosidad sumaba
+    // `cargo.monto` —el precio de LISTA (§43)— y le decia a la escuela que
+    // cobrara de mas. Dos pantallas hablando del mismo dinero sin coincidir, y
+    // la equivocada era la que dice a quien perseguir.
+    // ------------------------------------------------------------------
+    const rMor = await fetch(`${base}/morosidad`, { headers: conToken(token) });
+    const mor = (await rMor.json()) as {
+      familias: Array<{ alumno: string; saldo: string }>;
+    };
+    const deSofia = mor.familias.find((f) => f.alumno === 'Tarde, Sofia');
+    // 1,633.33 de colegiatura prorrateada + 4,900 del concepto UNICO, que no
+    // se prorratea. El numero va escrito: derivarlo aqui repetiria la formula.
+    expect(deSofia?.saldo).toBe('6533.33');
+
     // NO-camino: el concepto UNICO del mismo alumno NO se prorratea. Entrar
     // tarde no abarata una inscripcion (§57).
     const { rows: unicos } = await owner.query(
