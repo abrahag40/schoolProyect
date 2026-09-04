@@ -362,3 +362,17 @@ true)` dentro de una transaccion, nunca como ajuste de sesion. _(Motivo: con
   descuentos, y morosidad no leía las partes. Ahora hay una prueba que compara
   el saldo del panel contra el neto de un alumno prorrateado, verificada por
   mordida (sin el arreglo reporta 7350.00 en vez de 6533.33)._
+
+- **§64** — **El ancho y la rejilla viven en el sistema de diseño, no en cada
+  pantalla.** Ningún componente fija su ancho con un número propio.
+  _(Medido el 4-sep-2026, a raíz de una observación del CEO probando staging en
+  escritorio: cinco anchos distintos escritos **en línea** —720, 820, 820, 880,
+  960—, **163 estilos en línea** en 8 archivos, **cero puntos de quiebre** de
+  layout y **cero tokens** de ancho o contenedor en `packages/ui`. En un monitor
+  de 1440 px eso desperdicia entre el 33 % y el 50 % del ancho.)_
+  _**El diagnóstico correcto, que no es el obvio:** no fue exceso de
+  mobile-first. Mobile-first significa empezar por el móvil y **crecer**; aquí
+  no se creció, porque la capa de layout nunca se construyó. La app dibuja una
+  columna fija en cualquier viewport y verse bien en un teléfono ocultó la
+  ausencia. Es el mismo criterio que §30 ya aplicó al color: un valor de sistema
+  escrito a mano en una pantalla es deuda, aunque el valor sea correcto._
