@@ -284,14 +284,25 @@ export function situacionLegal(
       puedeSuspender: false,
       explicacion:
         meses === 0
-          ? 'Al corriente.'
+          ? 'Sin colegiaturas vencidas. El límite lo fija su reglamento.'
           : `${meses} colegiatura(s) vencida(s). El Acuerdo de PROFECO no aplica a esta ` +
             `institución: lo que se puede hacer por falta de pago lo fija su reglamento.`,
     };
   }
 
   if (meses === 0) {
-    return { periodosEnMora: 0, puedeSuspender: false, explicacion: 'Al corriente.' };
+    // NO dice "Al corriente": esta frase convive en pantalla con el saldo y con
+    // los dias de atraso, y una familia puede deber dinero y llevar semanas de
+    // retraso sin tener UNA SOLA colegiatura vencida —porque el Articulo 7
+    // cuenta colegiaturas, no adeudos (§52)—. Llamar "al corriente" a quien
+    // debe $6,660 y lleva 20 dias de retraso era enganoso en espanol llano,
+    // aunque fuera exacto en terminos del Articulo 7. Se dice lo que de verdad
+    // significa: que no hay causal de suspension.
+    return {
+      periodosEnMora: 0,
+      puedeSuspender: false,
+      explicacion: 'Sin causal de suspensión (Art. 7).',
+    };
   }
   if (meses < PERIODOS_PARA_SUSPENDER) {
     const faltan = PERIODOS_PARA_SUSPENDER - meses;

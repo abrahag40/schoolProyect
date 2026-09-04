@@ -200,7 +200,9 @@ describe('Articulo 7: se cuentan MESES, no pesos', () => {
     expect(situacionLegal([cargo('2026-09', 0, '2026-09-10')], hoy)).toMatchObject({
       periodosEnMora: 0,
       puedeSuspender: false,
-      explicacion: 'Al corriente.',
+      // NO "Al corriente": esa frase convive con el saldo y los dias de atraso,
+      // y se puede deber dinero sin tener una sola COLEGIATURA vencida (§52).
+      explicacion: 'Sin causal de suspensión (Art. 7).',
     });
   });
 });
@@ -302,7 +304,9 @@ describe('el Acuerdo no alcanza a todos los tenants', () => {
   });
 
   it('y si esta al corriente, se dice igual que a cualquiera', () => {
-    expect(situacionLegal([], hoy, false).explicacion).toBe('Al corriente.');
+    expect(situacionLegal([], hoy, false).explicacion).toBe(
+      'Sin colegiaturas vencidas. El límite lo fija su reglamento.',
+    );
   });
 });
 
