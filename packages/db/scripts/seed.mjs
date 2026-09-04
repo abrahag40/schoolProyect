@@ -78,7 +78,11 @@ try {
             { nivel: 'SECUNDARIA', acuerdo: 'ACUERDO 456/2024' },
           ],
         },
-        { nombre: 'Campus Sur', cct: '31PPR0002B', rvoes: [{ nivel: 'PRIMARIA', acuerdo: 'ACUERDO 124/2024' }] },
+        {
+          nombre: 'Campus Sur',
+          cct: '31PPR0002B',
+          rvoes: [{ nivel: 'PRIMARIA', acuerdo: 'ACUERDO 124/2024' }],
+        },
       ],
       // Un colegio piensa en ciclos escolares y grados.
       periodo: { nombre: 'Ciclo 2026-2027', tipo: 'CICLO_ESCOLAR', inicio: '2026-08-17' },

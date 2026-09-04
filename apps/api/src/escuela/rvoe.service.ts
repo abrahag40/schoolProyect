@@ -12,11 +12,7 @@ import type { Sesion } from '../comun/sesion.js';
 const ROLES_DATOS_FISCALES = ['DUENO', 'DIRECTOR', 'ADMIN'];
 
 type NivelEducativo =
-  | 'PREESCOLAR'
-  | 'PRIMARIA'
-  | 'SECUNDARIA'
-  | 'PROFESIONAL_TECNICO'
-  | 'BACHILLERATO';
+  'PREESCOLAR' | 'PRIMARIA' | 'SECUNDARIA' | 'PROFESIONAL_TECNICO' | 'BACHILLERATO';
 
 export interface RvoeResumen {
   id: string;

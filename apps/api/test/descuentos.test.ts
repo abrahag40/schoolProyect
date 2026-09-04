@@ -20,7 +20,11 @@ import {
 
 const COLEGIATURA = aCentavos('2450.00');
 
-const beca = (referencia: string, valor: number, tipo: 'PORCENTAJE' | 'MONTO_FIJO' = 'PORCENTAJE'): DescuentoAplicable => ({
+const beca = (
+  referencia: string,
+  valor: number,
+  tipo: 'PORCENTAJE' | 'MONTO_FIJO' = 'PORCENTAJE',
+): DescuentoAplicable => ({
   referencia,
   categoria: 'BECA',
   tipo,
@@ -28,7 +32,11 @@ const beca = (referencia: string, valor: number, tipo: 'PORCENTAJE' | 'MONTO_FIJ
   concepto: `Beca ${referencia}`,
 });
 
-const descuento = (referencia: string, valor: number, tipo: 'PORCENTAJE' | 'MONTO_FIJO' = 'PORCENTAJE'): DescuentoAplicable => ({
+const descuento = (
+  referencia: string,
+  valor: number,
+  tipo: 'PORCENTAJE' | 'MONTO_FIJO' = 'PORCENTAJE',
+): DescuentoAplicable => ({
   referencia,
   categoria: 'DESCUENTO',
   tipo,
@@ -201,8 +209,18 @@ describe('vigencia: la beca caduca sola', () => {
 describe('alcance: toda la escuela o un solo concepto', () => {
   const becas = [
     { referencia: 'general', vigenteDesde: '2026-08-01', vigenteHasta: null, conceptoId: null },
-    { referencia: 'comedor', vigenteDesde: '2026-08-01', vigenteHasta: null, conceptoId: 'c-comedor' },
-    { referencia: 'vencida', vigenteDesde: '2025-08-01', vigenteHasta: '2026-07-31', conceptoId: null },
+    {
+      referencia: 'comedor',
+      vigenteDesde: '2026-08-01',
+      vigenteHasta: null,
+      conceptoId: 'c-comedor',
+    },
+    {
+      referencia: 'vencida',
+      vigenteDesde: '2025-08-01',
+      vigenteHasta: '2026-07-31',
+      conceptoId: null,
+    },
   ];
 
   it('la beca general aplica a cualquier concepto', () => {

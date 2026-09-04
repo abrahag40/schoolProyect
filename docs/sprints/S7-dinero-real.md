@@ -1,11 +1,11 @@
 # Sprint 7 — Dinero real
 
-| Campo    | Valor                                                                     |
-| -------- | ------------------------------------------------------------------------- |
-| Estado   | PROPUESTO — **condicionado**, ver §0. Pendiente de gate del CEO           |
-| Rama     | `sprint-7-dinero-real` (al arrancar)                                      |
-| Origen   | Sprint 5 del Plan Maestro, movido por **C2** y renumerado por **C3**      |
-| Vigencia | Vivo durante el sprint; se congela al cerrarlo                            |
+| Campo    | Valor                                                                |
+| -------- | -------------------------------------------------------------------- |
+| Estado   | PROPUESTO — **condicionado**, ver §0. Pendiente de gate del CEO      |
+| Rama     | `sprint-7-dinero-real` (al arrancar)                                 |
+| Origen   | Sprint 5 del Plan Maestro, movido por **C2** y renumerado por **C3** |
+| Vigencia | Vivo durante el sprint; se congela al cerrarlo                       |
 
 ---
 
@@ -14,11 +14,11 @@
 Este sprint **no arranca por decisión de nadie**: arranca si se cumplen tres
 condiciones, y ninguna depende del equipo.
 
-| # | Condición                                                        | Estado al 2-sep-2026 |
-| - | ---------------------------------------------------------------- | -------------------- |
-| 1 | Las tres cuentas de nube existen y hay staging real               | **NO**               |
-| 2 | ADR-007 decidido: hay proveedor de pagos elegido                  | **NO**               |
-| 3 | Existe la cuenta de comercio con credenciales de sandbox          | **NO**               |
+| #   | Condición                                                | Estado al 2-sep-2026 |
+| --- | -------------------------------------------------------- | -------------------- |
+| 1   | Las tres cuentas de nube existen y hay staging real      | **NO**               |
+| 2   | ADR-007 decidido: hay proveedor de pagos elegido         | **NO**               |
+| 3   | Existe la cuenta de comercio con credenciales de sandbox | **NO**               |
 
 **Si falta cualquiera, el S7 y el S8 intercambian turno sin junta ni
 discusión**: se hace Comunicación I y el dinero real espera al siguiente hueco.
@@ -40,13 +40,13 @@ descubrir en el último tercio que un webhook no llega a `localhost`.
 
 ## 2 · Alcance seleccionado
 
-| ID        | Elemento                                                          | MoSCoW |
-| --------- | ----------------------------------------------------------------- | ------ |
-| AZ-M4.7   | Pago en línea (Camino A: la escuela es el comercio)               | Must   |
-| AZ-M4.8   | Conciliación automática contra el ledger                          | Must   |
-| AZ-M4.8b  | Taxonomía de 4 niveles de referencia bancaria (escenario 13)      | Must   |
-| AZ-M4.6   | Recordatorio de pago por correo (WhatsApp entra en el S9)         | Should |
-| —         | POC Facturama en sandbox, timebox de 2 semanas → alimenta ADR-002 | Should |
+| ID       | Elemento                                                          | MoSCoW |
+| -------- | ----------------------------------------------------------------- | ------ |
+| AZ-M4.7  | Pago en línea (Camino A: la escuela es el comercio)               | Must   |
+| AZ-M4.8  | Conciliación automática contra el ledger                          | Must   |
+| AZ-M4.8b | Taxonomía de 4 niveles de referencia bancaria (escenario 13)      | Must   |
+| AZ-M4.6  | Recordatorio de pago por correo (WhatsApp entra en el S9)         | Should |
+| —        | POC Facturama en sandbox, timebox de 2 semanas → alimenta ADR-002 | Should |
 
 **Fuera de alcance, explícito:** el pago in-app desde el teléfono es el S10, con
 la app de familias completa. Aquí el checkout es web.
@@ -86,11 +86,11 @@ proveedor (patrón puerto/adaptador, Cockburn).
 
 ## 5 · Relación con otros sprints
 
-| Depende de                                     | Habilita                                    |
-| ---------------------------------------------- | ------------------------------------------- |
+| Depende de                                     | Habilita                                     |
+| ---------------------------------------------- | -------------------------------------------- |
 | S6 — cargos bien calculados (becas, prorrateo) | S9 — recordatorios que citan el importe real |
 | S5 — aplicación FIFO y saldo a favor           | S10 — pago in-app sobre este mismo camino    |
-| **Las tres cuentas de nube** (impedimento)     | El gate del MVP                             |
+| **Las tres cuentas de nube** (impedimento)     | El gate del MVP                              |
 
 ## 6 · Definition of Ready
 
@@ -114,12 +114,12 @@ listo para arrancar**.
 
 ## 8 · Riesgos
 
-| Riesgo                                            | Mitigación                                              |
-| ------------------------------------------------- | ------------------------------------------------------- |
-| Se arranca sin staging y se queda a medias        | La regla de intercambio del §0. No es opinión: es regla |
-| Un webhook perdido deja un pago fantasma          | Outbox + reintentos + dead-letter + alerta              |
-| Conciliación automática que aplica por parecido   | Sin referencia, a bandeja manual. Nunca automático      |
-| Octavo sprint sin staging                         | `pnpm ensayo:despliegue` obligatorio (§42) — no lo sustituye |
+| Riesgo                                          | Mitigación                                                   |
+| ----------------------------------------------- | ------------------------------------------------------------ |
+| Se arranca sin staging y se queda a medias      | La regla de intercambio del §0. No es opinión: es regla      |
+| Un webhook perdido deja un pago fantasma        | Outbox + reintentos + dead-letter + alerta                   |
+| Conciliación automática que aplica por parecido | Sin referencia, a bandeja manual. Nunca automático           |
+| Octavo sprint sin staging                       | `pnpm ensayo:despliegue` obligatorio (§42) — no lo sustituye |
 
 ## 9 · Demo de cierre
 

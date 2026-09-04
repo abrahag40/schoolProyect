@@ -168,8 +168,8 @@ export default function PaginaEscuela() {
 
             {rvoes?.length === 0 && (
               <p style={{ color: 'var(--texto-tenue)', marginTop: 'var(--space-3)' }}>
-                Todavía no hay acuerdos capturados. Si tu escuela emite facturas deducibles,
-                empieza por aquí.
+                Todavía no hay acuerdos capturados. Si tu escuela emite facturas deducibles, empieza
+                por aquí.
               </p>
             )}
 

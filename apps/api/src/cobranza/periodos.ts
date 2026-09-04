@@ -33,12 +33,7 @@
 
 /** Cada cuanto se cobra un concepto. */
 export type Periodicidad =
-  | 'MENSUAL'
-  | 'BIMESTRAL'
-  | 'CUATRIMESTRAL'
-  | 'SEMESTRAL'
-  | 'ANUAL'
-  | 'UNICO';
+  'MENSUAL' | 'BIMESTRAL' | 'CUATRIMESTRAL' | 'SEMESTRAL' | 'ANUAL' | 'UNICO';
 
 /** Cuantos meses abarca un periodo de cada periodicidad. */
 const MESES_POR_PERIODO: Record<Exclude<Periodicidad, 'UNICO'>, number> = {
@@ -81,8 +76,7 @@ export function esPeriodoValido(clave: string): boolean {
   if (!m) return false;
 
   const [, , letra, numero] = m as unknown as [string, string, string, string];
-  const cuantos =
-    letra === 'B' ? 6 : letra === 'C' ? 3 : letra === 'S' ? 2 : /* 'A' */ 1;
+  const cuantos = letra === 'B' ? 6 : letra === 'C' ? 3 : letra === 'S' ? 2 : /* 'A' */ 1;
   return Number(numero) >= 1 && Number(numero) <= cuantos;
 }
 

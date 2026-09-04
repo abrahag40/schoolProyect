@@ -286,3 +286,32 @@ true)` dentro de una transaccion, nunca como ajuste de sesion. _(Motivo: con
   la escuela no puede avanzar y no sabe por qué. Lo mismo con las aceptaciones
   de cuota voluntaria — sin dónde registrarlas, marcar una cuota como voluntaria
   la vuelve incobrable en silencio.)_
+
+- **§60** — **Ninguna prueba puede depender del día en que se corre.** Toda
+  fecha de una siembra se escribe explícita; `now()` queda prohibido en datos
+  que después se comparan contra importes o periodos esperados.
+  _(Descubierto el 4-sep-2026, al primer despliegue. Las pruebas de cableado de
+  cobranza sembraban `alta_en = now()` y afirmaban los importes del periodo
+  `2026-09`. Mientras la fecha real quedó fuera de septiembre, el prorrateo
+  (§57) no entraba y todo cuadraba. El 1 de septiembre siguió verde por un
+  centímetro —`alta = inicio del periodo` devuelve el cargo completo— y del 2 en
+  adelante se puso roja sola, sin que nadie tocara una línea. El código estaba
+  bien; la prueba afirmaba algo sobre el calendario, no sobre el sistema.)_
+  _**Consecuencia que duele:** el acta del Sprint 6 declaró «270 pruebas
+  verdes» el 2-sep. Ese número no pudo medirse ese día. Se reportó de memoria,
+  que es justo lo que §7 prohíbe. La regla ya existía; lo que faltó fue
+  cumplirla._
+  _**Corolario:** un camino que solo se ejercita por accidente no está cubierto.
+  El prorrateo se «probaba» en cableado por el efecto secundario de `now()`;
+  al fijar las fechas quedó al descubierto que no tenía prueba de cableado
+  propia (§13 exige tres: pura, NO-camino y cableado). Ahora la tiene._
+
+- **§61** — **Las fechas del dominio de dinero se resuelven en la zona horaria
+  de la escuela, no en UTC.** _(HALLAZGO ABIERTO, no corregido: `alta_en` es
+  `timestamptz` y el generador hace `.toISOString().slice(0,10)`, que es UTC.
+  Para una escuela en el centro de México (UTC−6), un alta capturada el 31 de
+  agosto a las 19:00 se guarda como 1 de septiembre. Eso corre el prorrateo un
+  día y, en el borde de mes, puede mover un cargo de periodo. El impacto medido
+  hoy es de pesos, no de miles, y arreglarlo toca el generador — por eso se
+  registra para decisión en gate (§8) en vez de colarse en un arreglo de
+  pruebas.)_

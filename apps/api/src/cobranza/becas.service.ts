@@ -1,4 +1,9 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { conTenant } from '@azahar/db';
 import type { Sesion } from '../comun/sesion.js';
 import { fechaEscolar } from '../comun/fecha-escolar.js';
@@ -225,7 +230,11 @@ export class ServicioBecas {
    * los cargos ya emitidos conservan su descuento: el reparto esta congelado
    * (ADR-011) y reescribirlo cambiaria lo que a la familia ya se le comunico.
    */
-  async retirar(sesion: Sesion, id: string, motivo: string): Promise<{ id: string; activa: boolean }> {
+  async retirar(
+    sesion: Sesion,
+    id: string,
+    motivo: string,
+  ): Promise<{ id: string; activa: boolean }> {
     this.exigirRol(sesion);
 
     return conTenant(sesion.tenantId, async (tx) => {

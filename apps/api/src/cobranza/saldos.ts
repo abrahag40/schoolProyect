@@ -159,7 +159,9 @@ export function aplicarPagoConProntoPago(
       ? Math.min(
           parte.saldoCentavos,
           // Mismo redondeo que en todo el sistema: al centavo, medio arriba (§43).
-          Math.round((parte.saldoCentavos * Math.round(parte.prontoPago!.porcentaje * 100)) / 10_000),
+          Math.round(
+            (parte.saldoCentavos * Math.round(parte.prontoPago!.porcentaje * 100)) / 10_000,
+          ),
         )
       : 0;
 

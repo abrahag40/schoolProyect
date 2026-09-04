@@ -74,7 +74,9 @@ async function pedirCadena({ etiqueta, debeSerPooled }) {
     );
   }
   if (url.protocol !== 'postgresql:' && url.protocol !== 'postgres:') {
-    throw new Error(`La cadena empieza con "${url.protocol}" y deberia empezar con "postgresql://".`);
+    throw new Error(
+      `La cadena empieza con "${url.protocol}" y deberia empezar con "postgresql://".`,
+    );
   }
   if (!url.hostname.endsWith('.neon.tech')) {
     throw new Error(

@@ -230,19 +230,19 @@ export default function PaginaCatalogo() {
 
   async function aceptar(alumnoId: string) {
     if (!gestionando) return;
-    const { ok, datos, error: fallo } = await enviarJson<Aceptacion>(
-      `/catalogo-cargos/${gestionando.id}/aceptaciones`,
-      { alumnoId },
-    );
+    const {
+      ok,
+      datos,
+      error: fallo,
+    } = await enviarJson<Aceptacion>(`/catalogo-cargos/${gestionando.id}/aceptaciones`, {
+      alumnoId,
+    });
     if (!ok || !datos) {
       setError(fallo?.message ?? 'No pudimos registrar la aceptación.');
       return;
     }
     // Se reemplaza si ya estaba: aceptar dos veces es la misma aceptación.
-    setAceptaciones((previas) => [
-      datos,
-      ...previas.filter((a) => a.alumnoId !== datos.alumnoId),
-    ]);
+    setAceptaciones((previas) => [datos, ...previas.filter((a) => a.alumnoId !== datos.alumnoId)]);
   }
 
   async function retirarAceptacion(alumnoId: string) {
@@ -414,7 +414,9 @@ export default function PaginaCatalogo() {
                   >
                     <span>
                       {a.alumno}{' '}
-                      <span style={{ color: 'var(--texto-tenue)' }}>· aceptó el {a.aceptadaEn}</span>
+                      <span style={{ color: 'var(--texto-tenue)' }}>
+                        · aceptó el {a.aceptadaEn}
+                      </span>
                     </span>
                     <Boton
                       variante="texto"
@@ -588,8 +590,8 @@ export default function PaginaCatalogo() {
               <span>Es una cuota voluntaria</span>
             </label>
             <span style={ayudaEstilo}>
-              La ley prohíbe condicionar el servicio educativo a un pago voluntario, así que solo
-              se le cobrará a quien la acepte. Tendrás que registrar las aceptaciones una por una.
+              La ley prohíbe condicionar el servicio educativo a un pago voluntario, así que solo se
+              le cobrará a quien la acepte. Tendrás que registrar las aceptaciones una por una.
             </span>
 
             <label style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>

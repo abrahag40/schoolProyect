@@ -44,9 +44,7 @@ import { aplicarPagoConProntoPago, saldoDeParte } from '../src/cobranza/saldos.j
 const importe = fc.integer({ min: 1, max: 10_000_000 });
 
 /// Porcentajes con dos decimales, como los admite la base.
-const porcentaje = fc
-  .integer({ min: 1, max: 10_000 })
-  .map((n) => Math.round(n) / 100);
+const porcentaje = fc.integer({ min: 1, max: 10_000 }).map((n) => Math.round(n) / 100);
 
 const categoria: fc.Arbitrary<CategoriaDescuento> = fc.constantFrom(
   'PRORRATEO',
@@ -203,8 +201,9 @@ describe('I1c · el dinero que entra no se pierde ni se duplica', () => {
           for (const a of r.aplicaciones) {
             const original = partes.find((p) => p.referencia === a.referencia)!;
             expect(a.centavos + a.descuentoCentavos).toBeLessThanOrEqual(original.saldoCentavos);
-            expect(saldoDeParte(original.saldoCentavos, a.centavos + a.descuentoCentavos))
-              .toBeGreaterThanOrEqual(0);
+            expect(
+              saldoDeParte(original.saldoCentavos, a.centavos + a.descuentoCentavos),
+            ).toBeGreaterThanOrEqual(0);
           }
         },
       ),

@@ -23,6 +23,8 @@ const CONTRASENA = 'prueba-cobranza-2026';
 /// Un concepto MENSUAL cae en el mes pedido y uno UNICO se ancla al ciclo.
 const INICIO_CICLO = '2026-08-01';
 const PERIODO = '2026-09';
+// Antes del periodo que se cobra: quien ya estaba inscrito paga el mes entero.
+const ALTA_AL_INICIO_DEL_CICLO = '2026-08-01';
 const PERIODO_CICLO = '2026-08';
 
 /** Contratos de lo que responde el API, declarados una vez. */
@@ -182,9 +184,21 @@ beforeAll(async () => {
     ['diego', ID_ACADEMIA, 'sub12'],
   ] as const) {
     await owner.query(
+      // ALTA CON FECHA FIJA, NUNCA now(). Estos alumnos se inscribieron al
+      // empezar el ciclo, que es el caso normal y el que estas pruebas afirman.
+      //
+      // POR QUE IMPORTA: con `now()` el prorrateo (AZ-M4.1) entraba solo en
+      // cuanto la fecha real del dia caia DENTRO de `PERIODO`, y los importes
+      // esperados dejaban de cuadrar. La suite pasaba el 1 de septiembre
+      // —`alta = inicio del periodo` devuelve el cargo completo— y se ponia
+      // roja del 2 en adelante, sin que nadie hubiera tocado el codigo.
+      //
+      // Una prueba cuyo resultado depende del dia en que se corre no afirma
+      // nada sobre el sistema: afirma algo sobre el calendario. El prorrateo
+      // se ejercita ADREDE mas abajo, con su propio alumno y su propia fecha.
       `INSERT INTO inscripcion (id, tenant_id, alumno_id, cohorte_id, estado, alta_en)
-       VALUES (gen_random_uuid(),$1,$2,$3,'ACTIVA',now())`,
-      [tenant, ids[alumno], ids[cohorte]],
+       VALUES (gen_random_uuid(),$1,$2,$3,'ACTIVA',$4::date)`,
+      [tenant, ids[alumno], ids[cohorte], ALTA_AL_INICIO_DEL_CICLO],
     );
   }
 
@@ -389,6 +403,85 @@ describe('generacion de cargos (AZ-M4.2)', () => {
     expect(cuerpo.importeTotal).toBe('22050.00');
   });
 
+  it('quien se inscribe a mitad del mes paga solo los dias que le tocan (AZ-M4.1)', async () => {
+    // LA TERCERA PATA DE §13, que faltaba. El prorrateo tenia prueba pura y de
+    // NO-camino en `descuentos.test.ts`, pero ninguna que lo viera cruzar la
+    // base de datos. Se ejercitaba solo por accidente —porque la siembra usaba
+    // `now()`— y ese accidente se disfrazaba de fallo cuando el calendario
+    // entraba en el periodo de la prueba. Un camino que solo se recorre por
+    // casualidad no esta cubierto: esta sin cubrir y con suerte.
+    const {
+      rows: [sofia],
+    } = await owner.query(
+      `INSERT INTO alumno (id, tenant_id, nombre, apellidos, activo, creado_en)
+       VALUES (gen_random_uuid(),$1,'Sofia','Tarde',true,now()) RETURNING id`,
+      [ID_COLEGIO],
+    );
+    await owner.query(
+      `INSERT INTO inscripcion (id, tenant_id, alumno_id, cohorte_id, estado, alta_en)
+       VALUES (gen_random_uuid(),$1,$2,$3,'ACTIVA','2026-09-11'::date)`,
+      [ID_COLEGIO, sofia.id, ids.primeroA],
+    );
+    // Con pagadora, para que la invariante de mas abajo tambien la cubra: lo
+    // que se reparte tiene que ser el NETO, no el precio de lista.
+    const {
+      rows: [tutora],
+    } = await owner.query(
+      `INSERT INTO tutor (id, tenant_id, nombre, apellidos, creado_en)
+       VALUES (gen_random_uuid(),$1,'Marta','Tarde',now()) RETURNING id`,
+      [ID_COLEGIO],
+    );
+    await owner.query(
+      `INSERT INTO tutor_alumno
+         (id, tenant_id, tutor_id, alumno_id, parentesco, es_pagador, porcentaje_pago,
+          es_contacto_emergencia, puede_recoger, creado_en)
+       VALUES (gen_random_uuid(),$1,$2,$3,'TUTOR',true,100,false,true,now())`,
+      [ID_COLEGIO, tutora.id, sofia.id],
+    );
+
+    const token = await entrar('colegio-c', 'admin@t.mx');
+    const { estado } = await post<GeneracionRespuesta>(token, '/cargos/generar', {
+      periodo: PERIODO,
+    });
+    expect(estado).toBe(200);
+
+    // Septiembre dura 30 dias; entra el 11 y le quedan 20 (los dos extremos
+    // cuentan, §57). Colegiatura 2,450 x 20/30 = 1,633.33, luego el descuento
+    // son 816.67. Los numeros van escritos y no calculados: una prueba que
+    // repite la formula del codigo no prueba la formula, la copia.
+    const { rows: prorrateos } = await owner.query(
+      `SELECT c.monto::text AS lista, d.monto::text AS descuento, d.concepto
+         FROM cargo c
+         JOIN descuento_de_cargo d ON d.cargo_id = c.id
+        WHERE c.alumno_id = $1 AND d.categoria = 'PRORRATEO'`,
+      [sofia.id],
+    );
+    expect(prorrateos).toHaveLength(1);
+    expect(prorrateos[0]).toMatchObject({ lista: '2450.00', descuento: '816.67' });
+    expect(prorrateos[0].concepto).toContain('20 de 30 días');
+
+    // Y el reparto se hace sobre el neto, no sobre el precio de lista.
+    const { rows: partes } = await owner.query(
+      `SELECT p.monto::text FROM parte_de_cargo p
+         JOIN cargo c ON c.id = p.cargo_id
+        WHERE c.alumno_id = $1 AND c.monto = 2450`,
+      [sofia.id],
+    );
+    expect(partes.map((r) => r.monto)).toEqual(['1633.33']);
+
+    // NO-camino: el concepto UNICO del mismo alumno NO se prorratea. Entrar
+    // tarde no abarata una inscripcion (§57).
+    const { rows: unicos } = await owner.query(
+      `SELECT c.monto::text AS lista, count(d.id)::int AS descuentos
+         FROM cargo c
+         LEFT JOIN descuento_de_cargo d ON d.cargo_id = c.id
+        WHERE c.alumno_id = $1 AND c.monto = 4900
+        GROUP BY c.id, c.monto`,
+      [sofia.id],
+    );
+    expect(unicos).toEqual([{ lista: '4900.00', descuentos: 0 }]);
+  });
+
   it('el concepto UNICO se ancla al CICLO y lleva su propia clave', async () => {
     // Anclar la inscripcion al periodo pedido la cobraria doce veces al año.
     //
@@ -423,9 +516,25 @@ describe('generacion de cargos (AZ-M4.2)', () => {
     const { cuerpo } = await post<GeneracionRespuesta>(token, '/cargos/generar', {
       periodo: PERIODO,
     });
-    // Tres alumnos x el taller nuevo.
-    expect(cuerpo.generados).toBe(3);
-    expect(cuerpo.importeTotal).toBe('900.00');
+    // UN cargo por cada alumno inscrito, y el numero se CUENTA en la base en
+    // vez de escribirse aqui. Lo que esta prueba defiende es que no salgan
+    // CERO en silencio; atarla ademas a "tres" la volvia roja cada vez que la
+    // siembra crecia, que es ruido disfrazado de cobertura.
+    const { rows: inscritos } = await owner.query(
+      `SELECT count(*)::int AS n FROM inscripcion
+        WHERE tenant_id = $1 AND estado = 'ACTIVA'`,
+      [ID_COLEGIO],
+    );
+    expect(cuerpo.generados).toBe(inscritos[0].n);
+    // El importe NO se recalcula con la formula del codigo —copiarla no la
+    // prueba—: se afirma que cada cargo nuevo existe y ninguno salio en cero.
+    const { rows: nuevos } = await owner.query(
+      `SELECT c.monto::text AS monto FROM cargo c
+         JOIN concepto_cargo cc ON cc.id = c.concepto_id
+        WHERE cc.clave = 'taller-vespertino'`,
+    );
+    expect(nuevos).toHaveLength(inscritos[0].n);
+    expect(nuevos.every((r: { monto: string }) => Number(r.monto) > 0)).toBe(true);
   });
 
   it('pero uno que entra en vigor el mes SIGUIENTE no se cobra todavia', async () => {
@@ -603,8 +712,16 @@ describe('aislamiento entre escuelas', () => {
     const token = await entrar('colegio-c', 'admin@t.mx');
     const r = await fetch(`${base}/cargos?periodo=${PERIODO}`, { headers: conToken(token) });
     const cargos = (await r.json()) as CargoRespuesta[];
-    // Tres alumnos x dos conceptos mensuales vigentes en septiembre.
-    expect(cargos).toHaveLength(6);
+    // Un alumno x cada concepto MENSUAL vigente en septiembre. Se cuenta contra
+    // la base por lo mismo que arriba: lo que se afirma es el aislamiento entre
+    // escuelas, no cuantos alumnos trae hoy la siembra.
+    const { rows: esperados } = await owner.query(
+      `SELECT count(*)::int AS n FROM cargo WHERE tenant_id = $1 AND periodo = $2`,
+      [ID_COLEGIO, PERIODO],
+    );
+    expect(cargos).toHaveLength(esperados[0].n);
+    expect(esperados[0].n).toBeGreaterThan(0);
+    // LO QUE DE VERDAD SE PRUEBA: ni un solo cargo de la academia se cuela.
     expect(JSON.stringify(cargos)).not.toContain('Sub-12');
   });
 });

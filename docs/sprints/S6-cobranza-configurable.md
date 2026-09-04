@@ -91,13 +91,13 @@ backlog ordenado de E4. Y la pasarela, que es el Sprint 7.
 3. **La vigencia va en la beca, no en el alumno.** Una beca que expira a mitad de
    ciclo debe dejar de aplicarse sola en el siguiente periodo generado, sin que
    nadie se acuerde de quitarla.
-3. **El prorrateo se congela al generar**, igual que el reparto entre pagadores
+4. **El prorrateo se congela al generar**, igual que el reparto entre pagadores
    del Sprint 4 (ADR-011). Recalcularlo después cambiaría un cargo ya comunicado
    a la familia, y con eso se pierde la prueba de que se cobró lo que se anunció.
-4. **El RVOE se mueve de sede a nivel educativo.** Migración con backfill. Hoy no
+5. **El RVOE se mueve de sede a nivel educativo.** Migración con backfill. Hoy no
    hay escuelas reales cargadas: es exactamente el momento barato de hacerlo, y
    el caro es el Release 2 con clientes dentro.
-5. **El orden de aplicación se declara y se prueba:** beca → descuento → saldo a
+6. **El orden de aplicación se declara y se prueba:** beca → descuento → saldo a
    favor. Dos órdenes distintos dan importes distintos, y el día que difieran
    nadie sabrá cuál era el bueno.
 

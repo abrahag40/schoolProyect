@@ -145,8 +145,7 @@ export class ServicioPagos {
       const aplicado = p.aplicaciones.reduce((a, x) => a + aCentavos(x.monto.toFixed(2)), 0);
       const condonado = p.descuentos.reduce((a, x) => a + aCentavos(x.monto.toFixed(2)), 0);
       const prontoPago =
-        p.cargo.fechaLimiteProntoPago !== null &&
-        p.cargo.descuentoProntoPagoPorcentaje !== null
+        p.cargo.fechaLimiteProntoPago !== null && p.cargo.descuentoProntoPagoPorcentaje !== null
           ? {
               hasta: p.cargo.fechaLimiteProntoPago.toISOString().slice(0, 10),
               porcentaje: Number(p.cargo.descuentoProntoPagoPorcentaje),
