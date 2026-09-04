@@ -1,10 +1,10 @@
 # Intervalo posterior al Sprint 6 — Despliegue y defectos que destapó
 
-| Campo    | Valor                                                  |
-| -------- | ------------------------------------------------------ |
-| Estado   | CERRADO el 4-sep-2026, tag `v0.7.1`                    |
-| Rama     | `main` (sin rama de sprint — ver §1)                   |
-| Origen   | **No estaba en el Plan Maestro.** Ver §1.              |
+| Campo  | Valor                                     |
+| ------ | ----------------------------------------- |
+| Estado | CERRADO el 4-sep-2026, tag `v0.7.1`       |
+| Rama   | `main` (sin rama de sprint — ver §1)      |
+| Origen | **No estaba en el Plan Maestro.** Ver §1. |
 
 ---
 
@@ -28,15 +28,15 @@ defectos, en vez de encadenar arreglos.
 
 ## 2 · Qué se entregó
 
-| Entregable                                        | Evidencia                          |
-| ------------------------------------------------- | ---------------------------------- |
-| **Staging real**, extremo a extremo               | Vercel → Render → Neon, verificado |
-| Base sembrada y verificada con RLS activo         | login 200 + datos por el API       |
-| **§60** Ninguna prueba depende del calendario     | 5 pruebas estaban rojas al firmar el acta del S6 |
-| **§61** Fechas del dinero en UTC (ABIERTA)        | registrada, no corregida           |
-| **§62** Cookie cross-site + defensa CSRF          | mordida: 3 pruebas caen sin ella   |
-| **§63** Cobranza deriva del neto, no de la lista  | mordida: 7350.00 vs 6533.33        |
-| Copy legal corregido (`Al corriente`)             | §52 se lee, no solo se calcula     |
+| Entregable                                       | Evidencia                                        |
+| ------------------------------------------------ | ------------------------------------------------ |
+| **Staging real**, extremo a extremo              | Vercel → Render → Neon, verificado               |
+| Base sembrada y verificada con RLS activo        | login 200 + datos por el API                     |
+| **§60** Ninguna prueba depende del calendario    | 5 pruebas estaban rojas al firmar el acta del S6 |
+| **§61** Fechas del dinero en UTC (ABIERTA)       | registrada, no corregida                         |
+| **§62** Cookie cross-site + defensa CSRF         | mordida: 3 pruebas caen sin ella                 |
+| **§63** Cobranza deriva del neto, no de la lista | mordida: 7350.00 vs 6533.33                      |
+| Copy legal corregido (`Al corriente`)            | §52 se lee, no solo se calcula                   |
 
 ## 3 · Lo que este intervalo enseñó
 
@@ -60,7 +60,7 @@ momento de firmar, y el número del acta es el de esa corrida.
 ## 5 · Deuda que sale de aquí
 
 | Deuda                                              | Estado                    |
-| --------------------------------------------------- | ------------------------- |
+| -------------------------------------------------- | ------------------------- |
 | §61 — fechas del dinero en UTC, no en zona escolar | ABIERTA, decisión de gate |
 | `sslmode=require` dejará de verificar en `pg@9`    | ABIERTA, decisión de gate |
 | Rotar 3 contraseñas expuestas en registros ajenos  | PENDIENTE del CEO         |
