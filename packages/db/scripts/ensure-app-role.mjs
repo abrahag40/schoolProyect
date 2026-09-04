@@ -121,6 +121,28 @@ try {
       process.exit(1);
     }
     console.log(`[db] rol ${usuarioApp} listo y verificado (sin superuser, sin bypassrls)`);
+
+    // Diagnostico del DUENO, que decide si `pnpm db:seed` puede sembrar.
+    //
+    // Todas las tablas llevan FORCE ROW LEVEL SECURITY (§3), y FORCE significa
+    // que las politicas alcanzan TAMBIEN al dueno de la tabla. El unico que se
+    // libra es un rol con superuser o bypassrls. En desarrollo el dueno es el
+    // superusuario del contenedor y por eso el seed entra sin fricciones; en un
+    // Postgres administrado casi nunca lo es. Se REPORTA en vez de suponerse,
+    // por la misma razon que los atributos del rol de aplicacion se verifican:
+    // es barato medirlo aqui y caro descubrirlo cuando el seed truena.
+    const { rows: duenos } = await cliente.query(
+      'SELECT current_user AS quien, rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user',
+    );
+    const d = duenos[0];
+    if (d) {
+      const puede = d.rolsuper || d.rolbypassrls;
+      console.log(
+        `[db] dueno "${d.quien}" ${puede ? 'PUEDE' : 'NO puede'} saltarse RLS ` +
+          `(superuser=${d.rolsuper}, bypassrls=${d.rolbypassrls})` +
+          (puede ? '' : ' — `pnpm db:seed` fallara contra estas tablas; siembra con contexto de tenant'),
+      );
+    }
   }
 
   // Permisos de datos, nunca de esquema: el rol de app no puede alterar tablas.
