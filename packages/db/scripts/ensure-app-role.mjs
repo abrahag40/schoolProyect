@@ -47,22 +47,80 @@ await cliente.connect();
 
 try {
   if (!soloGrants) {
-    // CREATE ROLE no admite IF NOT EXISTS: se resuelve con un bloque DO.
-    await cliente.query(
-      `DO $$
-       BEGIN
-         IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = $rol$${usuarioApp}$rol$) THEN
-           EXECUTE format(
-             'CREATE ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOINHERIT',
-             $rol$${usuarioApp}$rol$, $pw$${passwordApp}$pw$
-           );
-         ELSE
-           EXECUTE format('ALTER ROLE %I LOGIN PASSWORD %L NOSUPERUSER NOBYPASSRLS',
-             $rol$${usuarioApp}$rol$, $pw$${passwordApp}$pw$);
-         END IF;
-       END $$;`,
+    // ============================================================
+    // NO SE PIDEN `NOSUPERUSER NOBYPASSRLS`: SE COMPRUEBAN.
+    // ============================================================
+    // Ambos atributos SOLO puede tocarlos un superusuario, y en Postgres
+    // administrado (Neon, RDS, Supabase) el rol dueño NO lo es. Pedirlos hacia
+    // que el arranque muriera con `must be superuser to change bypassrls
+    // attribute` — el primer despliegue real de Azahar fallo justo aqui.
+    //
+    // Y no hace falta pedirlos: un rol nuevo nace NOSUPERUSER y NOBYPASSRLS por
+    // omision en Postgres. Lo que si hace falta es DEMOSTRAR que los tiene,
+    // porque de eso depende que RLS aisle a los tenants (§26, ADR-004).
+    //
+    // Comprobar en vez de afirmar es ademas mas fuerte: si alguien con
+    // privilegios le diera BYPASSRLS a este rol mañana, esta verificacion lo
+    // caza en el siguiente arranque. La version que lo "imponia" no se habria
+    // enterado, porque habria vuelto a imponerlo en silencio.
+    const { rowCount } = await cliente.query('SELECT 1 FROM pg_roles WHERE rolname = $1', [
+      usuarioApp,
+    ]);
+
+    // La sentencia lleva la contrasena dentro (DDL no admite parametros), asi
+    // que se construye en el servidor con format() y NUNCA se deja escapar el
+    // error crudo: Postgres incluye el texto completo del statement en su
+    // mensaje, y asi fue como una contrasena acabo en los logs de Render.
+    const { rows: sql } = await cliente.query(
+      rowCount
+        ? `SELECT format('ALTER ROLE %I LOGIN PASSWORD %L', $1::text, $2::text) AS s`
+        : `SELECT format('CREATE ROLE %I LOGIN PASSWORD %L NOCREATEDB NOCREATEROLE NOINHERIT', $1::text, $2::text) AS s`,
+      [usuarioApp, passwordApp],
     );
-    console.log(`[db] rol ${usuarioApp} listo (NOSUPERUSER, NOBYPASSRLS)`);
+    try {
+      await cliente.query(sql[0].s);
+    } catch (error) {
+      // Se informa y se sale, en vez de dejar subir el error: el objeto de
+      // Postgres trae en su campo `where` el texto COMPLETO del statement, y
+      // ese statement lleva la contrasena dentro (el DDL no admite parametros).
+      // Asi fue exactamente como una contrasena de Azahar acabo escrita en
+      // texto claro en los logs de Render. Se conservan el mensaje y los
+      // codigos de diagnostico, que es lo unico que sirve para depurar.
+      const e = /** @type {{message?: string, code?: string, routine?: string}} */ (error);
+      console.error(
+        `[db] no se pudo ${rowCount ? 'actualizar' : 'crear'} el rol ${usuarioApp}: ` +
+          [e?.message, e?.code && `code=${e.code}`, e?.routine && `routine=${e.routine}`]
+            .filter(Boolean)
+            .join(' · '),
+      );
+      process.exit(1);
+    }
+
+    const { rows: atributos } = await cliente.query(
+      'SELECT rolsuper, rolbypassrls, rolcanlogin FROM pg_roles WHERE rolname = $1',
+      [usuarioApp],
+    );
+    const rol = atributos[0];
+    if (!rol) {
+      console.error(`[db] el rol ${usuarioApp} no existe despues de crearlo.`);
+      process.exit(1);
+    }
+    if (rol.rolsuper || rol.rolbypassrls) {
+      // Un rol de aplicacion que puede saltarse RLS ve los datos de TODAS las
+      // escuelas. Arrancar asi seria peor que no arrancar.
+      console.error(
+        `[db] ABORTA: el rol ${usuarioApp} puede saltarse el aislamiento entre escuelas.\n` +
+          `     rolsuper=${rol.rolsuper} rolbypassrls=${rol.rolbypassrls}\n` +
+          `     Quitaselo con un rol que si sea superusuario:\n` +
+          `       ALTER ROLE ${usuarioApp} NOSUPERUSER NOBYPASSRLS;`,
+      );
+      process.exit(1);
+    }
+    if (!rol.rolcanlogin) {
+      console.error(`[db] el rol ${usuarioApp} no puede iniciar sesion.`);
+      process.exit(1);
+    }
+    console.log(`[db] rol ${usuarioApp} listo y verificado (sin superuser, sin bypassrls)`);
   }
 
   // Permisos de datos, nunca de esquema: el rol de app no puede alterar tablas.
