@@ -58,11 +58,21 @@ Vercel (web)  ──HTTPS──►  Render (API)  ──TCP/SSL──►  Neon (
    - **Direct** → será `DATABASE_URL_OWNER` en Render.
    - Pégalas tal cual: el entrypoint les quita solo `channel_binding` y
      `-pooler` donde toca (gotchas 3 y 4 del ADR-009).
-3. **Nada más.** El rol restringido `azahar_app` NO lo creas tú: lo crea el
-   entrypoint en el primer deploy (`ensure-app-role.mjs`), con la contraseña
-   que declares en la propia `DATABASE_URL`. Para eso, edita la cadena pooled
-   cambiando usuario y contraseña a `azahar_app:<contraseña-fuerte-nueva>`
-   (genera una: `openssl rand -base64 24`).
+3. **No edites la cadena a mano.** Corre esto y pega ahí la cadena pooled:
+
+   ```bash
+   node scripts/cadena-app.mjs
+   ```
+
+   Te devuelve la `DATABASE_URL` y el `AUTH_SECRET` listos para copiar. El rol
+   restringido `azahar_app` NO lo creas tú: lo crea el entrypoint en el primer
+   deploy (`ensure-app-role.mjs`) con la contraseña que venga en esa cadena.
+
+   > **Por qué hay un script y no una instrucción.** El primer despliegue real
+   > (4-sep-2026) falló justo aquí: al sustituir `usuario:contraseña` a mano se
+   > perdió el resto de la cadena y `DATABASE_URL` acabó siendo un fragmento de
+   > contraseña. El error que produce —`TypeError: Invalid URL`— no dice nada
+   > sobre la causa. Editar cadenas de conexión a mano es trabajo de máquina.
 
 ## Paso 2 — Render (API) · lo hace el CEO · ~10 min
 
