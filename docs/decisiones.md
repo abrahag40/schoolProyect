@@ -396,3 +396,25 @@ true)` dentro de una transaccion, nunca como ajuste de sesion. _(Motivo: con
   —§64 pondría rojo el repo entero—, se pone un trinquete: no obliga a arreglar
   lo existente pero impide que crezca. Un gate que nadie puede pasar se desactiva
   en una semana, y entonces no queda ni gate ni regla._
+
+- **§66** — **El ancho lo recupera la navegación, no un tope más grande.** El
+  contenido del panel es **fluido**; lo único que conserva límite es el texto
+  (`--ancho-lectura`, 65ch), que es una medida de **componente**, no de página.
+  Los puntos de quiebre son la escala de Bootstrap 5 (576/768/992/1200/1400) más
+  1025 para el colapso del sidebar.
+  _(Medido el 4-sep-2026 sobre la plantilla de referencia, a petición del CEO
+  antes de arrancar el Sprint 7. Dato duro: la plantilla **no tiene un solo
+  `max-width`** — su contenido ocupa `viewport − 280px de sidebar` y a 1440 px
+  aprovecha el 100 % del ancho. Azahar aprovechaba el 61 %.)_
+  _**El error de diagnóstico que esto corrigió, y es la parte que importa:** la
+  propuesta anterior (§64) era subir el tope a 1120 px. Habría mejorado el
+  número a 78 % y **dejado 320 px haciendo nada igual**, porque el problema
+  nunca fue el tamaño del contenedor: **los 280 px que en la referencia son
+  navegación, en Azahar no eran nada**. Un tope más generoso no crea navegación._
+  _**Consecuencia de producto, no solo de píxeles:** hoy ir de Cobranza a
+  Catálogo obliga a volver al Panel — es centro-y-radios. El sidebar lo vuelve
+  directo y de paso justifica el ancho que se estaba desperdiciando._
+  _**Nota de método:** este hallazgo salió de aplicar la triangulación que el
+  propio método exige y que la propuesta §64 se había saltado: sus números
+  (1120, 1440) se dedujeron del tipo de contenido, sin contrastarlos contra
+  nada real. Medir la referencia costó veinte minutos y cambió el diseño._

@@ -13,38 +13,54 @@
 @import '@azahar/tokens/css';
 
 /* ==========================================================================
- * LAYOUT — el ancho y la rejilla viven en el SISTEMA, nunca en una pantalla (§64).
+ * LAYOUT — el ancho lo recupera la NAVEGACION, no un tope (§64, §66).
  *
- * Los valores no estan aqui: nacen en `packages/tokens/tokens/layout.json` y
- * llegan generados, igual que el color. Esta capa solo les pone nombre
- * semantico, que es lo que usan las pantallas.
+ * Los valores nacen en `packages/tokens/tokens/layout.json` y llegan generados,
+ * igual que el color. Esta capa solo les pone nombre semantico.
  *
- * POR QUE EXISTE. Hasta el 4-sep-2026 cada pantalla del panel fijaba su ancho
- * en linea y con un numero distinto: 720, 820, 820, 880, 960. En un monitor de
- * 1440 px eso desperdiciaba entre el 33 % y el 50 % del ancho, y nadie lo vio
- * en siete sprints porque no habia nada que se pusiera rojo.
+ * EL MODELO, medido y no supuesto (4-sep-2026). Se analizo la plantilla de
+ * referencia y NO tiene un solo `max-width`: su contenido es fluido y ocupa
+ * `viewport − 280px de sidebar`. A 1440px aprovecha el 100 % del ancho.
+ *
+ * Azahar aprovechaba el 61 %, y el error de diagnostico fue creer que el
+ * problema era el tamano del tope. No lo era: **los 280px que en la referencia
+ * son navegacion, en Azahar no eran nada**. Subir el tope habria dejado 320px
+ * haciendo nada igual, porque no habia que poner ahi.
+ *
+ * Por eso el contenido pasa a ser FLUIDO y aparece el sidebar. Lo unico que
+ * conserva limite es el texto: un renglon de 1600px no se lee, y para eso esta
+ * `--ancho-lectura`, que es una medida de COMPONENTE, no de pagina.
  * ==========================================================================
  */
 :root {
-  /* Formularios y flujos de UNA tarea. */
+  /* Navegacion persistente. Debajo de --bp-sidebar-colapsa se esconde tras menu. */
+  --ancho-sidebar: var(--size-sidebar);
+
+  /* Medida de lectura para texto y formularios DENTRO del area fluida. */
   --ancho-lectura: var(--container-lectura);
-  /* Contenido mixto: el caso normal del panel. */
-  --ancho-panel: var(--container-panel);
-  /* Datos densos que ganan con el ancho: cobranza, reportes. */
-  --ancho-tablero: var(--container-tablero);
 
   /* Canal exterior. CRECE con la pantalla: pegado al borde en un telefono es
    * incomodo de tocar; sobrado en un monitor separa lo que deberia leerse
-   * junto. Es la unica parte del layout que cambia por punto de quiebre. */
+   * junto. Sale de NUESTRA escala de espacio, no de la de la referencia. */
   --canal: var(--space-4);
+
+  /* Puntos de quiebre (escala de Bootstrap 5, la de la referencia).
+   * Se exponen como variables para poder citarlos en el codigo; las @media de
+   * abajo llevan el literal porque CSS no admite var() en una media query. */
+  --bp-sm: var(--breakpoint-sm);
+  --bp-md: var(--breakpoint-md);
+  --bp-lg: var(--breakpoint-lg);
+  --bp-sidebar-colapsa: var(--breakpoint-sidebar-colapsa);
+  --bp-xl: var(--breakpoint-xl);
+  --bp-xxl: var(--breakpoint-xxl);
 }
 
-@media (min-width: 640px) {
+@media (min-width: 768px) {
   :root {
     --canal: var(--space-5);
   }
 }
-@media (min-width: 1024px) {
+@media (min-width: 1025px) {
   :root {
     --canal: var(--space-6);
   }
