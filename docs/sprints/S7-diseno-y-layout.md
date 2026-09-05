@@ -45,39 +45,49 @@ corrimiento (C2, C3, C4) y eso ya es un dato del proyecto, no un accidente.
 
 ## 2 · Alcance seleccionado (MoSCoW)
 
-| ID        | Qué                                                                                        | MoSCoW   |
-| --------- | ------------------------------------------------------------------------------------------ | -------- |
-| `AZ-D1.1` | Tokens de layout en `packages/ui`: anchos de contenedor, canal (gutter), puntos de quiebre | **Must** |
-| `AZ-D1.2` | Componentes `Contenedor` y `Rejilla` con variantes (lectura / panel / tablero)             | **Must** |
-| `AZ-D1.3` | Migrar las **6 pantallas** del panel: fuera los anchos en línea                            | **Must** |
-| `AZ-D1.4` | Prueba de navegador que falla si una pantalla desperdicia el ancho a 1440 px               | **Must** |
-| `AZ-D1.5` | Jerarquía de información: qué va primero y cómo se agrupa                                  | Should   |
-| `AZ-D1.6` | Densidad en tablas y listas largas (cobranza, pase de lista)                               | Should   |
-| `AZ-D1.7` | Revisión de `apps/mobile` contra los tokens nuevos                                         | Could    |
+> **REVISADO el 4-sep-2026 tras medir la plantilla de referencia (§66).** El
+> alcance original era «subir el tope de ancho». La medición mostró que eso
+> habría dejado 320 px desperdiciados igual, porque **el problema no era el
+> tamaño del contenedor sino la ausencia de navegación**. El CEO aprobó en gate
+> el modelo de contenido fluido + sidebar.
 
-**El `Must` es el sistema + las 6 pantallas migradas.** Si el sprint aprieta, lo
-que flexiona es `AZ-D1.5`/`AZ-D1.6`, y se dirá en el cierre — no se recicla en
-silencio (§46).
+| ID        | Qué                                                                                        | MoSCoW              |
+| --------- | ------------------------------------------------------------------------------------------ | ------------------- |
+| `AZ-D1.1` | Tokens de layout: sidebar, medida de lectura, canal y los 6 puntos de quiebre              | **Must** — ✅ hecho |
+| `AZ-D1.2` | **Componente `Sidebar`**: navegación persistente de 280 px que colapsa a menú bajo 1025 px | **Must**            |
+| `AZ-D1.3` | Componente `Contenedor` (fluido, con canal) y `Rejilla`                                    | **Must**            |
+| `AZ-D1.4` | Migrar las **6 pantallas**: fuera los 16 anchos escritos a mano                            | **Must**            |
+| `AZ-D1.5` | Prueba de navegador que falla si una pantalla desperdicia el ancho a 1440 px               | **Must**            |
+| `AZ-D1.6` | Jerarquía de información: qué va primero y cómo se agrupa                                  | Should              |
+| `AZ-D1.7` | Densidad en tablas y listas largas                                                         | Should              |
+| `AZ-D1.8` | Revisión de `apps/mobile` contra los tokens nuevos                                         | Could               |
 
-> **Riesgo de alcance, declarado al aprobar (D18):** al proponer el sprint se
-> advirtió que sumar jerarquía de información a la migración de 6 pantallas
-> podía llenarlo. El CEO lo aprobó igual. Queda escrito para que, si no cierra,
-> se sepa que era un riesgo previsto y no una sorpresa.
+### Advertencia de alcance, actualizada
+
+Al proponer el sprint se advirtió que sumar jerarquía de información a la
+migración de 6 pantallas podía llenarlo. **Ahora entra además un componente de
+navegación nuevo**, que no es un contenedor: tiene estado abierto/cerrado,
+comportamiento distinto por punto de quiebre, foco y teclado, y obliga a decidir
+**qué va dentro** — que es diseño de arquitectura de información, no CSS.
+
+**Lectura honesta: los dos `Should` van a flexionar.** El `Must` es
+sidebar + contenedores + 6 pantallas migradas + la prueba que lo sostiene. Si al
+cerrar no entraron `AZ-D1.6` y `AZ-D1.7`, se dirá como incumplimiento y no se
+reciclará en silencio (§46).
 
 ## 3 · Cómo se hace (diseño técnico)
 
-1. **Los tokens primero, las pantallas después.** Un ancho es una decisión de
-   sistema, no de pantalla: `--ancho-lectura`, `--ancho-panel`, `--ancho-tablero`
-   con sus puntos de quiebre en `theme.css`, junto a los de color y espacio que
-   ya existen.
-2. **Tres contenedores, no uno.** No todas las pantallas quieren el mismo ancho:
-   un formulario largo se lee mejor angosto (`lectura`), un panel de cobranza
-   quiere tabla ancha (`tablero`). El error actual no es "estrecho", es "un
-   número inventado por archivo".
-3. **Los estilos en línea salen por migración, no por barrido.** Se migra
+1. **Los tokens primero, las pantallas después.** Hecho: nacen en
+   `packages/tokens/tokens/layout.json` y llegan generados igual que el color.
+2. **Contenido fluido, no contenedores con tope.** El ancho lo recupera el
+   sidebar (§66). Lo único con límite es el texto: `--ancho-lectura` (65ch) es
+   una medida de **componente** —un formulario, un párrafo— no de página.
+3. **El sidebar primero, porque cambia el marco.** Migrar una pantalla al área
+   fluida sin el sidebar puesto obliga a migrarla dos veces.
+4. **Los estilos en línea salen por migración, no por barrido.** Se migra
    pantalla por pantalla con su prueba, porque un `sed` masivo sobre 163
    ocurrencias no lo revisa nadie.
-4. **`packages/ui` no importa de `apps/web`.** La dependencia va en un solo
+5. **`packages/ui` no importa de `apps/web`.** La dependencia va en un solo
    sentido o el sistema deja de ser sistema.
 
 ## 4 · Justificación (dato duro · inferencia · estándar)
