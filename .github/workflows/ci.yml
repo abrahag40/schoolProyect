@@ -74,7 +74,7 @@ jobs:
       # Playwright levanta el API y la web solo, pero necesita el API COMPILADO.
       - name: Compilar antes de las pruebas de extremo a extremo
         run: pnpm build
-      - name: Pruebas (incluye el gate de aislamiento y las e2e a 360 px)
+      - name: Pruebas (aislamiento + e2e a 360 px y a 1440 px)
         run: pnpm test
 
   seguridad-dependencias:

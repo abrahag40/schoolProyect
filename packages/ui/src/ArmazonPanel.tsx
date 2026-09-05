@@ -26,7 +26,12 @@ export interface PropsArmazonPanel {
    * movil y en cualquier otra superficie. Por omision usa `<a>`, que funciona
    * siempre aunque recargue la pagina entera.
    */
-  Enlace?: ComponentType<{ href: string; className?: string; children: ReactNode }>;
+  Enlace?: ComponentType<{
+    href: string;
+    className?: string;
+    'aria-current'?: 'page';
+    children: ReactNode;
+  }>;
   children: ReactNode;
 }
 
@@ -34,12 +39,14 @@ const EnlacePlano = ({
   href,
   className,
   children,
+  ...resto
 }: {
   href: string;
   className?: string;
+  'aria-current'?: 'page';
   children: ReactNode;
 }) => (
-  <a href={href} className={className}>
+  <a href={href} className={className} {...resto}>
     {children}
   </a>
 );
@@ -128,12 +135,18 @@ export function ArmazonPanel({
         {elementos.map((el) => {
           const activo = rutaActual === el.href;
           return (
-            <Enlace key={el.href} href={el.href} className="az-nav-item">
+            <Enlace
+              key={el.href}
+              href={el.href}
+              className="az-nav-item"
+              // `aria-current` va en el ENLACE, no en un hijo. Defecto propio
+              // cazado por la prueba de navegador (AZ-D1.5): estaba en el
+              // `<span>` interior, donde un lector de pantalla no lo anuncia
+              // porque no es el elemento interactivo (WCAG 2.2 SC 1.3.1).
+              aria-current={activo ? 'page' : undefined}
+            >
               <span
                 data-activo={activo}
-                // `aria-current` y no solo el color: quien usa lector de
-                // pantalla no ve el resaltado (WCAG 2.2 SC 1.3.1).
-                aria-current={activo ? 'page' : undefined}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
