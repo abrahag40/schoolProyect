@@ -12,6 +12,44 @@
  */
 @import '@azahar/tokens/css';
 
+/* ==========================================================================
+ * LAYOUT — el ancho y la rejilla viven en el SISTEMA, nunca en una pantalla (§64).
+ *
+ * Los valores no estan aqui: nacen en `packages/tokens/tokens/layout.json` y
+ * llegan generados, igual que el color. Esta capa solo les pone nombre
+ * semantico, que es lo que usan las pantallas.
+ *
+ * POR QUE EXISTE. Hasta el 4-sep-2026 cada pantalla del panel fijaba su ancho
+ * en linea y con un numero distinto: 720, 820, 820, 880, 960. En un monitor de
+ * 1440 px eso desperdiciaba entre el 33 % y el 50 % del ancho, y nadie lo vio
+ * en siete sprints porque no habia nada que se pusiera rojo.
+ * ==========================================================================
+ */
+:root {
+  /* Formularios y flujos de UNA tarea. */
+  --ancho-lectura: var(--container-lectura);
+  /* Contenido mixto: el caso normal del panel. */
+  --ancho-panel: var(--container-panel);
+  /* Datos densos que ganan con el ancho: cobranza, reportes. */
+  --ancho-tablero: var(--container-tablero);
+
+  /* Canal exterior. CRECE con la pantalla: pegado al borde en un telefono es
+   * incomodo de tocar; sobrado en un monitor separa lo que deberia leerse
+   * junto. Es la unica parte del layout que cambia por punto de quiebre. */
+  --canal: var(--space-4);
+}
+
+@media (min-width: 640px) {
+  :root {
+    --canal: var(--space-5);
+  }
+}
+@media (min-width: 1024px) {
+  :root {
+    --canal: var(--space-6);
+  }
+}
+
 :root {
   --fondo: var(--color-light-bg);
   --superficie: var(--color-light-surface);

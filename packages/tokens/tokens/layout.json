@@ -2,21 +2,49 @@
   "radius": {
     "$description": "Geometria. Radios y sombra tomados de los valores computados del DOM de la plantilla.",
     "$type": "dimension",
-    "sm": { "$value": "6px", "$description": "Checkbox, chips pequenos." },
-    "md": { "$value": "8px", "$description": "Botones, inputs, selects." },
-    "lg": { "$value": "12px", "$description": "Cards." },
-    "pill": { "$value": "999px", "$description": "Badges." }
+    "sm": {
+      "$value": "6px",
+      "$description": "Checkbox, chips pequenos."
+    },
+    "md": {
+      "$value": "8px",
+      "$description": "Botones, inputs, selects."
+    },
+    "lg": {
+      "$value": "12px",
+      "$description": "Cards."
+    },
+    "pill": {
+      "$value": "999px",
+      "$description": "Badges."
+    }
   },
   "space": {
     "$type": "dimension",
-    "0": { "$value": "0px" },
-    "1": { "$value": "4px" },
-    "2": { "$value": "8px" },
-    "3": { "$value": "12px" },
-    "4": { "$value": "16px" },
-    "5": { "$value": "24px" },
-    "6": { "$value": "32px" },
-    "7": { "$value": "48px" }
+    "0": {
+      "$value": "0px"
+    },
+    "1": {
+      "$value": "4px"
+    },
+    "2": {
+      "$value": "8px"
+    },
+    "3": {
+      "$value": "12px"
+    },
+    "4": {
+      "$value": "16px"
+    },
+    "5": {
+      "$value": "24px"
+    },
+    "6": {
+      "$value": "32px"
+    },
+    "7": {
+      "$value": "48px"
+    }
   },
   "size": {
     "$type": "dimension",
@@ -24,7 +52,9 @@
       "$value": "44px",
       "$description": "Minimo de area tactil. Apple HIG 44pt / Material 48dp; se toma 44 como piso comun. Requisito del DoD UX."
     },
-    "sidebar": { "$value": "280px" }
+    "sidebar": {
+      "$value": "280px"
+    }
   },
   "shadow": {
     "$type": "shadow",
@@ -40,7 +70,45 @@
   },
   "focus": {
     "$description": "Anillo de foco visible. La plantilla NO lo tiene (input focus sin cambio visual) — WCAG 2.2 SC 2.4.7 lo exige. Correccion propia obligatoria.",
-    "ring-width": { "$type": "dimension", "$value": "2px" },
-    "ring-offset": { "$type": "dimension", "$value": "2px" }
+    "ring-width": {
+      "$type": "dimension",
+      "$value": "2px"
+    },
+    "ring-offset": {
+      "$type": "dimension",
+      "$value": "2px"
+    }
+  },
+  "container": {
+    "$type": "dimension",
+    "$description": "Anchos maximos de contenido (§64). TRES y no uno: hasta el 4-sep-2026 cada pantalla fijaba el suyo en linea —720, 820, 820, 880, 960— y en un monitor de 1440px se desperdiciaba entre el 33% y el 50% del ancho. El error no era 'estrecho', era 'un numero inventado por archivo'.",
+    "lectura": {
+      "$value": "65ch",
+      "$description": "Formularios y flujos de UNA tarea. En `ch` y no en px a proposito: lo que importa para leer es cuantos caracteres caben en un renglon, no cuantos pixeles. En px dejaria de ser correcto al cambiar el tamano de letra."
+    },
+    "panel": {
+      "$value": "1120px",
+      "$description": "Contenido mixto —tarjetas, listas y formulario—. El caso normal del panel."
+    },
+    "tablero": {
+      "$value": "1440px",
+      "$description": "Datos densos que GANAN con el ancho: cobranza, reportes, tablas largas. Angostarlo obliga a truncar columnas, y una cifra truncada hay que ir a buscarla."
+    }
+  },
+  "breakpoint": {
+    "$type": "dimension",
+    "$description": "Tres puntos de quiebre y ni uno mas. Cada uno es una version del layout que alguien tiene que probar: multiplicarlos multiplica la verificacion sin que la pantalla mejore.",
+    "tableta": {
+      "$value": "640px",
+      "$description": "Telefono -> tableta."
+    },
+    "escritorio": {
+      "$value": "1024px",
+      "$description": "Tableta -> escritorio."
+    },
+    "amplio": {
+      "$value": "1440px",
+      "$description": "Escritorio ancho; el tablero llega a su tope."
+    }
   }
 }
