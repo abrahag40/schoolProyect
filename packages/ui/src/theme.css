@@ -67,6 +67,12 @@
 }
 
 :root {
+  /* Velo del menu movil. Vive aqui y no en linea porque es un color del
+   * sistema: si manana el tema oscuro necesita otra opacidad, se cambia una vez. */
+  --velo: rgb(0 0 0 / 40%);
+}
+
+:root {
   --fondo: var(--color-light-bg);
   --superficie: var(--color-light-surface);
   --superficie-alt: var(--color-light-surface-alt);
@@ -150,4 +156,137 @@ h6 {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ==========================================================================
+ * EL ARMAZON DE LA APLICACION (§64, §66)
+ *
+ * Por que vive en CSS y no en `style={{}}` como el resto de los componentes:
+ * **una media query no cabe en un estilo en linea**. El layout es lo unico del
+ * sistema que CAMBIA con el tamano de la pantalla, asi que es lo unico que no
+ * puede vivir en linea. La restriccion empuja al diseno correcto.
+ * ==========================================================================
+ */
+
+/* Armazon: una columna en movil, sidebar + contenido en escritorio.
+ * `100dvh` y no `100vh`: en moviles la barra del navegador aparece y desaparece,
+ * y `vh` mide el viewport CON la barra oculta — la pagina queda mas alta que la
+ * pantalla y aparece un salto al hacer scroll. `dvh` mide el visible de verdad. */
+.az-app {
+  display: grid;
+  grid-template-columns: 1fr;
+  min-height: 100dvh;
+  background: var(--fondo);
+}
+
+@media (min-width: 1025px) {
+  .az-app {
+    grid-template-columns: var(--ancho-sidebar) 1fr;
+  }
+}
+
+/* El area de contenido. FLUIDA: sin `max-width` (§66).
+ *
+ * `min-width: 0` NO es opcional y es el error clasico de CSS Grid: un hijo de
+ * grid tiene `min-width: auto`, asi que una tabla ancha lo empuja y ROMPE la
+ * columna en vez de desbordarse dentro. Sin esta linea, una sola tabla larga
+ * hace aparecer scroll horizontal en toda la pagina. */
+.az-contenido {
+  min-width: 0;
+  padding: var(--canal);
+}
+
+/* Medida de lectura, para texto y formularios DENTRO del area fluida.
+ * Es de COMPONENTE, no de pagina: no la lleva la pantalla, la lleva el bloque
+ * que se lee. */
+.az-lectura {
+  max-width: var(--ancho-lectura);
+}
+
+/* Rejilla que se acomoda sola, sin un breakpoint por cada arreglo.
+ *
+ * `min(280px, 100%)` y no `280px` a secas: con el valor fijo, en una pantalla
+ * de 360px menos el canal la columna pide 280px que no caben y desborda. El
+ * `min()` la deja encogerse cuando el espacio es menor que el minimo deseado. */
+.az-rejilla {
+  display: grid;
+  gap: var(--space-5);
+  grid-template-columns: repeat(auto-fit, minmax(min(280px, 100%), 1fr));
+}
+
+/* ---- Sidebar ------------------------------------------------------------ */
+
+.az-sidebar {
+  background: var(--superficie);
+  border-right: 1px solid var(--borde);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+}
+
+/* Debajo del punto de colapso se sale de la pantalla y vuelve al abrirse.
+ * Se usa `translate` y no `display:none` a proposito: un elemento con
+ * `display:none` no es enfocable NI anunciable, asi que el foco del teclado se
+ * pierde al abrir el menu. Fuera de pantalla + `visibility` conserva el orden
+ * de foco y permite animar. */
+@media (max-width: 1024px) {
+  .az-sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 20;
+    width: var(--ancho-sidebar);
+    max-width: 85vw;
+    transform: translateX(-100%);
+    visibility: hidden;
+    transition:
+      transform 0.2s ease,
+      visibility 0.2s;
+    box-shadow: var(--shadow-card);
+  }
+
+  .az-sidebar[data-abierto='true'] {
+    transform: translateX(0);
+    visibility: visible;
+  }
+
+  /* Velo que cierra al tocar fuera. Solo existe con el menu abierto. */
+  .az-velo {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    background: var(--velo);
+    border: 0;
+  }
+}
+
+/* Quien no quiere animacion, no la tiene (WCAG 2.2 SC 2.3.3). */
+@media (prefers-reduced-motion: reduce) {
+  .az-sidebar {
+    transition: none;
+  }
+}
+
+/* El boton del menu solo existe cuando el sidebar esta escondido. */
+.az-abrir-menu {
+  display: inline-flex;
+}
+@media (min-width: 1025px) {
+  .az-abrir-menu,
+  .az-velo {
+    display: none;
+  }
+}
+
+/* Enlace del sidebar: sin subrayado, sin color de enlace. El estado activo lo
+ * lleva el hijo, que es quien tiene los tokens y el `aria-current`. */
+.az-nav-item {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+.az-nav-item:focus-visible {
+  outline: var(--focus-ring-width) solid var(--texto-primario);
+  outline-offset: var(--focus-ring-offset);
+  border-radius: var(--radius-md);
 }

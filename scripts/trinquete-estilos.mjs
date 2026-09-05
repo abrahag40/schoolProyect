@@ -41,23 +41,43 @@ function tsx(dir, acc = []) {
 }
 
 /**
- * Se cuentan dos cosas distintas a proposito:
+ * Se cuentan TRES cosas distintas a proposito:
  *   · `enLinea`  — todo `style={{`, que es deuda de sistema de diseno.
- *   · `anchos`   — los que fijan un ANCHO, que son los que rompen §64 y los que
- *                  produjeron el defecto que origino este script.
- * Separarlos permite que el Sprint 7 baje `anchos` a cero sin tener que
- * eliminar de golpe los 163 estilos.
+ *   · `anchos`   — un CONTENEDOR que fija su ancho: `maxWidth`/`minWidth` con
+ *                  numero, o `width` de 200px para arriba. Es lo que rompe §64.
+ *   · `medidas`  — dimensiones chicas escritas a mano (una casilla de 20px).
+ *                  Es deuda de tokens, no de layout.
+ *
+ * POR QUE SE PARTIO EN TRES (4-sep-2026, durante el Sprint 7). La primera
+ * version contaba como "ancho" cualquier `width` con numero, y eso metia en el
+ * mismo saco tres cosas que no son iguales: `width: '100%'` es FLUIDO —lo
+ * contrario del defecto—, una casilla de 20px es tamano de control, y un
+ * contenedor de 880px es la deuda real.
+ *
+ * Se parte, no se encoge: `medidas` sigue contandose y visible. Estrechar la
+ * definicion de un gate para que de un numero mejor es maquillaje; separar dos
+ * deudas distintas para poder atacarlas por separado es medir bien. La
+ * diferencia esta en si el numero incomodo sigue a la vista — y sigue.
  */
 const superficies = ['apps/web/app', 'apps/mobile/app', 'packages/ui/src'];
-const cuenta = { enLinea: 0, anchos: 0 };
+const cuenta = { enLinea: 0, anchos: 0, medidas: 0 };
 const culpables = [];
+
+/** Un contenedor que fija su ancho: `maxWidth`/`minWidth`, o `width` >= 200px. */
+const esContenedor = (prop, valor) =>
+  prop === 'maxWidth' || prop === 'minWidth' || Number(valor) >= 200;
 
 for (const s of superficies) {
   for (const ruta of tsx(join(RAIZ, s))) {
     const texto = readFileSync(ruta, 'utf8');
     const rel = ruta.slice(RAIZ.length);
     cuenta.enLinea += (texto.match(/style={{/g) ?? []).length;
-    const anchos = (texto.match(/\b(maxWidth|minWidth|width)\s*:\s*['"]?\d/g) ?? []).length;
+
+    let anchos = 0;
+    for (const m of texto.matchAll(/\b(maxWidth|minWidth|width)\s*:\s*['"]?(\d+)/g)) {
+      if (esContenedor(m[1], m[2])) anchos += 1;
+      else cuenta.medidas += 1;
+    }
     cuenta.anchos += anchos;
     if (anchos) culpables.push(`${rel} (${anchos})`);
   }
@@ -88,7 +108,8 @@ if (process.argv.includes('--fijar') || !liston) {
 let malo = false;
 for (const [clave, etiqueta] of [
   ['enLinea', 'estilos en linea'],
-  ['anchos', 'anchos escritos a mano (§64)'],
+  ['anchos', 'contenedores con ancho propio (§64)'],
+  ['medidas', 'medidas chicas escritas a mano'],
 ]) {
   const antes = liston[clave];
   const ahora = cuenta[clave];

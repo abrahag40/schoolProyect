@@ -117,7 +117,7 @@ export default function PaginaPanel() {
       : 'Grupos';
 
   return (
-    <main style={{ maxWidth: 960, margin: '0 auto', padding: 'var(--space-5) var(--space-4)' }}>
+    <main>
       <header
         style={{
           display: 'flex',

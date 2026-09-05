@@ -12,3 +12,7 @@ export { Insignia } from './Insignia';
 export type { PropsInsignia } from './Insignia';
 export { Tarjeta } from './Tarjeta';
 export type { PropsTarjeta } from './Tarjeta';
+export { ArmazonPanel } from './ArmazonPanel';
+export type { PropsArmazonPanel, ElementoNavegacion } from './ArmazonPanel';
+export { Rejilla, Lectura } from './Rejilla';
+export type { PropsRejilla, PropsLectura } from './Rejilla';
