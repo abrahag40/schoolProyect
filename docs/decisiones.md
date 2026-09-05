@@ -376,3 +376,23 @@ true)` dentro de una transaccion, nunca como ajuste de sesion. _(Motivo: con
   columna fija en cualquier viewport y verse bien en un teléfono ocultó la
   ausencia. Es el mismo criterio que §30 ya aplicó al color: un valor de sistema
   escrito a mano en una pantalla es deuda, aunque el valor sea correcto._
+
+- **§65** — **Un estándar sin gate no es un estándar: es una intención.** Toda
+  decisión § que pueda detener un merge lleva algo que se ponga rojo — regla de
+  ESLint, prueba, `CHECK` en la migración o script en `scripts/`. La que no
+  pueda tenerlo lo declara explícitamente y deja de contarse como deuda técnica.
+  _(Instrucción del CEO del 4-sep-2026, tras el hallazgo de layout: «requiero un
+  sombrero de auditor que siempre verifique que se cumplen los estándares».)_
+  _**El diagnóstico que corrige la petición, medido antes de construir nada:** no
+  faltaban estándares —había 63— ni cuidado. De esos 63, solo **16 (25 %)**
+  tenían un gate; **11** se citaban en el código sin defenderlo y **36 (57 %)**
+  vivían únicamente en el documento. El color tiene `check-tokens.mjs` y lleva
+  siete sprints impecable; el layout no tenía nada y se degradó los mismos siete
+  sprints. Mismo equipo, resultados opuestos: la diferencia es el gate._
+  _**Por eso el auditor no revisa leyendo.** Revisar leyendo es exactamente lo
+  que falló — el layout pasó por siete revisiones. Su entregable es el gate, no
+  el informe. Vive en `.claude/skills/auditor` y se mide con `pnpm auditoria`._
+  _**Corolario del trinquete:** cuando la regla correcta no se puede exigir hoy
+  —§64 pondría rojo el repo entero—, se pone un trinquete: no obliga a arreglar
+  lo existente pero impide que crezca. Un gate que nadie puede pasar se desactiva
+  en una semana, y entonces no queda ni gate ni regla._
