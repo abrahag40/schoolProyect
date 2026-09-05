@@ -290,3 +290,25 @@ h6 {
   outline-offset: var(--focus-ring-offset);
   border-radius: var(--radius-md);
 }
+
+/* La prosa NUNCA excede la medida de lectura, por omision y sin que cada
+ * pantalla se acuerde.
+ *
+ * POR QUE ES REGLA DE SISTEMA Y NO DE PANTALLA. Al volver el contenido fluido
+ * (§66) los parrafos del panel pasaron a 150 caracteres por linea. El techo de
+ * WCAG 2.2 SC 1.4.8 son 80 y la convencion tipografica 45-75: estabamos al
+ * doble. Envolver ocho parrafos a mano habria arreglado ocho parrafos; esto
+ * arregla tambien los que nadie ha escrito todavia.
+ *
+ * `ch` es relativo al tamano de letra del propio elemento, asi que la medida
+ * sigue siendo correcta si el texto crece — que es justo lo que un `px` no
+ * haria. */
+.az-contenido p {
+  max-width: var(--ancho-lectura);
+}
+
+/* La excepcion explicita, para cuando un texto SI debe ocupar todo: una celda
+ * de tabla, un renglon de datos. Se escribe, no se hereda por descuido. */
+.az-contenido p.az-ancho-completo {
+  max-width: none;
+}

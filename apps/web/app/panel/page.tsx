@@ -219,9 +219,12 @@ export default function PaginaPanel() {
                 Aún no hay grupos en este periodo.
               </p>
             ) : (
-              <ul style={{ listStyle: 'none', padding: 0, margin: 'var(--space-3) 0 0' }}>
+              <ul
+                className="az-rejilla"
+                style={{ listStyle: 'none', padding: 0, margin: 'var(--space-3) 0 0' }}
+              >
                 {resumen.cohortes.map((c) => (
-                  <li key={c.id} style={filaEstilo}>
+                  <li key={c.id} style={fichaEstilo}>
                     <strong>{c.nombre}</strong>
                     <span style={{ color: 'var(--texto-tenue)', fontSize: 'var(--font-size-sm)' }}>
                       {c.inscritos} {c.inscritos === 1 ? 'inscrito' : 'inscritos'}
@@ -233,9 +236,12 @@ export default function PaginaPanel() {
           </Tarjeta>
 
           <Tarjeta titulo="Sedes">
-            <ul style={{ listStyle: 'none', padding: 0, margin: 'var(--space-3) 0 0' }}>
+            <ul
+              className="az-rejilla"
+              style={{ listStyle: 'none', padding: 0, margin: 'var(--space-3) 0 0' }}
+            >
               {resumen.sedes.map((sede) => (
-                <li key={sede.id} style={filaEstilo}>
+                <li key={sede.id} style={fichaEstilo}>
                   <strong>{sede.nombre}</strong>
                   <span style={{ color: 'var(--texto-tenue)', fontSize: 'var(--font-size-sm)' }}>
                     {/* Una academia no tiene CCT: se dice, en vez de dejar un
@@ -283,13 +289,25 @@ export default function PaginaPanel() {
   );
 }
 
-const filaEstilo = {
-  padding: 'var(--space-3) 0',
-  borderBottom: '1px solid var(--borde)',
+/**
+ * Ficha compacta: el dato encima de su etiqueta, no en el extremo opuesto.
+ *
+ * POR QUE CAMBIO (AZ-D1.6). Era una fila de ancho completo con
+ * `justify-content: space-between`. Eso funciona en un telefono y se rompe en
+ * escritorio: al volver el contenido fluido, "1o A" y "4 inscritos" quedaron
+ * separados por **963 px medidos**. El ojo no cruza ese hueco, asi que hay que
+ * leer dos veces para saber que numero pertenece a que grupo.
+ *
+ * Estirar una fila no es usar el ancho: es ocuparlo. Lo que si lo usa es que
+ * quepan varias fichas lado a lado, y de eso se encarga la `Rejilla`.
+ */
+const fichaEstilo = {
+  padding: 'var(--space-3)',
+  border: '1px solid var(--borde)',
+  borderRadius: 'var(--radius-md)',
   display: 'flex',
-  justifyContent: 'space-between',
-  gap: 'var(--space-3)',
-  flexWrap: 'wrap' as const,
+  flexDirection: 'column' as const,
+  gap: 'var(--space-1)',
 };
 
 function Cifra({ etiqueta, valor }: { etiqueta: string; valor: number }) {

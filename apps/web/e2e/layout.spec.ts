@@ -119,6 +119,35 @@ test.describe('el ancho en escritorio (AZ-D1.5)', () => {
           `(${Math.round(m.principal)} de ${Math.round(m.contenidoInterior)} px disponibles)`,
       ).toBeGreaterThanOrEqual(0.98);
 
+      // ---------------------------------------------------------------
+      // Y AHORA LA CONTRAPARTE, que la primera version no tenia.
+      //
+      // Llenar el ancho no es usarlo bien. Al migrar las pantallas, esta
+      // prueba dio 100 % y verde mientras los parrafos pasaban a 150
+      // caracteres por linea y las filas quedaban con 963px de hueco entre la
+      // etiqueta y su valor. **Una metrica que mejora mientras el diseno
+      // empeora es una advertencia sobre la metrica.**
+      //
+      // 80 caracteres es el techo de WCAG 2.2 SC 1.4.8; la convencion
+      // tipografica son 45-75 (Bringhurst). Se toma 80 porque es el que tiene
+      // norma detras, no gusto.
+      // ---------------------------------------------------------------
+      const renglonesLargos = await page.evaluate(() =>
+        [...document.querySelectorAll('main p, main li')]
+          .filter((el) => el.textContent.trim().length > 60)
+          .map((el) => {
+            const cs = getComputedStyle(el);
+            const cpl = el.getBoundingClientRect().width / (parseFloat(cs.fontSize) * 0.5);
+            return { texto: el.textContent.trim().slice(0, 40), cpl: Math.round(cpl) };
+          })
+          .filter((x) => x.cpl > 80),
+      );
+      expect(
+        renglonesLargos,
+        `${ruta}: hay texto a más de 80 caracteres por línea (WCAG 2.2 SC 1.4.8). ` +
+          `Envuélvelo en <Lectura>. ${JSON.stringify(renglonesLargos)}`,
+      ).toEqual([]);
+
       const usado = (m.sidebarEnFlujo ? m.sidebar : 0) + m.contenido;
       const proporcion = usado / m.vp;
       expect(
