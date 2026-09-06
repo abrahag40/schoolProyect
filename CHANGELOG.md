@@ -5,6 +5,61 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) · Versiona
 Se escribe desde el primer commit, no al final: reconstruir la historia despues
 es caro; anotarla por release es gratis.
 
+## [0.8.0] — 2026-09-06 — Sprint 7: la capa de layout que nunca se construyó
+
+Objetivo: que cada pantalla use el ancho de la pantalla, y que el ancho deje de
+decidirse pantalla por pantalla.
+
+**Origen (cambio C4):** el CEO observó al probar staging en escritorio que el
+panel desperdiciaba espacio. La medición encontró una causa más profunda que el
+síntoma: **no existía capa de layout**. Cada pantalla fijaba su ancho en línea
+—720, 820, 820, 880, 960— porque no había marco del que heredar.
+
+### La cifra
+
+|                                        | Antes | Después                  |
+| -------------------------------------- | ----- | ------------------------ |
+| Aprovechamiento del ancho a 1440 px    | 61 %  | **100 %**                |
+| Contenedores con ancho propio          | 16    | **0**                    |
+| Caracteres por línea                   | 150   | ≤ 80 (WCAG 2.2 SC 1.4.8) |
+| Huecos > 250 px entre etiqueta y valor | 5     | **0**                    |
+
+### Agregado
+
+- **Tokens de layout** en `packages/tokens`: ancho de sidebar, medida de lectura
+  y los puntos de quiebre. Nacen del sistema y llegan generados, igual que el color.
+- **`ArmazonPanel`** — navegación persistente de 280 px que colapsa bajo 1025 px,
+  con `aria-expanded`, `aria-current`, área táctil de 44 px y Escape que cierra
+  **devolviendo el foco** al botón que abrió.
+- **`Rejilla` y `Lectura`** — rejilla que se acomoda sola y medida de lectura de
+  componente.
+- **8 pruebas de navegador del ancho**, con dos mordidas verificadas: cazan un
+  tope declarado con `maxWidth` **y** uno disfrazado de `width` fijo.
+- **Sombrero de Auditor** (`.claude/skills/auditor`), `pnpm auditoria` y el
+  **trinquete** de estilos, ya dentro de `pnpm lint`.
+- **Tailwind 4 y el puente de tokens** hacia los componentes de Metronic
+  (ADR-012). **Entró fuera del alcance del sprint y se declara como tal.**
+
+### Corregido
+
+- **El ancho lo recupera la navegación, no un tope más grande (§66).** La
+  propuesta inicial era subir el tope a 1120 px; medir la referencia mostró que
+  habría dejado 320 px desperdiciados igual.
+- **La prosa no excede la medida de lectura**, por regla de sistema y no
+  pantalla por pantalla.
+- **`aria-current="page"` en el enlace**, no en un hijo donde un lector de
+  pantalla no lo anuncia.
+- **El ensayo de despliegue** volvió a pasar: le faltaba `NEXT_PUBLIC_WEB_ORIGIN`,
+  que el propio guard de §59 exige desde el intervalo anterior.
+
+### No entregado
+
+- `AZ-D1.6` jerarquía de información: **solo el Panel**, faltan 4 pantallas.
+- `AZ-D1.7` densidad en tablas: **no se hizo**. El `DataGrid` del Sprint 8 la
+  resuelve mejor que hacerla a mano.
+
+Ambos se advirtieron por escrito al ampliar el alcance con el sidebar.
+
 ## [No publicado] — desde el 2026-09-02
 
 Trabajo posterior al Sprint 6, sin release propio todavía: el primer despliegue

@@ -61,11 +61,19 @@ docker exec "$DB" pg_isready -U ensayo_owner -d azahar >/dev/null 2>&1 \
 ok "postgres 16 arriba, sin una sola tabla"
 
 paso "3/6 Arrancando el API: debe migrar SOLO antes de servir"
+# NEXT_PUBLIC_WEB_ORIGIN es OBLIGATORIA desde el 4-sep-2026 (§59): en produccion
+# el API se niega a arrancar sin el origen de la web, porque antes caia en
+# silencio a un localhost y dejaba el CORS cerrado contra su propia web. Este
+# contenedor corre con NODE_ENV=production, asi que le aplica la misma regla.
+#
+# Y este ensayo fue quien lo cazo, al cerrar el Sprint 7: la guarda hizo su
+# trabajo —se nego a arrancar mal configurada— y lo que faltaba era configurarla.
 docker run -d --name "$API" --network "$RED" -p "${PUERTO}:3333" \
   -e DATABASE_URL="$URL_APP" \
   -e DATABASE_URL_OWNER="$URL_OWNER" \
   -e AUTH_SECRET="secreto-de-ensayo-de-al-menos-32-caracteres" \
   -e API_PORT=3333 \
+  -e NEXT_PUBLIC_WEB_ORIGIN="http://localhost:3010" \
   "$IMAGEN" >/dev/null
 
 listo=false
