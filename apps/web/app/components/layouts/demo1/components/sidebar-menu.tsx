@@ -74,7 +74,14 @@ export function SidebarMenu() {
     } else {
       return (
         <AccordionMenuItem key={index} value={item.path || ''} className="text-sm font-medium">
-          <Link href={item.path || '#'} className="flex items-center justify-between grow gap-2">
+          {/* `justify-start`, no el `justify-between` del original.
+              Con solo dos hijos —icono y titulo— `between` los empuja a los
+              extremos: el icono pegado al borde izquierdo y la etiqueta al
+              derecho, con un hueco de 130 px en medio.
+              En el demo1 no se nota porque casi todas sus secciones tienen
+              submenu y entran por otra rama; el menu de Azahar es todo hojas,
+              asi que se veia en las seis. */}
+          <Link href={item.path || '#'} className="flex grow items-center justify-start gap-2">
             {item.icon && <item.icon data-slot="accordion-menu-icon" />}
             <span data-slot="accordion-menu-title">{item.title}</span>
           </Link>
