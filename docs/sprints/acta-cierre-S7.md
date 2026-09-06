@@ -1,11 +1,11 @@
 # Acta de cierre — Sprint 7 «Diseño: la capa de layout que nunca se construyó»
 
-| Campo   | Valor                               |
-| ------- | ----------------------------------- |
-| Rama    | `sprint-7-diseno-layout`            |
-| Cierre  | 6-sep-2026                          |
-| Versión | `v0.8.0`                            |
-| Estado  | **PENDIENTE de aceptación del CEO** |
+| Campo   | Valor                                                                  |
+| ------- | ---------------------------------------------------------------------- |
+| Rama    | `sprint-7-diseno-layout`                                               |
+| Cierre  | 6-sep-2026                                                             |
+| Versión | `v0.8.0`                                                               |
+| Estado  | **ACEPTADA por el CEO el 6-sep-2026** · mergeada a `main` en `4870087` |
 
 ---
 

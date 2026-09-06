@@ -33,14 +33,23 @@ este sprint existe para que la adopción no siga ocurriendo a pedazos.
 
 | ID        | Qué                                                                                                                              | MoSCoW   |
 | --------- | -------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| `AZ-M9.1` | **Probar el supuesto más riesgoso**: adoptar `Button` y verificar que el gate de contraste (§30) sigue verde con nuestros tokens | **Must** |
-| `AZ-M9.2` | Regla escrita de adopción: dónde viven, cómo se nombran, qué se verifica                                                         | **Must** |
-| `AZ-M9.3` | `DataGrid` sobre TanStack Table adoptado y adaptado                                                                              | **Must** |
-| `AZ-M9.4` | **Cobranza reconstruida** sobre el `DataGrid`, con prueba de navegador                                                           | **Must** |
-| `AZ-M9.5` | Inventario de lo adoptado, para saber qué mantenemos                                                                             | **Must** |
-| `AZ-M9.6` | `Form` (react-hook-form + zod) y una pantalla de captura migrada                                                                 | Should   |
-| `AZ-M9.7` | Sidebar plegable a riel de 80 px con expansión al pasar                                                                          | Should   |
-| `AZ-M9.8` | Decidir qué pasa con nuestros primitivos (`Boton`, `CampoTexto`, `Insignia`)                                                     | Could    |
+| `AZ-D2.1` | **Probar el supuesto más riesgoso**: adoptar `Button` y verificar que el gate de contraste (§30) sigue verde con nuestros tokens | **Must** |
+| `AZ-D2.2` | Regla escrita de adopción: dónde viven, cómo se nombran, qué se verifica                                                         | **Must** |
+| `AZ-D2.3` | `DataGrid` sobre TanStack Table adoptado y adaptado                                                                              | **Must** |
+| `AZ-D2.4` | **Cobranza reconstruida** sobre el `DataGrid`, con prueba de navegador                                                           | **Must** |
+| `AZ-D2.5` | Inventario de lo adoptado, para saber qué mantenemos                                                                             | **Must** |
+| `AZ-D2.6` | `Form` (react-hook-form + zod) y una pantalla de captura migrada                                                                 | Should   |
+| `AZ-D2.7` | Sidebar plegable a riel de 80 px con expansión al pasar                                                                          | Should   |
+| `AZ-D2.8` | Decidir qué pasa con nuestros primitivos (`Boton`, `CampoTexto`, `Insignia`)                                                     | Could    |
+
+> **Sobre los identificadores.** Estos ítems nacieron como `AZ-M9.x`, que
+> **colisionaba con la épica E9 «Plataforma ZaharDev»** (wizard Activate, panel
+> de clientes, dashboard MRR) asignada en el cambio C1. El esquema es
+> `AZ-M<épica>.<n>`, así que E9 ya estaba tomada. Se renombran a `AZ-D2.x`,
+> continuando el espacio de diseño que abrió el S7 con `AZ-D1.x`.
+> ISO/IEC/IEEE 29148:2018 exige identificadores únicos y trazables; la colisión
+> era latente —los ítems de E9 aún no se numeran— y corregirla hoy cuesta ocho
+> líneas. Aprobado por el CEO el 6-sep-2026.
 
 ## 3 · Cómo se hace — el orden importa
 
@@ -54,7 +63,7 @@ lo demás. Se prueba con `Button` —el componente más barato— antes de tocar
 Es el método de la casa: probar primero el supuesto que, si es falso, tira el
 trabajo.
 
-### Las tres reglas de adopción (`AZ-M9.2`)
+### Las tres reglas de adopción (`AZ-D2.2`)
 
 1. **Se copia a nuestro árbol, nunca se referencia.** Van a
    `apps/web/components/ui/`. Referenciar la carpeta de la plantilla la
@@ -107,7 +116,7 @@ transiciones. El nuestro tiene 22 pruebas de navegador detrás.
 
 1. **El gate de contraste (§30) es el juez del puente.** Si un componente
    adoptado pinta con un color que no pasa, el puente está mal — y eso se sabe
-   en `AZ-M9.1`, no al final.
+   en `AZ-D2.1`, no al final.
 2. **Prueba de navegador de Cobranza**: la tabla ordena, filtra y pagina contra
    datos reales, a 1440 px y a 360 px.
 3. **El trinquete no sube.** Los componentes de Metronic usan clases de
@@ -118,11 +127,11 @@ transiciones. El nuestro tiene 22 pruebas de navegador detrás.
 
 | Riesgo / alternativa                  | Decisión                                                                                    |
 | ------------------------------------- | ------------------------------------------------------------------------------------------- |
-| El puente de tokens no mapea limpio   | Es `AZ-M9.1` y va primero, a propósito                                                      |
+| El puente de tokens no mapea limpio   | Es `AZ-D2.1` y va primero, a propósito                                                      |
 | Adoptar los 77 componentes de golpe   | **Descartada.** Cada uno es código que hay que mantener. Entra el que una pantalla necesite |
 | Sustituir nuestro armazón por el suyo | **Descartada** con defectos medidos (ADR-012)                                               |
 | Divergencia web/móvil de color        | El puente lo impide; el gate de tokens lo vigila                                            |
-| Quedarnos con dos sistemas de botones | Es `AZ-M9.8`, y se decide **después** de tener evidencia, no antes                          |
+| Quedarnos con dos sistemas de botones | Es `AZ-D2.8`, y se decide **después** de tener evidencia, no antes                          |
 
 ## 9 · Demo de cierre
 
