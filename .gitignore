@@ -32,3 +32,17 @@ npm-debug.log*
 # Playwright
 test-results/
 playwright-report/
+
+# ---------------------------------------------------------------------------
+# PLANTILLA COMERCIAL LICENCIADA — NUNCA se commitea.
+#
+# `metronic-v9.5.0` es una plantilla de pago (KeenThemes) que compro el CEO. Su
+# licencia permite USARLA en productos propios, NO redistribuir el codigo
+# fuente. **Este repositorio es PUBLICO**: commitearla seria redistribuirla a
+# cualquiera, y ademas meteria 1 GB en el historial de git, de donde no se quita
+# sin reescribir la historia.
+#
+# Se ignora la carpeta entera. Lo que Azahar tome de ella son componentes
+# REIMPLEMENTADOS sobre nuestros tokens, no archivos copiados (ADR-006).
+# ---------------------------------------------------------------------------
+metronic-v9.5.0/

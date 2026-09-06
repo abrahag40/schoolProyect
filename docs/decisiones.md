@@ -418,3 +418,19 @@ true)` dentro de una transaccion, nunca como ajuste de sesion. _(Motivo: con
   propio método exige y que la propuesta §64 se había saltado: sus números
   (1120, 1440) se dedujeron del tipo de contenido, sin contrastarlos contra
   nada real. Medir la referencia costó veinte minutos y cambió el diseño._
+
+- **§67** — **De Metronic se toma la estructura; el color lo sigue poniendo
+  Azahar.** Sus componentes leen variables semánticas (`--primary`,
+  `--destructive`, `--border`) y `apps/web/app/tailwind.css` las apunta a
+  nuestros tokens. Ningún archivo de la plantilla se edita para cambiar un color.
+  _(Sin ese puente, la web pintaría el azul de Metronic y la app móvil el
+  nuestro: dos fuentes de verdad y divergencia silenciosa, que es exactamente lo
+  que `packages/tokens` existe para impedir.)_
+  _**La bifurcación resultó menor de lo que yo mismo advertí:** `apps/mobile`
+  nunca consumió `packages/ui` —renderiza HTML, que en React Native no existe—,
+  así que la separación de componentes existía desde el Sprint 0. Lo único nuevo
+  es que la mitad web lleva Tailwind. Los tokens siguen siendo una sola fuente._
+  _**Y una lección de herramientas:** ignorar la plantilla en `.gitignore` no
+  bastó. ESLint entró a analizarla y reventó el gate con errores ajenos. Cada
+  herramienta decide algo distinto —git qué se publica, ESLint qué se revisa,
+  Prettier qué se formatea— y cada una necesitaba su exclusión. Ver ADR-012._

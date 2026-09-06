@@ -1,5 +1,7 @@
 import type { Metadata, Viewport } from 'next';
-import '@azahar/ui/theme.css';
+// `tailwind.css` importa el tema de Azahar y ademas tiende el puente hacia
+// los nombres de variable que esperan los componentes de Metronic (§67).
+import './tailwind.css';
 
 export const metadata: Metadata = {
   title: 'Azahar',
