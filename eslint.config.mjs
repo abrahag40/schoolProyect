@@ -40,6 +40,26 @@ export default tseslint.config(
       // Se ignora aqui ademas de en `.gitignore` porque son herramientas
       // distintas: git decide que se publica, ESLint que se revisa.
       'metronic-v9.5.0/**',
+      // EL ARBOL ADOPTADO (AZ-D2.9). Mismo criterio que la linea de arriba: es
+      // codigo de Metronic copiado a nuestro repo, no escrito por nosotros.
+      // Nuestras reglas le encuentran 126 errores —`no-undef` sobre `window`,
+      // aserciones de tipo, `setState` dentro de efectos— que son diferencias
+      // de configuracion, no defectos suyos.
+      //
+      // POR QUE SE IGNORA EN VEZ DE ARREGLARSE. Arreglarlos convertiria cada
+      // archivo en un fork: al llegar Metronic 9.6 no se podria diffear, que es
+      // justo lo que la regla 3 de adopcion existe para preservar.
+      //
+      // LO QUE SI SE REVISA: todo lo que escribimos nosotros, incluido lo que
+      // vive DENTRO de `layouts/demo1` con nombre propio (`menu-usuario.tsx`,
+      // nuestro `header.tsx`). La frontera no es la carpeta: es la autoria, y
+      // se declara archivo por archivo mas abajo.
+      'apps/web/components/ui/**',
+      'apps/web/components/common/**',
+      'apps/web/components/keenicons/**',
+      'apps/web/hooks/**',
+      'apps/web/providers/**',
+      'apps/web/css/**',
     ],
   },
 

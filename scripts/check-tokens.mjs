@@ -25,6 +25,30 @@ const EXCLUIDOS = [
   'theme.css',
   'tokens.css',
   'tokens.js',
+  // --- EL ARBOL ADOPTADO DE METRONIC (AZ-D2.9, Sprint 8) -------------------
+  //
+  // Mismo criterio que ESLint: es codigo que no escribimos. Al copiarlo, este
+  // gate encontro 57 literales de color dentro de sus componentes.
+  //
+  // NO SE "PERDONAN": SE MIDEN Y SE VIGILAN EN OTRA CAPA. Esos 57 son un
+  // riesgo real —un componente suyo puede pintar un gris que no sale de
+  // nuestros tokens— pero perseguirlos archivo por archivo convertiria cada
+  // uno en un fork imposible de diffear contra Metronic 9.6.
+  //
+  // Lo que si se vigila es lo que IMPORTA y donde IMPORTA:
+  // `apps/web/e2e/puente-tokens.spec.ts` mide el contraste sobre el componente
+  // YA RENDERIZADO (§68). Un literal en un componente que nadie monta no hace
+  // daño; uno en un boton que si se usa pone el gate en rojo. Es la diferencia
+  // entre prohibir la forma y comprobar el efecto (§14).
+  //
+  // El conteo vive en el inventario del sprint. Si sube, es que entro codigo
+  // nuevo sin revisar.
+  'apps/web/components/ui',
+  'apps/web/components/common',
+  'apps/web/components/keenicons',
+  'apps/web/css',
+  'apps/web/hooks',
+  'apps/web/providers',
 ];
 
 // Hex de 3/4/6/8 digitos, rgb()/rgba()/hsl() con numeros.
@@ -38,8 +62,13 @@ function* archivos(dir) {
     return; // el directorio aun no existe (sprint temprano)
   }
   for (const e of entradas) {
-    if (EXCLUIDOS.includes(e)) continue;
     const p = join(dir, e);
+    // Se excluye por NOMBRE (`node_modules`, `theme.css`) o por RUTA
+    // (`apps/web/components/ui`). Las dos formas hacen falta: `ui` como nombre
+    // suelto excluiria cualquier carpeta llamada asi en todo el repo, incluida
+    // una nuestra. La ruta dice exactamente cual.
+    const rel = relative(RAIZ, p);
+    if (EXCLUIDOS.some((x) => x === e || rel === x || rel.startsWith(`${x}/`))) continue;
     if (statSync(p).isDirectory()) yield* archivos(p);
     else if (EXT.has(extname(p))) yield p;
   }

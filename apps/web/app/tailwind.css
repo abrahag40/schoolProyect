@@ -19,8 +19,41 @@
  */
 @import 'tailwindcss';
 
-/* Nuestro tema PRIMERO: define los tokens crudos y los semanticos en español. */
+/* ---------------------------------------------------------------------------
+ * ORDEN DE CARGA. No es preferencia: es lo que decide quien gana.
+ *
+ *   1. Metronic define SUS colores en `config.reui.css` (azul 500, rojo 600...).
+ *   2. Nuestro tema define los tokens de Azahar.
+ *   3. El puente reapunta las variables de Metronic a los nuestros.
+ *
+ * Invertir 1 y 3 haria que la web pintara el azul de Metronic. El armazon, los
+ * componentes y el CSS del demo1 son suyos; el color, nuestro (§67).
+ * -------------------------------------------------------------------------*/
+
+/* 1. Metronic: variables base, CSS de sus componentes y el armazon del demo1. */
+@import '../css/config.reui.css';
+@import '../css/components/image-input.css';
+@import '../css/components/apexcharts.css';
+@import '../css/components/leaflet.css';
+@import '../css/components/rating.css';
+@import '../css/components/scrollable.css';
+@import '../css/demos/demo1.css';
+
+/* 2. Nuestro tema: tokens crudos y semanticos en español. */
 @import '@azahar/ui/theme.css';
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  /* El anillo de foco global de Metronic. Se conserva porque cumple
+   * WCAG 2.2 SC 2.4.7, que es justo lo que ADR-006 corrigio de la referencia
+   * anterior; el COLOR sale de `--ring`, que el puente apunta a Azahar. */
+  *:focus-visible {
+    @apply outline-ring rounded-xs shadow-none outline-2 outline-offset-3 transition-none!;
+  }
+}
 
 /* ---------------------------------------------------------------------------
  * El puente. A la izquierda, lo que los componentes de Metronic piden; a la
@@ -48,11 +81,27 @@
   --accent: var(--superficie-alt);
   --accent-foreground: var(--texto);
 
-  --destructive: var(--color-semantic-danger);
-  --destructive-foreground: var(--color-light-on-action);
+  /* `destructive` es el color de ACCION DESTRUCTIVA, no el rojo de estado. La
+   * distincion es la misma que separa `--primary` del azul de marca (§30): el
+   * `danger` de la plantilla da 3.70:1 con texto blanco y no alcanza AA.
+   *
+   * NO LO ENCONTRO UNA REVISION: lo encontro el gate de §68 en su primera
+   * corrida, sobre el boton ya renderizado. La prueba de tokens no lo veia
+   * porque nunca hubo un par de contraste declarado para el peligro. */
+  --destructive: var(--peligro-fondo);
+  --destructive-foreground: var(--peligro-texto);
 
+  /* DOS BORDES, NO UNO. `border` separa (una fila de otra, el canto de una
+   * tarjeta) y con 1.24:1 hace ese trabajo bien. `input` DIBUJA el control: en
+   * un campo de texto o un boton `outline` el borde es lo unico que dice donde
+   * empieza, y SC 1.4.11 exige 3:1. Meterlos en el mismo token obligaba a
+   * elegir entre una tabla con rayas negras o un control invisible.
+   *
+   * Lo encontro el gate de §68, no una revision: el boton `outline` renderizado
+   * daba 1.24:1. La prueba de tokens que dice llamarse «borde de control» mide
+   * en realidad el anillo de foco, asi que el borde nunca se habia probado. */
   --border: var(--borde);
-  --input: var(--borde);
+  --input: var(--borde-control);
   /* El anillo de foco: la plantilla de referencia no lo tenia y era un
    * incumplimiento de WCAG 2.2 SC 2.4.7 (ADR-006). Aqui no se pierde. */
   --ring: var(--texto-primario);
@@ -84,16 +133,27 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
 
-  /* Los puntos de quiebre son los NUESTROS (§66), que ya coinciden con la
-   * escala de Bootstrap 5 que usa la referencia. */
-  --breakpoint-sm: var(--bp-sm);
-  --breakpoint-md: var(--bp-md);
-  --breakpoint-lg: var(--bp-lg);
-  --breakpoint-xl: var(--bp-xl);
-  --breakpoint-2xl: var(--bp-xxl);
+  /* Los puntos de quiebre son los NUESTROS (§66) — la escala de Bootstrap 5,
+   * que es la que usa la referencia.
+   *
+   * VAN CON EL LITERAL, NO CON `var()`, Y NO ES UNA INCONSISTENCIA: **CSS no
+   * admite `var()` dentro de un `@media`**. Con la variable, Tailwind emitia
+   * `@media (width >= var(--bp-lg))` al generar la utilidad `container` —que
+   * es la que usa el armazon del demo1— y el compilador de CSS reventaba con
+   * «Unexpected token Function("var")». Para los COLORES `var()` si sirve, y
+   * por eso arriba se usa: se resuelven al pintar, no al compilar.
+   *
+   * El precio de esto es que el valor queda duplicado respecto de
+   * `packages/tokens`. Se paga con un gate: `scripts/check-breakpoints.mjs`
+   * compara los dos y se pone rojo si divergen (§65). */
+  --breakpoint-sm: 576px;
+  --breakpoint-md: 768px;
+  --breakpoint-lg: 992px;
+  --breakpoint-xl: 1200px;
+  --breakpoint-2xl: 1400px;
 }
 
 /* El tema oscuro de Azahar se elige con `data-theme`, no con la clase `.dark`
  * que asume Metronic. Se declara la equivalencia para que sus componentes
  * respondan al mismo interruptor y no haya dos formas de cambiar de tema. */
-@custom-variant dark (&:is([data-theme='dark'] *, :root:not([data-theme='light']) *));
+@custom-variant dark (&:is([data-theme='dark'] *, .dark *, :root:not([data-theme='light']) *));

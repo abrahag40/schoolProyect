@@ -10,7 +10,11 @@
     "noEmit": true,
     "incremental": true,
     "plugins": [{ "name": "next" }],
-    "paths": { "@/*": ["./*"] }
+    // Dos raices, igual que la plantilla: sus archivos importan tanto
+    // `@/components/ui/...` como `@/partials/...`, y los partials viven bajo
+    // `app/components/`. Sin la segunda raiz habria que reescribir 124 archivos
+    // y perderiamos poder diffearlos contra una version nueva de Metronic.
+    "paths": { "@/*": ["./*", "./app/components/*"] }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
   "exclude": ["node_modules"]

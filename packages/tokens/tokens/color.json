@@ -11,25 +11,55 @@
         "$value": "#0777B6",
         "$description": "Variante accesible del primario, misma familia de tono. Uso: texto y links sobre superficie clara, fondo de botones primarios con texto blanco, bordes de controles. Contrastes verificados por test: 4.86:1 contra blanco."
       },
-      "secondary": { "$value": "#39465F" }
+      "secondary": {
+        "$value": "#39465F"
+      }
     },
     "semantic": {
-      "success": { "$value": "#1DE9B6" },
-      "danger": { "$value": "#F44236" },
-      "warning": { "$value": "#F4C22B" },
-      "info": { "$value": "#3EBFEA" },
+      "success": {
+        "$value": "#1DE9B6"
+      },
+      "danger": {
+        "$value": "#F44236"
+      },
+      "danger-strong": {
+        "$value": "#D32F2F",
+        "$description": "Variante accesible del peligro, misma familia de tono. El `danger` de la plantilla da 3.70:1 con texto blanco: no alcanza AA para texto (4.5:1). Uso: fondo de botones destructivos con texto blanco en tema CLARO. Verificado por test: 4.98:1 contra blanco. Es el mismo patron que brand.primary-strong (§30) aplicado al segundo color que lo necesitaba."
+      },
+      "warning": {
+        "$value": "#F4C22B"
+      },
+      "info": {
+        "$value": "#3EBFEA"
+      },
       "$description": "Colores de estado de la plantilla. Regla de uso (DoD UX): el color NUNCA es el unico portador de significado — todo estado lleva ademas icono o texto (WCAG 2.2 SC 1.4.1). Los tonos claros (success, warning) solo se usan como relleno con texto oscuro encima o como franja/indicador, jamas como texto sobre blanco."
     },
     "light": {
       "$description": "Tema claro (default).",
-      "bg": { "$value": "#F4F7FA" },
-      "surface": { "$value": "#FFFFFF" },
-      "surface-alt": { "$value": "#F3F5F7" },
-      "heading": { "$value": "#1D2630" },
-      "text": { "$value": "#39465F" },
-      "muted": { "$value": "#5B6B79" },
-      "border": { "$value": "#DBE0E5" },
-      "text-primary": { "$value": "{color.brand.primary-strong}" },
+      "bg": {
+        "$value": "#F4F7FA"
+      },
+      "surface": {
+        "$value": "#FFFFFF"
+      },
+      "surface-alt": {
+        "$value": "#F3F5F7"
+      },
+      "heading": {
+        "$value": "#1D2630"
+      },
+      "text": {
+        "$value": "#39465F"
+      },
+      "muted": {
+        "$value": "#5B6B79"
+      },
+      "border": {
+        "$value": "#DBE0E5"
+      },
+      "text-primary": {
+        "$value": "{color.brand.primary-strong}"
+      },
       "action-bg": {
         "$value": "{color.brand.primary-strong}",
         "$description": "Fondo del boton primario en tema claro."
@@ -37,23 +67,65 @@
       "on-action": {
         "$value": "#FFFFFF",
         "$description": "Texto sobre action-bg. Par verificado 4.86:1."
+      },
+      "danger-bg": {
+        "$value": "{color.semantic.danger-strong}",
+        "$description": "Fondo de accion destructiva en tema claro."
+      },
+      "on-danger": {
+        "$value": "#FFFFFF",
+        "$description": "Texto sobre danger-bg. Par verificado 4.98:1."
+      },
+      "border-control": {
+        "$value": "#7E8C9A",
+        "$description": "Borde de un control INTERACTIVO, donde el borde es lo que identifica al componente (campo de texto, boton `outline`). WCAG 2.2 SC 1.4.11 exige 3:1 contra lo adyacente y `border` da 1.24:1 — suficiente para separar una fila de otra, insuficiente para dibujar un control. Son dos trabajos distintos y ahora son dos tokens. Verificado: 3.44:1 contra superficie, 3.20:1 contra fondo."
       }
     },
     "dark": {
       "$description": "Tema oscuro. La plantilla ya venia tokenizada para dark; el sistema nace con ambos temas (requisito del artefacto y de la app movil). En oscuro SI se usa el azul de marca puro como fondo de accion, con texto oscuro encima: ese par alcanza 6.74:1 y ademas conserva mejor la identidad.",
-      "bg": { "$value": "#131920" },
-      "surface": { "$value": "#1B232D" },
-      "surface-alt": { "$value": "#19212A" },
-      "heading": { "$value": "#FAFAFA" },
-      "text": { "$value": "#BFBFBF" },
-      "muted": { "$value": "#8B98A5" },
-      "border": { "$value": "#303F50" },
+      "bg": {
+        "$value": "#131920"
+      },
+      "surface": {
+        "$value": "#1B232D"
+      },
+      "surface-alt": {
+        "$value": "#19212A"
+      },
+      "heading": {
+        "$value": "#FAFAFA"
+      },
+      "text": {
+        "$value": "#BFBFBF"
+      },
+      "muted": {
+        "$value": "#8B98A5"
+      },
+      "border": {
+        "$value": "#303F50"
+      },
       "text-primary": {
         "$value": "{color.brand.primary}",
         "$description": "Sobre fondo oscuro el primario original si pasa AA (6.74:1 contra #131920)."
       },
-      "action-bg": { "$value": "{color.brand.primary}" },
-      "on-action": { "$value": "#131920" }
+      "action-bg": {
+        "$value": "{color.brand.primary}"
+      },
+      "on-action": {
+        "$value": "#131920"
+      },
+      "danger-bg": {
+        "$value": "{color.semantic.danger}",
+        "$description": "En oscuro el rojo de la plantilla SI sirve como fondo, con texto oscuro encima."
+      },
+      "on-danger": {
+        "$value": "#131920",
+        "$description": "Texto sobre danger-bg en oscuro. Par verificado 4.78:1."
+      },
+      "border-control": {
+        "$value": "#5E7186",
+        "$description": "Equivalente en oscuro. Verificado: 3.16:1 contra superficie, 3.52:1 contra fondo."
+      }
     }
   }
 }

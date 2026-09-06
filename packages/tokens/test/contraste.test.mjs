@@ -83,9 +83,28 @@ test('AA: boton primario en tema claro (texto sobre fondo de accion)', () => {
   assert.ok(r >= AA_TEXTO, `on-action/action-bg = ${r.toFixed(2)}:1`);
 });
 
-test('AA: borde de control visible sobre la superficie (SC 1.4.11)', () => {
+// PRUEBA MAL NOMBRADA, CORREGIDA EL 6-sep-2026. Decia «borde de control» y
+// comparaba `text-primary` contra la superficie: eso es el ANILLO DE FOCO, no el
+// borde. El resultado era correcto y la etiqueta mentia, asi que el token
+// `border` llevaba siete sprints sin probarse — hasta que el gate del puente
+// (§68) midio un boton `outline` renderizado y dio 1.24:1.
+test('AA: anillo de foco visible sobre la superficie (SC 2.4.7 / 1.4.11)', () => {
   const r = contraste(valor(color.light['text-primary']), valor(color.light.surface));
-  assert.ok(r >= AA_NO_TEXTO, `borde de foco/superficie = ${r.toFixed(2)}:1`);
+  assert.ok(r >= AA_NO_TEXTO, `anillo de foco/superficie = ${r.toFixed(2)}:1`);
+});
+
+test('AA: borde de un control interactivo, tema claro (SC 1.4.11)', () => {
+  for (const fondo of ['surface', 'bg']) {
+    const r = contraste(valor(color.light['border-control']), valor(color.light[fondo]));
+    assert.ok(r >= AA_NO_TEXTO, `border-control/${fondo} claro = ${r.toFixed(2)}:1`);
+  }
+});
+
+test('AA: borde de un control interactivo, tema oscuro (SC 1.4.11)', () => {
+  for (const fondo of ['surface', 'bg']) {
+    const r = contraste(valor(color.dark['border-control']), valor(color.dark[fondo]));
+    assert.ok(r >= AA_NO_TEXTO, `border-control/${fondo} oscuro = ${r.toFixed(2)}:1`);
+  }
 });
 
 // --- Tema oscuro -------------------------------------------------------------
@@ -110,6 +129,27 @@ test('AA: boton primario en tema oscuro (texto oscuro sobre azul de marca)', () 
   assert.ok(r >= AA_TEXTO, `on-action/action-bg oscuro = ${r.toFixed(2)}:1`);
 });
 
+// --- Accion destructiva ------------------------------------------------------
+//
+// HUECO QUE ESTE BLOQUE CIERRA (6-sep-2026, Sprint 8). El color de peligro
+// nunca tuvo una prueba de contraste: se probaban texto, titulos, muted, links,
+// boton primario y borde, pero no el rojo. El defecto salio cuando el gate del
+// puente (§68) midio el boton `destructive` ya renderizado y dio 3.70:1.
+//
+// Se prueba AQUI ademas de en el navegador a proposito: son las dos capas de
+// §13 —la regla pura y el cableado real— y cada una caza lo que la otra no.
+// Esta prueba muerde al tocar la paleta; la del navegador, al tocar el puente.
+
+test('AA: boton destructivo en tema claro (texto sobre fondo de peligro)', () => {
+  const r = contraste(valor(color.light['on-danger']), valor(color.light['danger-bg']));
+  assert.ok(r >= AA_TEXTO, `on-danger/danger-bg claro = ${r.toFixed(2)}:1`);
+});
+
+test('AA: boton destructivo en tema oscuro', () => {
+  const r = contraste(valor(color.dark['on-danger']), valor(color.dark['danger-bg']));
+  assert.ok(r >= AA_TEXTO, `on-danger/danger-bg oscuro = ${r.toFixed(2)}:1`);
+});
+
 // --- Documentacion ejecutable del defecto heredado ---------------------------
 
 test('el azul de marca puro NO es apto como texto sobre blanco (defecto de la plantilla)', () => {
@@ -118,5 +158,14 @@ test('el azul de marca puro NO es apto como texto sobre blanco (defecto de la pl
     r < AA_TEXTO,
     `El primario ya alcanza AA como texto (${r.toFixed(2)}:1). Si esto cambia, ` +
       'primary-strong puede simplificarse: revisar ADR-006 antes de tocar la paleta.',
+  );
+});
+
+test('el rojo de peligro puro NO es apto como fondo con texto blanco (defecto heredado)', () => {
+  const r = contraste(valor(color.semantic.danger), '#FFFFFF');
+  assert.ok(
+    r < AA_TEXTO,
+    `El peligro ya alcanza AA con blanco (${r.toFixed(2)}:1). Si esto cambia, ` +
+      'danger-strong puede simplificarse: revisar ADR-006 antes de tocar la paleta.',
   );
 });
