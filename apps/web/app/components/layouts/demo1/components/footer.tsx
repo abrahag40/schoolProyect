@@ -1,36 +1,36 @@
 'use client';
 
-import { generalSettings } from '@/config/general.config';
 import { Container } from '@/components/common/container';
 
+/**
+ * ADAPTADO del footer del demo1 (AZ-D2.7).
+ *
+ * SE CONSERVA su estructura: una sola linea, centrada en movil y repartida en
+ * escritorio, dentro del mismo `Container` que el resto del armazon.
+ *
+ * SE QUITARON SUS CINCO ENLACES —Docs, Purchase, FAQ, Support, License—, que
+ * apuntaban a keenthemes.com. En el footer de Azahar mandaban al usuario a
+ * comprar la plantilla que usamos, que ademas de fuera de lugar delata la
+ * procedencia del codigo a cualquiera que pase el raton por encima.
+ *
+ * No se sustituyen por enlaces nuestros todavia: Azahar no tiene documentacion
+ * publica ni centro de ayuda. Un enlace que no lleva a nada es peor que la
+ * ausencia — es el mismo criterio que se aplico al header (§53 por analogia).
+ */
 export function Footer() {
-  const currentYear = new Date().getFullYear();
+  const anio = new Date().getFullYear();
 
   return (
     <footer className="footer">
       <Container>
-        <div className="flex flex-col md:flex-row justify-center md:justify-between items-center gap-3 py-5">
-          <div className="flex order-2 md:order-1  gap-2 font-normal text-sm">
-            <span className="text-muted-foreground">{currentYear} &copy;</span>
+        <div className="flex flex-col items-center justify-center gap-3 py-5 md:flex-row md:justify-between">
+          <div className="flex gap-2 text-sm font-normal">
+            <span className="text-muted-foreground">{anio} &copy;</span>
             <span className="text-secondary-foreground">ZaharDev</span>
           </div>
-          <nav className="flex order-1 md:order-2 gap-4 font-normal text-sm text-muted-foreground">
-            <a href={generalSettings.docsLink} target="_blank" className="hover:text-primary">
-              Docs
-            </a>
-            <a href={generalSettings.purchaseLink} target="_blank" className="hover:text-primary">
-              Purchase
-            </a>
-            <a href={generalSettings.faqLink} target="_blank" className="hover:text-primary">
-              FAQ
-            </a>
-            <a href="https://devs.keenthemes.com" target="_blank" className="hover:text-primary">
-              Support
-            </a>
-            <a href={generalSettings.licenseLink} target="_blank" className="hover:text-primary">
-              License
-            </a>
-          </nav>
+          <span className="text-muted-foreground text-sm font-normal">
+            Azahar — gestión escolar
+          </span>
         </div>
       </Container>
     </footer>

@@ -1,7 +1,21 @@
+// ADOPTADO de Metronic y TRADUCIDO (AZ-D2.9). Azahar es en español por
+// requisito del CEO, y este componente trae tres cadenas escritas a mano que no
+// se pueden pasar por props: "Rows per page" y las dos etiquetas `sr-only` de
+// los botones de pagina. Las demas —`sizesLabel`, `sizesDescription`, `info`—
+// SI son props y se pasan desde cada pantalla, sin tocar este archivo.
+//
+// Al traer una version nueva de Metronic hay que volver a aplicar estas tres
+// traducciones. Estan marcadas con `// es:` para poder encontrarlas.
 import { ReactNode } from 'react';
 import { Button } from '@/components/ui/button';
 import { useDataGrid } from '@/components/ui/data-grid';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { ChevronLeftIcon, ChevronRightIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -133,7 +147,7 @@ function DataGridPagination(props: DataGridPaginationProps) {
           mergedProps?.sizesSkeleton
         ) : (
           <>
-            <div className="text-sm text-muted-foreground">Rows per page</div>
+            <div className="text-sm text-muted-foreground">Filas por página</div> {/* es: */}
             <Select
               value={`${pageSize}`}
               indicatorPosition="right"
@@ -161,7 +175,9 @@ function DataGridPagination(props: DataGridPaginationProps) {
           mergedProps?.infoSkeleton
         ) : (
           <>
-            <div className="text-sm text-muted-foreground text-nowrap order-2 sm:order-1">{paginationInfo}</div>
+            <div className="text-sm text-muted-foreground text-nowrap order-2 sm:order-1">
+              {paginationInfo}
+            </div>
             {pageCount > 1 && (
               <div className="flex items-center space-x-1 order-1 sm:order-2">
                 <Button
@@ -172,7 +188,7 @@ function DataGridPagination(props: DataGridPaginationProps) {
                   onClick={() => table.previousPage()}
                   disabled={!table.getCanPreviousPage()}
                 >
-                  <span className="sr-only">Go to previous page</span>
+                  <span className="sr-only">Ir a la página anterior</span> {/* es: */}
                   <ChevronLeftIcon className="size-4" />
                 </Button>
 
@@ -190,7 +206,7 @@ function DataGridPagination(props: DataGridPaginationProps) {
                   onClick={() => table.nextPage()}
                   disabled={!table.getCanNextPage()}
                 >
-                  <span className="sr-only">Go to next page</span>
+                  <span className="sr-only">Ir a la página siguiente</span> {/* es: */}
                   <ChevronRightIcon className="size-4" />
                 </Button>
               </div>

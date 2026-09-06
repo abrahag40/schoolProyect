@@ -168,6 +168,26 @@ export default tseslint.config(
     },
   },
 
+  // --- Pantallas construidas sobre TanStack Table ---------------------------
+  // El compilador de React no puede optimizar `useReactTable` y avisa con
+  // `react-hooks/incompatible-library`. NO es un defecto nuestro ni suyo: la
+  // biblioteca usa patrones que el compilador no sabe analizar, asi que se
+  // salta esos componentes y todo sigue funcionando — solo pierde la
+  // memoizacion automatica en ellos.
+  //
+  // Se apaga AQUI y no con un `eslint-disable` en cada archivo porque va a
+  // repetirse en cada pantalla que lleve tabla, y porque el gate corre con
+  // `--max-warnings 0`: una advertencia que se repite y nadie puede quitar
+  // acaba enseñando a ignorar el gate entero.
+  //
+  // TanStack Table entro por ADR-012, con el `DataGrid` de Metronic.
+  {
+    files: ['apps/web/app/**/*.tsx'],
+    rules: {
+      'react-hooks/incompatible-library': 'off',
+    },
+  },
+
   // --- Scripts de operación (.mjs) ------------------------------------------
   // Sin información de tipos: no están en ningún tsconfig y forzarlos a estarlo
   // sería doblar la herramienta para satisfacer al linter.

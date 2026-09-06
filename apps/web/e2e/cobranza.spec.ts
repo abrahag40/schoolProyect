@@ -64,8 +64,20 @@ test.describe('panel de cobranza a 360 px', () => {
     await page.getByRole('link', { name: 'Cobranza', exact: true }).click();
     await expect(page).toHaveURL(/\/panel\/morosidad$/);
 
-    for (const etiqueta of ['Cobrado', 'Por cobrar', 'Vencido']) {
-      await expect(page.getByText(etiqueta, { exact: true })).toBeVisible();
+    // «Vencido (parte de lo por cobrar)» y no «Vencido» a secas: al
+    // reconstruir la pantalla (AZ-D2.6) la etiqueta se precisó a proposito.
+    // Vencido es un SUBCONJUNTO de por cobrar, no una cuarta categoria, y las
+    // cuatro juntas invitaban a sumarlas y obtener un total que no existe.
+    for (const etiqueta of [
+      'Cobrado',
+      'Por cobrar',
+      'Vencido (parte de lo por cobrar)',
+      'Familias con adeudo',
+    ]) {
+      // `.first()`: «Familias con adeudo» sale dos veces —etiqueta de la
+      // tarjeta y titulo de la tabla— y sin acotar, el modo estricto de
+      // Playwright falla por ambiguedad en vez de por el defecto real.
+      await expect(page.getByText(etiqueta, { exact: true }).first()).toBeVisible();
     }
 
     // El defecto real que la revisión visual cazó en este sprint: los importes
