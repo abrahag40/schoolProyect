@@ -67,10 +67,41 @@ test.describe('el puente de tokens pinta con los colores de Azahar (AZ-D2.1, §6
         return (claro + 0.05) / (oscuro + 0.05);
       };
 
-      /** Convierte lo que devuelve el navegador —`rgb(...)` o `rgba(...)`— a [r,g,b,a]. */
+      /**
+       * Convierte CUALQUIER color de CSS a [r,g,b,a] en sRGB, pintandolo.
+       *
+       * NO SE PARSEA LA CADENA CON UNA EXPRESION REGULAR, y esa fue una
+       * leccion cara. La primera version sacaba los numeros del texto y los
+       * trataba como r,g,b. Funciona con la notacion rgb clasica y MIENTE con
+       * `lab(84.98 0.6 -2.18)`, que es lo que Tailwind 4 emite para su paleta:
+       * los tres numeros de `lab()` no son canales RGB, asi que el gate
+       * calculaba 1.39:1 sobre un boton que en pantalla da 12:1.
+       *
+       * UN FALSO ROJO ES TAN GRAVE COMO UN FALSO VERDE. El verde deja pasar un
+       * defecto; el rojo enseña a ignorar el gate, y entonces deja pasar todos.
+       *
+       * `fillStyle` acepta cualquier color que el navegador entienda —`lab()`,
+       * `oklch()`, `color(display-p3 ...)`— y `getImageData` lo devuelve ya
+       * convertido a sRGB de 8 bits. Es el mismo motor que pinta la pantalla,
+       * asi que mide lo que el ojo ve.
+       */
+      const lienzo = document.createElement('canvas');
+      lienzo.width = 1;
+      lienzo.height = 1;
+      const pincel = lienzo.getContext('2d', { willReadFrequently: true })!;
+
       const aRgba = (css: string): number[] => {
-        const n = css.match(/[\d.]+/g)?.map(Number) ?? [];
-        return [n[0] ?? 0, n[1] ?? 0, n[2] ?? 0, n[3] ?? 1];
+        pincel.clearRect(0, 0, 1, 1);
+        // token-ok: NO es un color de diseño, es un centinela. Se pinta primero
+        // para que, si el navegador no entiende `css`, `fillStyle` lo ignore y
+        // quede este valor en vez del color anterior — un fallo silencioso
+        // heredaria la medicion del boton anterior y daria un verde falso.
+        pincel.fillStyle = '#000000'; // token-ok: centinela, no color de diseño
+        pincel.fillStyle = css; // si el navegador no lo entiende, queda el negro
+        pincel.fillRect(0, 0, 1, 1);
+        const [r, g, b, a] = pincel.getImageData(0, 0, 1, 1).data;
+        // El canvas devuelve alfa 0-255; el resto del codigo espera 0-1.
+        return [r ?? 0, g ?? 0, b ?? 0, (a ?? 255) / 255];
       };
 
       /**

@@ -5,7 +5,6 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Menu } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { useIsMobile } from '@/hooks/use-mobile';
 import { useScrollPosition } from '@/hooks/use-scroll-position';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetBody, SheetContent, SheetHeader, SheetTrigger } from '@/components/ui/sheet';
@@ -41,7 +40,6 @@ export function Header() {
   const [hojaAbierta, setHojaAbierta] = useState(false);
 
   const pathname = usePathname();
-  const esMovil = useIsMobile();
 
   const posicion = useScrollPosition();
   const pegado: boolean = posicion > 0;
@@ -59,31 +57,29 @@ export function Header() {
           <Link href="/panel" className="shrink-0 font-bold text-lg">
             Azahar
           </Link>
-          {esMovil && (
-            // `key={pathname}` cierra la hoja al navegar: al cambiar la clave,
-            // React remonta el componente y el estado vuelve a "cerrada".
-            //
-            // La version del demo1 lo hacia con un `useEffect` que llamaba a
-            // `setHojaAbierta(false)` en cada cambio de ruta, y nuestro ESLint
-            // lo rechaza con razon: un `setState` sincrono dentro de un efecto
-            // provoca un segundo render en cascada. Remontar expresa la misma
-            // intencion —"esta hoja pertenece a esta ruta"— sin ese render.
-            <Sheet key={pathname} open={hojaAbierta} onOpenChange={setHojaAbierta}>
-              <SheetTrigger asChild>
-                {/* `aria-label` porque el boton es solo icono: sin el, un lector
-                    de pantalla anuncia "boton" y ya (WCAG 2.2 SC 4.1.2). */}
-                <Button variant="ghost" mode="icon" aria-label="Abrir el menú">
-                  <Menu className="text-muted-foreground/70" />
-                </Button>
-              </SheetTrigger>
-              <SheetContent className="p-0 gap-0 w-[275px]" side="left" close={false}>
-                <SheetHeader className="p-0 space-y-0" />
-                <SheetBody className="p-0 overflow-y-auto">
-                  <SidebarMenu />
-                </SheetBody>
-              </SheetContent>
-            </Sheet>
-          )}
+          {/* `key={pathname}` cierra la hoja al navegar: al cambiar la clave, React
+              remonta el componente y el estado vuelve a "cerrada".
+
+              La version del demo1 lo hacia con un `useEffect` que llamaba a
+              `setHojaAbierta(false)` en cada cambio de ruta, y nuestro ESLint lo
+              rechaza con razon: un `setState` sincrono dentro de un efecto provoca
+              un segundo render en cascada. Remontar expresa la misma intencion
+              —"esta hoja pertenece a esta ruta"— sin ese render. */}
+          <Sheet key={pathname} open={hojaAbierta} onOpenChange={setHojaAbierta}>
+            <SheetTrigger asChild>
+              {/* `aria-label` porque el boton es solo icono: sin el, un lector
+                  de pantalla anuncia "boton" y ya (WCAG 2.2 SC 4.1.2). */}
+              <Button variant="ghost" mode="icon" aria-label="Abrir el menú">
+                <Menu className="text-muted-foreground/70" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent className="p-0 gap-0 w-[275px]" side="left" close={false}>
+              <SheetHeader className="p-0 space-y-0" />
+              <SheetBody className="p-0 overflow-y-auto">
+                <SidebarMenu />
+              </SheetBody>
+            </SheetContent>
+          </Sheet>
         </div>
 
         {/* El hueco que en el demo1 ocupa el mega-menu. Empuja el menu de

@@ -1,64 +1,84 @@
 'use client';
 
 import { ReactNode, useEffect } from 'react';
-import { useIsMobile } from '@/hooks/use-mobile';
 import { useSettings } from '@/providers/settings-provider';
 import { Footer } from './components/footer';
 import { Header } from './components/header';
 import { Sidebar } from './components/sidebar';
 
+/**
+ * ADAPTADO del armazon del demo1 de Metronic (AZ-D2.3, ADR-013).
+ *
+ * ADR-012 habia decidido NO adoptar su armazon, con cinco defectos medidos. El
+ * CEO decidio lo contrario el 6-sep-2026 —«que todo se vea exactamente como el
+ * demo 1»— y esa decision manda. Lo que NO se hace es heredar los defectos:
+ * tres de los cinco se corrigen aqui, y los otros dos viven en su CSS.
+ *
+ * --- LAS TRES CORRECCIONES -------------------------------------------------
+ *
+ * 1. `role="content"` NO EXISTE. El original marcaba `<main role="content">`.
+ *    La lista de roles ARIA no incluye `content`, asi que un lector de pantalla
+ *    lo descarta y `<main>` pierde su rol implicito `main` — la marca que
+ *    permite saltarse la navegacion (WCAG 2.2 SC 1.3.6). Se quita el atributo:
+ *    `<main>` ya anuncia lo correcto sin ayuda.
+ *
+ * 2. EL SIDEBAR LO DECIDE EL CSS, NO JAVASCRIPT. El original hacia
+ *    `{!isMobile && <Sidebar />}` con un hook que devuelve `false` antes de
+ *    hidratar: en un telefono el sidebar se montaba y se desmontaba, con
+ *    parpadeo. Y verificado en vivo el 6-sep-2026: al ensanchar la ventana el
+ *    sidebar NO reaparecia hasta recargar.
+ *    Ahora se renderiza siempre y lo esconde `hidden lg:flex` (ver
+ *    `sidebar.tsx`). El servidor y el cliente pintan lo mismo, no hay parpadeo,
+ *    responde al instante al cambiar el tamaño, y funciona sin JavaScript.
+ *
+ * 3. UN FRAME, NO UN SEGUNDO. `layout-initialized` solo habilita las
+ *    transiciones del armazon; el original lo agregaba tras un `setTimeout` de
+ *    1000 ms fijo. Durante ese segundo, plegar el sidebar no animaba. Dos
+ *    `requestAnimationFrame` esperan exactamente lo necesario —que el navegador
+ *    haya pintado una vez— sin adivinar un numero.
+ */
 export function Demo1Layout({ children }: { children: ReactNode }) {
-  const isMobile = useIsMobile();
-  const { settings, setOption } = useSettings();
+  const { settings } = useSettings();
 
   useEffect(() => {
-    const bodyClass = document.body.classList;
-
-    if (settings.layouts.demo1.sidebarCollapse) {
-      bodyClass.add('sidebar-collapse');
-    } else {
-      bodyClass.remove('sidebar-collapse');
-    }
-  }, [settings]); // Runs only on settings update
+    const clases = document.body.classList;
+    clases.toggle('sidebar-collapse', settings.layouts.demo1.sidebarCollapse);
+  }, [settings]);
 
   useEffect(() => {
-    // Set current layout
-    setOption('layout', 'demo1');
-  }, [setOption]);
+    const clases = document.body.classList;
+    clases.add('demo1', 'sidebar-fixed', 'header-fixed');
 
-  useEffect(() => {
-    const bodyClass = document.body.classList;
+    // Correccion 3: se espera un frame pintado, no un segundo inventado.
+    // El primer rAF corre ANTES de la pintura; el segundo, despues.
+    let interior = 0;
+    const exterior = requestAnimationFrame(() => {
+      interior = requestAnimationFrame(() => clases.add('layout-initialized'));
+    });
 
-    // Add a class to the body element
-    bodyClass.add('demo1');
-    bodyClass.add('sidebar-fixed');
-    bodyClass.add('header-fixed');
-
-    const timer = setTimeout(() => {
-      bodyClass.add('layout-initialized');
-    }, 1000); // 1000 milliseconds
-
-    // Remove the class when the component is unmounted
     return () => {
-      bodyClass.remove('demo1');
-      bodyClass.remove('sidebar-fixed');
-      bodyClass.remove('sidebar-collapse');
-      bodyClass.remove('header-fixed');
-      bodyClass.remove('layout-initialized');
-      clearTimeout(timer);
+      cancelAnimationFrame(exterior);
+      cancelAnimationFrame(interior);
+      clases.remove(
+        'demo1',
+        'sidebar-fixed',
+        'sidebar-collapse',
+        'header-fixed',
+        'layout-initialized',
+      );
     };
-  }, []); // Runs only once on mount
+  }, []);
 
   return (
     <>
-      {!isMobile && <Sidebar />}
+      {/* Correccion 2: se renderiza siempre; el CSS decide si se ve. */}
+      <Sidebar />
 
       <div className="wrapper flex grow flex-col">
         <Header />
 
-        <main className="grow pt-5" role="content">
-          {children}
-        </main>
+        {/* Correccion 1: sin `role="content"`, que no es un rol valido. */}
+        <main className="grow pt-5">{children}</main>
 
         <Footer />
       </div>

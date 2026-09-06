@@ -55,7 +55,13 @@ test.describe('la sesión de la web', () => {
 test.describe('panel de cobranza a 360 px', () => {
   test('los tres números están arriba y la página NO scrollea de lado', async ({ page }) => {
     await entrar(page);
-    await page.getByRole('button', { name: 'Ver cobranza' }).click();
+    // Se navega por el MENU, no por un boton del dashboard: al montar el
+    // armazon del demo1 (AZ-D2.7) la navegacion dejo de ser centro-y-radios.
+    // A 360 px el sidebar esta oculto y las secciones viven detras del menu,
+    // asi que hay que abrirlo. La afirmacion de la prueba no cambia — solo el
+    // camino para llegar, que ahora es el mismo que recorre una directora.
+    await page.getByRole('button', { name: 'Abrir el menú' }).click();
+    await page.getByRole('link', { name: 'Cobranza', exact: true }).click();
     await expect(page).toHaveURL(/\/panel\/morosidad$/);
 
     for (const etiqueta of ['Cobrado', 'Por cobrar', 'Vencido']) {

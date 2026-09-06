@@ -1,333 +1,245 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { Boton, Insignia, Tarjeta } from '@azahar/ui';
+import Link from 'next/link';
+import { ArrowRight, CalendarCheck, ScrollText } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
+import { Container } from '@/components/common/container';
 import { pedirApi } from '../api';
+import { TarjetasCobranza, type CifrasCobranza } from './componentes/tarjetas-cobranza';
+
+/**
+ * EL DASHBOARD (AZ-D2.6, AZ-D2.7).
+ *
+ * Copia la REJILLA del demo1 de Metronic —fila de cifras 2x2 junto a un bloque
+ * ancho, luego una columna estrecha junto a una ancha— y le mete el contenido
+ * de Azahar. Las cifras son reales: salen de `/morosidad`, el mismo endpoint
+ * que alimenta la pantalla de cobranza.
+ *
+ * POR QUE DATOS REALES Y NO LOS DE LA PLANTILLA. Decision del CEO del
+ * 6-sep-2026. Un dashboard de demostracion con cifras inventadas se ve igual de
+ * bien y no prueba nada: el dia de la demo hay que explicar que no son de
+ * verdad. Con datos reales, la pantalla ES la prueba de que el sistema calcula.
+ *
+ * LOS BLOQUES QUE NO TIENEN FUENTE se dejaron fuera en vez de rellenarse con
+ * los del demo1 (grafica de ingresos, equipos, reunion). Traerlos con datos
+ * falsos habria hecho la pantalla mas parecida al demo y menos verdadera, y en
+ * una pantalla de dinero eso no se hace.
+ */
+
+interface Familia {
+  alumnoId: string;
+  alumno: string;
+  saldo: string;
+  diasDeAtraso: number;
+  situacion: { periodosEnMora: number; puedeSuspender: boolean; explicacion: string };
+}
+
+interface Morosidad {
+  hoy: string;
+  cobrado: string;
+  porCobrar: string;
+  vencido: string;
+  familias: Familia[];
+}
 
 interface Resumen {
   escuela: { nombre: string; vertical: string } | null;
-  // El RVOE ya no vive aqui: va por nivel educativo, en `/panel/escuela`
-  // (AZ-A1). Dejar el campo viejo en el tipo no lo detecta el compilador
-  // —el JSON no se valida contra la interfaz— pero engaña a quien lo lea.
-  sedes: Array<{ id: string; nombre: string; cct: string | null }>;
   periodo: { nombre: string; tipo: string } | null;
-  cohortes: Array<{ id: string; nombre: string; tipo: string; inscritos: number }>;
   totales: { alumnos: number; tutores: number; usuarios: number };
   misRoles: string[];
 }
 
-/**
- * Nombres legibles. El usuario ve "Academia deportiva", no ACADEMIA_DEPORTIVA:
- * los identificadores del sistema no se le muestran a una persona.
- */
-const VERTICAL: Record<string, string> = {
-  COLEGIO: 'Colegio',
-  UNIVERSIDAD: 'Universidad',
-  ACADEMIA_DEPORTIVA: 'Academia deportiva',
-  ESCUELA_IDIOMAS: 'Escuela de idiomas',
-  TALLER: 'Taller',
-};
-
-/**
- * El vocabulario cambia con la vertical: un colegio tiene "grupos" en un
- * "ciclo escolar"; una academia, "categorias" en una "temporada". Es la misma
- * estructura de datos hablando el idioma de cada escuela.
- */
-const TIPO_PERIODO: Record<string, string> = {
-  CICLO_ESCOLAR: 'Ciclo escolar',
-  TEMPORADA: 'Temporada',
-  CONTINUO: 'Inscripción continua',
-};
-
-const TIPO_COHORTE: Record<string, { singular: string; plural: string }> = {
-  GRADO: { singular: 'Grupo', plural: 'Grupos' },
-  CATEGORIA: { singular: 'Categoría', plural: 'Categorías' },
-  NIVEL: { singular: 'Nivel', plural: 'Niveles' },
-  TALLER: { singular: 'Taller', plural: 'Talleres' },
-};
-
-const ROL: Record<string, string> = {
-  DUENO: 'Dueño',
-  DIRECTOR: 'Dirección',
-  ADMIN: 'Administración',
-  COBRANZA: 'Cobranza',
-  DOCENTE: 'Docente',
-  STAFF: 'Personal',
-  TUTOR: 'Madre, padre o tutor',
-};
-
-/// Quien ve el acceso al pase de lista. Misma lista que el API: si divergen,
-/// la interfaz ofrece un boton que termina en 403 — peor que no ofrecerlo.
+const ROLES_COBRANZA = ['DUENO', 'DIRECTOR', 'ADMIN', 'COBRANZA'];
 const ROLES_PASE_LISTA = ['DOCENTE', 'DIRECTOR', 'ADMIN', 'DUENO'];
 
-/// Quien administra el dinero. DOCENTE no entra: un maestro pasa lista, no
-/// define cuanto cuesta la colegiatura. Misma lista que el API — si divergen,
-/// la interfaz ofrece un boton que termina en 403.
-const ROLES_COBRANZA = ['DUENO', 'DIRECTOR', 'ADMIN', 'COBRANZA'];
+function conSeparadores(monto: string): string {
+  const [entero = '0', decimales = '00'] = monto.split('.');
+  return `${entero.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.${decimales}`;
+}
 
-export default function PaginaPanel() {
-  const router = useRouter();
+export default function Panel() {
   const [resumen, setResumen] = useState<Resumen | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [morosidad, setMorosidad] = useState<Morosidad | null>(null);
 
   useEffect(() => {
-    // No se consulta ningun almacenamiento local: la sesion vive en una cookie
-    // httpOnly que el navegador envia sola. Si no hay sesion valida, el
-    // servidor responde 401 y de ahi se decide — la verdad la tiene el
-    // servidor, no una copia en el cliente que puede quedar desincronizada.
-    //
-    // `vigente` evita escribir estado sobre una pantalla que el usuario ya
-    // abandono: sin esta guarda, salir del panel mientras carga produce un
-    // aviso de React y, peor, una fuga de memoria silenciosa.
     let vigente = true;
-
     void (async () => {
-      const { estado, datos } = await pedirApi<Resumen>('/mi-escuela');
+      const escuela = await pedirApi<Resumen>('/mi-escuela');
       if (!vigente) return;
-      if (estado === 401) {
-        router.replace('/');
-        return;
-      }
-      if (datos) setResumen(datos);
-      else setError('No pudimos cargar los datos de tu escuela.');
-    })();
+      if (escuela.datos) setResumen(escuela.datos);
 
+      // La cobranza se pide aparte y su fallo NO tumba el panel: una docente
+      // recibe 403 aqui, y para ella el resto de la pantalla sigue siendo util.
+      const mora = await pedirApi<Morosidad>('/morosidad');
+      if (!vigente) return;
+      if (mora.datos) setMorosidad(mora.datos);
+    })();
     return () => {
       vigente = false;
     };
-  }, [router]);
+  }, []);
 
-  async function salir() {
-    // Con cookie httpOnly el cliente NO puede borrarla: se le pide al servidor
-    // que la retire. Antes bastaba con limpiar el almacenamiento local; ahora
-    // cerrar sesion es una operacion real contra la API.
-    // El Content-Type no es decorativo: el API rechaza con 415 los POST que no
-    // lo declaran, porque es lo que fuerza el preflight y con el la defensa CSRF.
-    await pedirApi('/auth/logout', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-    }).catch(() => null);
-    router.replace('/');
-  }
+  const roles = resumen?.misRoles ?? [];
+  const puede = (permitidos: string[]) => roles.some((r) => permitidos.includes(r));
 
-  const etiquetaCohortes =
-    resumen?.cohortes.length && resumen.cohortes[0]
-      ? (TIPO_COHORTE[resumen.cohortes[0].tipo]?.plural ?? 'Grupos')
-      : 'Grupos';
+  const cifras: CifrasCobranza | null = morosidad
+    ? {
+        cobrado: morosidad.cobrado,
+        porCobrar: morosidad.porCobrar,
+        vencido: morosidad.vencido,
+        familiasConAdeudo: morosidad.familias.length,
+      }
+    : null;
+
+  // Las cinco mas urgentes. El endpoint ya viene ordenado por dias de atraso y,
+  // a igualdad, por importe: aqui no se reordena, se recorta.
+  const urgentes = (morosidad?.familias ?? []).slice(0, 5);
 
   return (
-    <main>
-      <header
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'flex-start',
-          gap: 'var(--space-4)',
-          marginBottom: 'var(--space-5)',
-          flexWrap: 'wrap',
-        }}
-      >
-        <div>
-          <h1 style={{ fontSize: 'var(--font-size-3xl)', fontWeight: 'var(--font-weight-bold)' }}>
-            {resumen?.escuela?.nombre ?? 'Cargando…'}
-          </h1>
-          <div
-            style={{
-              display: 'flex',
-              gap: 'var(--space-2)',
-              marginTop: 'var(--space-2)',
-              flexWrap: 'wrap',
-            }}
-          >
-            {resumen?.escuela && (
-              <Insignia tono="info">
-                {VERTICAL[resumen.escuela.vertical] ?? resumen.escuela.vertical}
-              </Insignia>
-            )}
+    <Container>
+      <div className="grid gap-5 lg:gap-7.5">
+        {/* Encabezado */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex flex-col gap-1">
+            <h1 className="text-mono text-2xl font-semibold">
+              {resumen?.escuela?.nombre ?? 'Panel'}
+            </h1>
             {resumen?.periodo && (
-              <Insignia tono="neutro">
-                {TIPO_PERIODO[resumen.periodo.tipo] ?? resumen.periodo.tipo}:{' '}
-                {resumen.periodo.nombre}
-              </Insignia>
+              <span className="text-muted-foreground text-sm">
+                Ciclo escolar: {resumen.periodo.nombre}
+              </span>
             )}
           </div>
+          {resumen?.escuela && <Badge variant="secondary">{resumen.escuela.vertical}</Badge>}
         </div>
-        <Boton
-          variante="secundario"
-          onClick={() => {
-            void salir();
-          }}
-        >
-          Salir
-        </Boton>
-      </header>
 
-      {error && (
-        <Tarjeta>
-          <p role="alert">{error}</p>
-        </Tarjeta>
-      )}
-
-      {resumen && (
-        <div style={{ display: 'grid', gap: 'var(--space-4)' }}>
-          {resumen.misRoles.some((r) => ROLES_PASE_LISTA.includes(r)) && (
-            <Tarjeta titulo="La operación de hoy">
-              <p style={{ color: 'var(--texto-tenue)', margin: 'var(--space-2) 0 var(--space-3)' }}>
-                Toma asistencia de tus grupos. Cuando un alumno acumula faltas, su familia recibe el
-                aviso en la app automáticamente.
-              </p>
-              <Boton onClick={() => router.push('/panel/pase-lista')}>Pasar lista</Boton>
-            </Tarjeta>
-          )}
-
-          {resumen.misRoles.some((r) => ROLES_COBRANZA.includes(r)) && (
-            <Tarjeta titulo="El dinero">
-              <p style={{ color: 'var(--texto-tenue)', margin: 'var(--space-2) 0 var(--space-3)' }}>
-                Define qué cobra tu escuela y genera los cargos del mes. El sistema los reparte
-                entre quienes pagan y respeta los diez días sin recargo que marca la ley.
-              </p>
-              <div style={{ display: 'flex', gap: 'var(--space-3)', flexWrap: 'wrap' }}>
-                <Boton onClick={() => router.push('/panel/catalogo')}>Catálogo de cargos</Boton>
-                <Boton variante="secundario" onClick={() => router.push('/panel/morosidad')}>
-                  Ver cobranza
-                </Boton>
-                <Boton variante="secundario" onClick={() => router.push('/panel/becas')}>
-                  Becas
-                </Boton>
-                <Boton variante="secundario" onClick={() => router.push('/panel/escuela')}>
-                  Datos fiscales
-                </Boton>
-              </div>
-            </Tarjeta>
-          )}
-          <div
-            style={{
-              display: 'grid',
-              gap: 'var(--space-4)',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-            }}
-          >
-            <Cifra etiqueta="Alumnos" valor={resumen.totales.alumnos} />
-            <Cifra etiqueta="Tutores" valor={resumen.totales.tutores} />
-            <Cifra etiqueta="Personal con acceso" valor={resumen.totales.usuarios} />
-          </div>
-
-          <Tarjeta titulo={etiquetaCohortes}>
-            {resumen.cohortes.length === 0 ? (
-              <p style={{ color: 'var(--texto-tenue)', marginTop: 'var(--space-3)' }}>
-                Aún no hay grupos en este periodo.
-              </p>
-            ) : (
-              <ul
-                className="az-rejilla"
-                style={{ listStyle: 'none', padding: 0, margin: 'var(--space-3) 0 0' }}
-              >
-                {resumen.cohortes.map((c) => (
-                  <li key={c.id} style={fichaEstilo}>
-                    <strong>{c.nombre}</strong>
-                    <span style={{ color: 'var(--texto-tenue)', fontSize: 'var(--font-size-sm)' }}>
-                      {c.inscritos} {c.inscritos === 1 ? 'inscrito' : 'inscritos'}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </Tarjeta>
-
-          <Tarjeta titulo="Sedes">
-            <ul
-              className="az-rejilla"
-              style={{ listStyle: 'none', padding: 0, margin: 'var(--space-3) 0 0' }}
-            >
-              {resumen.sedes.map((sede) => (
-                <li key={sede.id} style={fichaEstilo}>
-                  <strong>{sede.nombre}</strong>
-                  <span style={{ color: 'var(--texto-tenue)', fontSize: 'var(--font-size-sm)' }}>
-                    {/* Una academia no tiene CCT: se dice, en vez de dejar un
-                        hueco que parezca un error de carga. Los acuerdos RVOE
-                        ya no salen aqui —van por nivel educativo— y tienen su
-                        propia pantalla en Datos fiscales. */}
-                    {sede.cct ? `CCT ${sede.cct}` : 'Sin clave SEP'}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </Tarjeta>
-
-          <Tarjeta titulo="Tu acceso">
-            <div
-              style={{
-                display: 'flex',
-                gap: 'var(--space-2)',
-                marginTop: 'var(--space-3)',
-                flexWrap: 'wrap',
-              }}
-            >
-              {resumen.misRoles.map((r) => (
-                <Insignia key={r} tono="exito">
-                  {ROL[r] ?? r}
-                </Insignia>
-              ))}
+        {/* Fila 1: cifras 2x2 + la operacion de hoy — la rejilla del demo1.
+         *
+         * SE PARTE EN `xl` (1200px) Y NO EN `lg` (992px) COMO EL DEMO1. A 1024
+         * px su rejilla deja 92 px utiles por tarjeta: suficiente para el
+         * "9.3k" de sus ejemplos, no para "$49,147.08". Medido, y cazado por la
+         * prueba de `panel-metronic.spec.ts` — no por el ojo.
+         *
+         * Es la unica desviacion de su rejilla, y va aqui declarada: el
+         * contenido de Azahar es mas ancho que el suyo, y el punto de quiebre
+         * tiene que responder al contenido real, no al del ejemplo. */}
+        <div className="grid items-stretch gap-y-5 xl:grid-cols-3 xl:gap-7.5">
+          <div className="xl:col-span-1">
+            <div className="grid h-full grid-cols-2 items-stretch gap-5 xl:gap-7.5">
+              <TarjetasCobranza cifras={cifras} />
             </div>
-            {resumen.misRoles.length > 1 && (
-              <p
-                style={{
-                  color: 'var(--texto-tenue)',
-                  fontSize: 'var(--font-size-sm)',
-                  marginTop: 'var(--space-3)',
-                }}
-              >
-                Tienes varios roles en esta escuela: puedes hacer todo lo de cada uno sin cambiar de
-                cuenta.
-              </p>
-            )}
-          </Tarjeta>
+          </div>
+
+          <div className="xl:col-span-2">
+            <Card className="h-full">
+              <CardHeader>
+                <CardTitle>La operación de hoy</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-4">
+                <p className="text-secondary-foreground text-sm leading-5.5">
+                  Toma asistencia de tus grupos. Cuando un alumno acumula faltas, su familia recibe
+                  el aviso en la app automáticamente.
+                </p>
+                {resumen && (
+                  <div className="flex flex-wrap gap-6">
+                    <div className="flex flex-col">
+                      <span className="text-mono text-2xl font-semibold tabular-nums">
+                        {resumen.totales.alumnos}
+                      </span>
+                      <span className="text-muted-foreground text-sm">Alumnos</span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-mono text-2xl font-semibold tabular-nums">
+                        {resumen.totales.tutores}
+                      </span>
+                      <span className="text-muted-foreground text-sm">Tutores</span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-mono text-2xl font-semibold tabular-nums">
+                        {resumen.totales.usuarios}
+                      </span>
+                      <span className="text-muted-foreground text-sm">Personal con acceso</span>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+              <CardFooter className="gap-2.5">
+                {puede(ROLES_PASE_LISTA) && (
+                  <Button asChild>
+                    <Link href="/panel/pase-lista">
+                      <CalendarCheck className="size-4" aria-hidden="true" />
+                      Pasar lista
+                    </Link>
+                  </Button>
+                )}
+                {puede(ROLES_COBRANZA) && (
+                  <Button variant="outline" asChild>
+                    <Link href="/panel/catalogo">
+                      <ScrollText className="size-4" aria-hidden="true" />
+                      Catálogo de cargos
+                    </Link>
+                  </Button>
+                )}
+              </CardFooter>
+            </Card>
+          </div>
         </div>
-      )}
-    </main>
-  );
-}
 
-/**
- * Ficha compacta: el dato encima de su etiqueta, no en el extremo opuesto.
- *
- * POR QUE CAMBIO (AZ-D1.6). Era una fila de ancho completo con
- * `justify-content: space-between`. Eso funciona en un telefono y se rompe en
- * escritorio: al volver el contenido fluido, "1o A" y "4 inscritos" quedaron
- * separados por **963 px medidos**. El ojo no cruza ese hueco, asi que hay que
- * leer dos veces para saber que numero pertenece a que grupo.
- *
- * Estirar una fila no es usar el ancho: es ocuparlo. Lo que si lo usa es que
- * quepan varias fichas lado a lado, y de eso se encarga la `Rejilla`.
- */
-const fichaEstilo = {
-  padding: 'var(--space-3)',
-  border: '1px solid var(--borde)',
-  borderRadius: 'var(--radius-md)',
-  display: 'flex',
-  flexDirection: 'column' as const,
-  gap: 'var(--space-1)',
-};
-
-function Cifra({ etiqueta, valor }: { etiqueta: string; valor: number }) {
-  return (
-    <Tarjeta>
-      <p style={{ color: 'var(--texto-tenue)', fontSize: 'var(--font-size-sm)', margin: 0 }}>
-        {etiqueta}
-      </p>
-      <p
-        style={{
-          fontSize: 'var(--font-size-4xl)',
-          fontWeight: 'var(--font-weight-extrabold)',
-          color: 'var(--texto-primario)',
-          margin: 'var(--space-1) 0 0',
-          // Los digitos alineados en columna se comparan de un vistazo.
-          fontVariantNumeric: 'tabular-nums',
-        }}
-      >
-        {valor}
-      </p>
-    </Tarjeta>
+        {/* Fila 2: las familias que hay que atender primero. */}
+        {puede(ROLES_COBRANZA) && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Familias que requieren atención</CardTitle>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-0 p-0">
+              {urgentes.length === 0 ? (
+                // Vacio ≠ error. Decirlo es mas util que dejar un hueco que
+                // parece una falla de carga.
+                <p className="text-muted-foreground p-5 text-sm">
+                  {morosidad
+                    ? 'Ninguna familia tiene saldo vencido. Nada que perseguir hoy.'
+                    : 'Cargando…'}
+                </p>
+              ) : (
+                urgentes.map((f) => (
+                  <div
+                    key={f.alumnoId}
+                    className="border-border flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4 last:border-b-0"
+                  >
+                    <div className="flex flex-col gap-1">
+                      <span className="text-mono text-sm font-medium">{f.alumno}</span>
+                      <span className="text-muted-foreground text-xs">
+                        {f.situacion.explicacion}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {/* La insignia lleva TEXTO, no solo tono: el estado nunca
+                          se comunica solo con color (WCAG 2.2 SC 1.4.1). */}
+                      <Badge variant={f.diasDeAtraso > 0 ? 'destructive' : 'secondary'}>
+                        {f.diasDeAtraso > 0 ? `${f.diasDeAtraso} días de atraso` : 'Sin vencer'}
+                      </Badge>
+                      <span className="text-mono text-base font-semibold tabular-nums">
+                        ${conSeparadores(f.saldo)}
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </CardContent>
+            <CardFooter className="justify-end">
+              <Button variant="outline" asChild>
+                <Link href="/panel/morosidad">
+                  Ver toda la cobranza
+                  <ArrowRight className="size-4" aria-hidden="true" />
+                </Link>
+              </Button>
+            </CardFooter>
+          </Card>
+        )}
+      </div>
+    </Container>
   );
 }
