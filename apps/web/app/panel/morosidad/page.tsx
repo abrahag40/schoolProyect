@@ -144,7 +144,7 @@ export default function PaginaMorosidad() {
   }
 
   return (
-    <main style={{ maxWidth: 880, margin: '0 auto', padding: 'var(--space-4)' }}>
+    <main>
       <header style={{ marginBottom: 'var(--space-4)' }}>
         <Boton variante="texto" onClick={() => router.push('/panel')} style={{ padding: 0 }}>
           ‹ Panel

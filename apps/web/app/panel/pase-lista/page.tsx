@@ -203,7 +203,7 @@ export default function PaginaPaseLista() {
 
   if (error) {
     return (
-      <main style={{ maxWidth: 720, margin: '0 auto', padding: 'var(--space-5) var(--space-4)' }}>
+      <main>
         <Tarjeta>
           <p role="alert">{error}</p>
         </Tarjeta>
@@ -217,7 +217,7 @@ export default function PaginaPaseLista() {
   }
 
   return (
-    <main style={{ maxWidth: 720, margin: '0 auto', padding: 'var(--space-4)' }}>
+    <main>
       <header style={{ marginBottom: 'var(--space-4)' }}>
         <Boton variante="texto" onClick={() => router.push('/panel')} style={{ padding: 0 }}>
           ‹ Panel

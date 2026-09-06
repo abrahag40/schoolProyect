@@ -1,0 +1,99 @@
+/**
+ * EL PUENTE ENTRE NUESTROS TOKENS Y LOS COMPONENTES DE METRONIC (§67).
+ *
+ * Metronic se adopta por su capa de COMPONENTES —tabla de datos, formularios,
+ * primitivos accesibles sobre Radix—, no por su identidad visual. Sus
+ * componentes leen variables semanticas (`--primary`, `--destructive`,
+ * `--border`), asi que basta apuntarlas a nuestros tokens para que pinten con
+ * el color de Azahar sin tocar una sola linea de sus archivos.
+ *
+ * POR QUE ESTE ARCHIVO ES CRITICO. Si estas variables se quedaran con los
+ * valores de Metronic, la web pintaria su azul y la app movil el nuestro: dos
+ * fuentes de verdad y divergencia silenciosa, que es justo lo que
+ * `packages/tokens` existe para impedir. **Ellos ponen la estructura, nosotros
+ * seguimos poniendo el color.**
+ *
+ * La app movil no se ve afectada: nunca consumio `packages/ui` —renderiza HTML,
+ * que en React Native no existe— y sigue leyendo los mismos tokens en su
+ * formato TypeScript.
+ */
+@import 'tailwindcss';
+
+/* Nuestro tema PRIMERO: define los tokens crudos y los semanticos en español. */
+@import '@azahar/ui/theme.css';
+
+/* ---------------------------------------------------------------------------
+ * El puente. A la izquierda, lo que los componentes de Metronic piden; a la
+ * derecha, lo que Azahar ya tenia decidido y probado.
+ * -------------------------------------------------------------------------*/
+:root {
+  --background: var(--fondo);
+  --foreground: var(--texto);
+
+  --card: var(--superficie);
+  --card-foreground: var(--texto);
+  --popover: var(--superficie);
+  --popover-foreground: var(--texto);
+
+  /* `primary` es el color de ACCION, no el azul de marca. La distincion no es
+   * cosmetica: el azul de marca da 2.63:1 sobre claro y no alcanza ni para
+   * elementos no textuales (§30). `--accion-fondo` ya resuelve eso por tema. */
+  --primary: var(--accion-fondo);
+  --primary-foreground: var(--accion-texto);
+
+  --secondary: var(--superficie-alt);
+  --secondary-foreground: var(--texto);
+  --muted: var(--superficie-alt);
+  --muted-foreground: var(--texto-tenue);
+  --accent: var(--superficie-alt);
+  --accent-foreground: var(--texto);
+
+  --destructive: var(--color-semantic-danger);
+  --destructive-foreground: var(--color-light-on-action);
+
+  --border: var(--borde);
+  --input: var(--borde);
+  /* El anillo de foco: la plantilla de referencia no lo tenia y era un
+   * incumplimiento de WCAG 2.2 SC 2.4.7 (ADR-006). Aqui no se pierde. */
+  --ring: var(--texto-primario);
+
+  --radius: var(--radius-md);
+}
+
+/* Lo que Tailwind expone como utilidades (`bg-primary`, `text-muted-foreground`).
+ * `inline` hace que resuelva la variable en vez de copiar su valor, que es lo
+ * que permite que el tema oscuro siga funcionando. */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  /* Los puntos de quiebre son los NUESTROS (§66), que ya coinciden con la
+   * escala de Bootstrap 5 que usa la referencia. */
+  --breakpoint-sm: var(--bp-sm);
+  --breakpoint-md: var(--bp-md);
+  --breakpoint-lg: var(--bp-lg);
+  --breakpoint-xl: var(--bp-xl);
+  --breakpoint-2xl: var(--bp-xxl);
+}
+
+/* El tema oscuro de Azahar se elige con `data-theme`, no con la clase `.dark`
+ * que asume Metronic. Se declara la equivalencia para que sus componentes
+ * respondan al mismo interruptor y no haya dos formas de cambiar de tema. */
+@custom-variant dark (&:is([data-theme='dark'] *, :root:not([data-theme='light']) *));

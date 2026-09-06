@@ -34,6 +34,12 @@ export default tseslint.config(
       '**/build/**',
       'packages/db/generated/**',
       'packages/tokens/dist/**',
+      // La plantilla comercial vive dentro de la carpeta del proyecto pero NO
+      // es del proyecto: trae sus propias configuraciones de ESLint y su propio
+      // stack, y analizarla rompe el gate con errores que no son nuestros.
+      // Se ignora aqui ademas de en `.gitignore` porque son herramientas
+      // distintas: git decide que se publica, ESLint que se revisa.
+      'metronic-v9.5.0/**',
     ],
   },
 
