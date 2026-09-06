@@ -24,7 +24,7 @@ async function entrar(page: Page, email = ADMIN) {
   await page.goto('/');
   await page.getByLabel('Escuela').fill(ESCUELA);
   await page.getByLabel('Correo').fill(email);
-  await page.getByLabel('Contrasena').fill(CONTRASENA);
+  await page.getByLabel('Contraseña').fill(CONTRASENA);
   await page.getByRole('button', { name: 'Entrar' }).click();
   await expect(page).toHaveURL(/\/panel$/);
 }

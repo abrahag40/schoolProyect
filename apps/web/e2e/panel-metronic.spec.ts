@@ -29,7 +29,7 @@ async function entrar(page: Page): Promise<void> {
   await page.goto('/');
   await page.getByLabel('Escuela').fill(ESCUELA);
   await page.getByLabel('Correo').fill(CORREO);
-  await page.getByLabel('Contrasena').fill(CONTRASENA);
+  await page.getByLabel('Contraseña').fill(CONTRASENA);
   await page.getByRole('button', { name: 'Entrar' }).click();
   await expect(page).toHaveURL(/\/panel$/);
 }
