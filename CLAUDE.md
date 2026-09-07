@@ -60,6 +60,27 @@ Toda propuesta, recomendación, advertencia o decisión DEBE:
   - **Riesgo operativo REINCIDENTE (S4 y S5):** el disco de la máquina de desarrollo se llena, cuelga a Docker y corrompe su almacén de imágenes — en el S5 tumbó el ensayo de despliegue con `parent snapshot does not exist`. Se resuelve con `docker builder prune -af` (caché regenerable; nunca volúmenes). `pnpm estado` reporta el espacio libre y avisa a partir del 85%.
   - El estado real del repo se genera con `pnpm estado` (nunca se escribe a mano — §7).
 
+## Protocolo de cierre de avance (obligatorio, instrucción del CEO 6-sep-2026)
+
+Cada vez que se termina un avance **importante y coherente** —una pantalla, un
+gate, un defecto corregido— se cierra **entero y de una sola vez**, sin dejarlo
+a medias esperando instrucción:
+
+1. Gates en verde: `pnpm lint`, `pnpm typecheck` y las pruebas que toque.
+2. Verificación en el navegador si el cambio se ve.
+3. `git add` + `git commit` con el porqué, no con el qué.
+4. **`git push` a GitHub, en el mismo acto.** Un commit sin empujar es trabajo
+   que solo existe en una máquina.
+
+**El despliegue NO va aquí.** Publicar en staging es una ejecución aparte, que
+el CEO pide explícitamente. La razón es que empujar a GitHub es reversible y
+privado; desplegar es visible y afecta a lo que otros ven.
+
+_Por qué existe esta regla: hasta el 6-sep-2026 los commits se acumulaban sin
+empujar y el cierre quedaba pendiente de una instrucción que no siempre
+llegaba. El trabajo terminado tiene que quedar guardado donde no dependa de un
+disco duro._
+
 ## Protocolo de cierre de sprint (obligatorio, instrucción del CEO 24-ago-2026)
 
 Al terminar CADA sprint se ejecuta esta secuencia y se entrega al CEO. Ningún

@@ -1,0 +1,42 @@
+# QUE NO SE SUBE A VERCEL AL DESPLEGAR.
+#
+# ESTE ARCHIVO NACIO DE UN INCIDENTE, no de una limpieza preventiva. El
+# 6-sep-2026, al desplegar el Sprint 8, el CLI rechazo el envio: 27,595
+# archivos contra un limite de 15,000. De esos, **26,667 eran
+# `metronic-v9.5.0/`** — la plantilla comercial completa, de camino a los
+# servidores de Vercel.
+#
+# POR QUE ES GRAVE Y NO SOLO LENTO. Subirla es REDISTRIBUIRLA. La licencia
+# Extended permite usarla en nuestro producto, no publicarla ni entregarla a
+# un tercero (ADR-012). El limite de archivos nos salvo por accidente; si la
+# plantilla hubiera tenido 14,000 archivos, el deploy habria pasado en verde
+# y nadie se habria enterado.
+#
+# LA LECCION ES LA DE §67, CON UNA HERRAMIENTA MAS. La plantilla ya estaba
+# excluida en `.gitignore` (que decide que se publica), en `.prettierignore`
+# (que se formatea) y en `eslint.config.mjs` (que se revisa). Faltaba la
+# cuarta: **el CLI de Vercel NO lee `.gitignore`** — lee este archivo. Cada
+# herramienta decide algo distinto y cada una necesita su exclusion.
+metronic-v9.5.0/
+
+# Dependencias: Vercel las instala con `pnpm install --frozen-lockfile`
+# (ver `apps/web/vercel.json`). Subirlas seria mandar 114,000 archivos para
+# que el servidor los borre y los vuelva a bajar.
+node_modules/
+
+# Artefactos de construccion local. Los de Vercel salen de SU build; mandar
+# los nuestros arriesga desplegar algo que nadie compilo en limpio.
+.next/
+dist/
+.turbo/
+
+# NO SE EXCLUYEN `apps/api/` NI `apps/mobile/`, aunque no se desplieguen aqui.
+# `pnpm install --frozen-lockfile` valida el lockfile contra TODOS los paquetes
+# del workspace: sin sus `package.json` el install falla antes de compilar.
+# Son ~480 archivos; el ahorro no vale romper la instalacion.
+
+# Nada de esto lo ejecuta el navegador.
+docs/
+.github/
+test-results/
+playwright-report/

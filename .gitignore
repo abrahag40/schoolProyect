@@ -46,3 +46,4 @@ playwright-report/
 # REIMPLEMENTADOS sobre nuestros tokens, no archivos copiados (ADR-006).
 # ---------------------------------------------------------------------------
 metronic-v9.5.0/
+.vercel
