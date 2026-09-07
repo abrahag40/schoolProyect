@@ -1,11 +1,11 @@
 # Acta de cierre — Sprint 8 «El frontend se reconstruye sobre Metronic»
 
-| Campo   | Valor                               |
-| ------- | ----------------------------------- |
-| Rama    | `sprint-8-metronic`                 |
-| Cierre  | 6-sep-2026                          |
-| Versión | `v0.9.0`                            |
-| Estado  | **PENDIENTE de aceptación del CEO** |
+| Campo   | Valor                                 |
+| ------- | ------------------------------------- |
+| Rama    | `sprint-8-metronic`                   |
+| Cierre  | 6-sep-2026                            |
+| Versión | `v0.9.0`                              |
+| Estado  | **ACEPTADO por el CEO el 6-sep-2026** |
 
 ---
 
@@ -57,11 +57,31 @@ sueltos.
 | `AZ-D2.9`  | Inventario de lo adoptado           | ✅                                |
 | `AZ-D2.10` | `Form` con react-hook-form + zod    | 🟡 **PARCIAL**                    |
 | `AZ-D2.11` | Riel plegable de 80 px              | ✅                                |
-| `AZ-D2.12` | Qué hacer con nuestros primitivos   | ⬜ **decisión del CEO**           |
+| `AZ-D2.12` | Qué hacer con nuestros primitivos   | ✅ **borrados** (CEO, 6-sep-2026) |
 
-**Los 9 `Must` completos.** Es el segundo sprint desde el S2 que entrega su
-alcance obligatorio íntegro — y se advirtió al arrancar que doce ítems era más
-de lo que este proyecto ha entregado nunca.
+**Los 9 `Must` completos, y `AZ-D2.12` resuelto al aceptar.** Es el segundo
+sprint desde el S2 que entrega su alcance obligatorio íntegro — y se advirtió al
+arrancar que doce ítems era más de lo que este proyecto ha entregado nunca.
+
+### `AZ-D2.12` — los primitivos propios se borran
+
+Decisión del CEO al aceptar el sprint. Se retiran las **458 líneas** de
+`packages/ui`: `Boton`, `CampoTexto`, `Insignia`, `Tarjeta`, `Rejilla` y
+`ArmazonPanel`. No es una poda estética: **ya no las importaba nadie**, y la
+evidencia estaba medida antes de decidir (`grep -rn "@azahar/ui" apps/web` no
+devolvía un solo uso de componente).
+
+El paquete **no desaparece**: sigue publicando `theme.css`, que es lo que
+alimenta el puente de tokens (§67) y por tanto lo que hace que Metronic pinte
+con los colores de Azahar. Deja de tener TypeScript, así que también se retiran
+su `tsconfig.json` y su tarea de `typecheck` — una tarea que no revisa nada es
+un gate que da falsa confianza.
+
+**Lo que se pierde, dicho sin adornos:** `ArmazonPanel` era mejor en
+accesibilidad que el armazón que lo sustituye (ADR-013 lo detalla). Vive en
+`v0.8.0` si algún día hiciera falta volver.
+
+Efecto medible: el trinquete baja de **69 a 55** estilos en línea.
 
 ### `AZ-D2.10` se declara PARCIAL, no hecho
 

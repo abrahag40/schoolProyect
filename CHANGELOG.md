@@ -64,12 +64,19 @@ ejecuta y ADR-013 extiende la adopción al armazón de layout.
 - **`.vercelignore` nuevo**: el CLI de Vercel no lee `.gitignore` e iba a subir
   la plantilla entera. Nos salvó un límite de archivos, no un gate.
 
+### Retirado
+
+- **Las 458 líneas de `packages/ui`**: `Boton`, `CampoTexto`, `Insignia`,
+  `Tarjeta`, `Rejilla` y `ArmazonPanel`. Al migrar el frontend dejaron de
+  importarse; borrarlas fue decisión del CEO con la evidencia medida delante.
+  El paquete sigue vivo publicando `theme.css`, que es lo que hace que
+  Metronic pinte con los colores de Azahar. `ArmazonPanel` era **mejor en
+  accesibilidad** que el armazón que lo sustituye (ADR-013) y vive en `v0.8.0`.
+
 ### No entregado
 
 - `AZ-D2.10`: los formularios se rehicieron, pero **sin `react-hook-form` ni
   validación con zod**, que era la razón de adoptar su `Form`.
-- `AZ-D2.12`: qué hacer con las 458 líneas huérfanas de `packages/ui` —
-  decisión del CEO.
 
 ## [0.8.0] — 2026-09-06 — Sprint 7: la capa de layout que nunca se construyó
 

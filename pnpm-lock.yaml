@@ -327,19 +327,6 @@ importers:
       '@azahar/tokens':
         specifier: workspace:*
         version: link:../tokens
-      '@phosphor-icons/react':
-        specifier: 2.1.10
-        version: 2.1.10(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
-      react:
-        specifier: ^19.0.0
-        version: 19.2.8
-    devDependencies:
-      '@types/react':
-        specifier: ^19.0.0
-        version: 19.2.18
-      typescript:
-        specifier: 5.9.3
-        version: 5.9.3
 
 packages:
 
