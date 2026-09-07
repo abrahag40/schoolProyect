@@ -166,3 +166,50 @@ test.describe('el dashboard (AZ-D2.6)', () => {
     await expect(page.getByText(/colegiatura\(s\) vencida\(s\)/).first()).toBeVisible();
   });
 });
+
+/**
+ * LAS SEIS PANTALLAS, A LOS DOS ANCHOS QUE IMPORTAN (AZ-D2.7).
+ *
+ * Sustituye a las 14 pruebas de `layout.spec.ts`, que median `.az-contenido`
+ * —la clase del armazon que se sustituyo— y por eso quedaron obsoletas al
+ * adoptar el demo1 (D20).
+ *
+ * Afirman DOS cosas por ruta, que son las que se rompen al migrar marcado:
+ *   · que la pantalla carga de verdad, y no un error de compilacion; y
+ *   · que no scrollea de lado a 360 px, que es el ancho del telefono con el
+ *     que una directora entra desde la escuela.
+ */
+const RUTAS = [
+  '/panel',
+  '/panel/morosidad',
+  '/panel/catalogo',
+  '/panel/becas',
+  '/panel/pase-lista',
+  '/panel/escuela',
+];
+
+test.describe('las pantallas del panel sobre el armazon nuevo (AZ-D2.7)', () => {
+  for (const ruta of RUTAS) {
+    test(`${ruta} carga y no desborda a 360 px`, async ({ page }) => {
+      await entrar(page);
+      await page.setViewportSize({ width: 360, height: 800 });
+      await page.goto(ruta);
+
+      // Que exista el armazon prueba que la pagina se monto: un error de
+      // compilacion en Next devuelve una pantalla de error sin sidebar.
+      await expect(page.locator('.wrapper')).toBeVisible();
+
+      const desborde = await page.evaluate(
+        () => document.documentElement.scrollWidth - window.innerWidth,
+      );
+      expect(desborde, `${ruta} desborda ${desborde} px a 360`).toBeLessThanOrEqual(0);
+    });
+  }
+
+  test('el 404 tiene salida, no solo un codigo', async ({ page }) => {
+    await page.goto('/una-ruta-que-no-existe');
+    await expect(page.getByText('Esta página no existe')).toBeVisible();
+    // Lo que hace util a un 404 no es el numero: es el camino de vuelta.
+    await expect(page.getByRole('link', { name: 'Ir al panel' })).toBeVisible();
+  });
+});

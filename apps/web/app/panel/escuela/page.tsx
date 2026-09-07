@@ -2,8 +2,28 @@
 
 import { useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { Boton, Insignia, Tarjeta } from '@azahar/ui';
+import { TriangleAlert } from 'lucide-react';
+import { Alert, AlertDescription, AlertIcon } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardHeading, CardTitle } from '@/components/ui/card';
+import { Container } from '@/components/common/container';
 import { enviarJson, pedirApi } from '../../api';
+import { Campo, CampoSelect } from '../componentes/campo';
+
+/**
+ * DATOS FISCALES DE LA ESCUELA — los acuerdos RVOE (AZ-A1).
+ *
+ * POR QUE ESTA PANTALLA EXISTE: desde el Sprint 6 el catalogo RECHAZA crear un
+ * concepto deducible si no esta capturado el RVOE de su nivel. Sin un lugar
+ * donde capturarlo, ese gate deja de proteger y se vuelve un muro — la escuela
+ * no puede avanzar y no sabe por que. Una regla que no se puede satisfacer es
+ * un defecto, por correcta que sea.
+ *
+ * Y va POR NIVEL, no por plantel: el RVOE se otorga por programa, asi que una
+ * escuela con primaria y secundaria tiene dos acuerdos distintos. Con uno solo,
+ * la mitad de las facturas saldrian con el numero equivocado.
+ */
 
 interface Rvoe {
   id: string;
@@ -39,19 +59,6 @@ function campoTexto(formulario: FormData, nombre: string): string {
   return typeof valor === 'string' ? valor : '';
 }
 
-/**
- * Datos fiscales de la escuela — los acuerdos RVOE (AZ-A1).
- *
- * POR QUE ESTA PANTALLA EXISTE: desde el Sprint 6 el catálogo RECHAZA crear un
- * concepto deducible si no está capturado el RVOE de su nivel. Sin un lugar
- * donde capturarlo, ese gate deja de proteger y se vuelve un muro — la escuela
- * no puede avanzar y no sabe por qué. Una regla que no se puede satisfacer es
- * un defecto, por correcta que sea.
- *
- * Y va POR NIVEL, no por plantel: el RVOE se otorga por programa, así que una
- * escuela con primaria y secundaria tiene dos acuerdos distintos. Con uno solo,
- * la mitad de las facturas saldrían con el número equivocado.
- */
 export default function PaginaEscuela() {
   const router = useRouter();
   const [escuela, setEscuela] = useState<Escuela | null>(null);
@@ -111,171 +118,150 @@ export default function PaginaEscuela() {
   }
 
   return (
-    <main>
-      <header style={{ marginBottom: 'var(--space-4)' }}>
-        <Boton variante="texto" onClick={() => router.push('/panel')} style={{ padding: 0 }}>
-          ‹ Panel
-        </Boton>
-        <h1 style={{ fontSize: 'var(--font-size-2xl)', marginTop: 'var(--space-2)' }}>
-          Datos fiscales
-        </h1>
-        <p style={{ color: 'var(--texto-tenue)', marginTop: 'var(--space-2)' }}>
-          Los acuerdos RVOE con los que se facturan las colegiaturas deducibles.
-        </p>
-      </header>
-
-      {error && (
-        <Tarjeta>
-          <p role="alert" style={{ margin: 0 }}>
-            {error}
+    <Container>
+      <div className="grid gap-5 lg:gap-7.5">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-mono text-2xl font-semibold">Datos fiscales</h1>
+          <p className="text-muted-foreground text-sm">
+            Los acuerdos RVOE con los que se facturan las colegiaturas deducibles.
           </p>
-        </Tarjeta>
-      )}
-
-      {!sinPermiso && (
-        <div style={{ display: 'grid', gap: 'var(--space-4)', marginTop: 'var(--space-4)' }}>
-          {/* Qué ley obliga a esta escuela, dicho por el dominio (§51). La
-              pantalla no lo deduce del vertical: eso viviría en dos sitios. */}
-          {escuela?.marcoLegal && (
-            <Tarjeta titulo="Marco legal">
-              <p style={{ marginTop: 'var(--space-2)' }}>
-                {escuela.marcoLegal.aplicaAcuerdoProfeco ? (
-                  <>
-                    A esta escuela la alcanza el Acuerdo de PROFECO: se aceptan pagos sin recargo
-                    durante los primeros <strong>{escuela.marcoLegal.pisoSinRecargo} días</strong> y
-                    los ajustes de cuota se avisan con{' '}
-                    <strong>{escuela.marcoLegal.avisoDeAjuste} días</strong> de anticipación.
-                  </>
-                ) : (
-                  <>
-                    El Acuerdo de PROFECO <strong>no alcanza</strong> a esta institución. Las
-                    ventanas de pago y los avisos de ajuste los fija tu reglamento.
-                  </>
-                )}
-              </p>
-            </Tarjeta>
-          )}
-
-          <Tarjeta titulo="Acuerdos RVOE">
-            <p style={{ color: 'var(--texto-tenue)', marginTop: 'var(--space-2)' }}>
-              Uno por plantel y nivel educativo. Sin el acuerdo del nivel, no puedes crear un
-              concepto deducible: el SAT rechaza la factura sin él.
-            </p>
-
-            {rvoes === null && (
-              <p style={{ color: 'var(--texto-tenue)', marginTop: 'var(--space-3)' }}>Cargando…</p>
-            )}
-
-            {rvoes?.length === 0 && (
-              <p style={{ color: 'var(--texto-tenue)', marginTop: 'var(--space-3)' }}>
-                Todavía no hay acuerdos capturados. Si tu escuela emite facturas deducibles, empieza
-                por aquí.
-              </p>
-            )}
-
-            <ul style={{ listStyle: 'none', padding: 0, margin: 'var(--space-3) 0 0' }}>
-              {rvoes?.map((r) => (
-                <li
-                  key={r.id}
-                  style={{
-                    padding: 'var(--space-3) 0',
-                    borderBottom: '1px solid var(--borde)',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    gap: 'var(--space-3)',
-                    flexWrap: 'wrap',
-                  }}
-                >
-                  <div style={{ display: 'grid', gap: 'var(--space-1)' }}>
-                    <strong>{NIVEL[r.nivelEducativo] ?? r.nivelEducativo}</strong>
-                    <Insignia tono="neutro">{r.sede}</Insignia>
-                  </div>
-                  <span style={{ fontFamily: 'monospace', color: 'var(--texto-primario)' }}>
-                    {r.acuerdo}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </Tarjeta>
-
-          <Tarjeta titulo="Registrar o corregir un acuerdo">
-            <form
-              onSubmit={(e) => {
-                void registrar(e);
-              }}
-              style={{ display: 'grid', gap: 'var(--space-3)' }}
-            >
-              <div style={{ display: 'grid', gap: 'var(--space-1)' }}>
-                <label htmlFor="sedeId" style={etiquetaEstilo}>
-                  Plantel
-                </label>
-                <select id="sedeId" name="sedeId" required style={campoEstilo}>
-                  {escuela?.sedes.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.nombre}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div style={{ display: 'grid', gap: 'var(--space-1)' }}>
-                <label htmlFor="nivelEducativo" style={etiquetaEstilo}>
-                  Nivel educativo
-                </label>
-                <select id="nivelEducativo" name="nivelEducativo" style={campoEstilo}>
-                  {Object.entries(NIVEL).map(([valor, texto]) => (
-                    <option key={valor} value={valor}>
-                      {texto}
-                    </option>
-                  ))}
-                </select>
-                <span style={ayudaEstilo}>
-                  Si vuelves a capturar un nivel que ya tiene acuerdo, se corrige el número — no se
-                  crea un segundo.
-                </span>
-              </div>
-
-              <div style={{ display: 'grid', gap: 'var(--space-1)' }}>
-                <label htmlFor="acuerdo" style={etiquetaEstilo}>
-                  Número de acuerdo
-                </label>
-                <input
-                  id="acuerdo"
-                  name="acuerdo"
-                  placeholder="ACUERDO 123/2024"
-                  required
-                  style={campoEstilo}
-                />
-              </div>
-
-              <Boton type="submit" cargando={guardando}>
-                Guardar acuerdo
-              </Boton>
-            </form>
-          </Tarjeta>
         </div>
-      )}
-    </main>
+
+        {error && (
+          <Alert variant="destructive" appearance="light">
+            <AlertIcon>
+              <TriangleAlert />
+            </AlertIcon>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {!sinPermiso && (
+          <>
+            {/* Que ley obliga a esta escuela, dicho por el DOMINIO (§51). La
+                pantalla no lo deduce del vertical: eso viviria en dos sitios y
+                uno de los dos se quedaria viejo. */}
+            {escuela?.marcoLegal && (
+              <Card>
+                <CardHeader>
+                  <CardHeading>
+                    <CardTitle>Marco legal</CardTitle>
+                  </CardHeading>
+                </CardHeader>
+                <CardContent className="p-5">
+                  <p className="text-sm">
+                    {escuela.marcoLegal.aplicaAcuerdoProfeco ? (
+                      <>
+                        A esta escuela la alcanza el Acuerdo de PROFECO: se aceptan pagos sin
+                        recargo durante los primeros{' '}
+                        <strong>{escuela.marcoLegal.pisoSinRecargo} días</strong> y los ajustes de
+                        cuota se avisan con <strong>{escuela.marcoLegal.avisoDeAjuste} días</strong>{' '}
+                        de anticipación.
+                      </>
+                    ) : (
+                      <>
+                        El Acuerdo de PROFECO <strong>no alcanza</strong> a esta institución. Las
+                        ventanas de pago y los avisos de ajuste los fija tu reglamento.
+                      </>
+                    )}
+                  </p>
+                </CardContent>
+              </Card>
+            )}
+
+            <div className="grid items-start gap-5 lg:gap-7.5 xl:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <CardHeading>
+                    <CardTitle>Acuerdos RVOE</CardTitle>
+                  </CardHeading>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <p className="text-muted-foreground px-5 pt-4 text-sm">
+                    Uno por plantel y nivel educativo. Sin el acuerdo del nivel, no puedes crear un
+                    concepto deducible: el SAT rechaza la factura sin él.
+                  </p>
+
+                  {rvoes === null && <p className="text-muted-foreground p-5 text-sm">Cargando…</p>}
+
+                  {rvoes?.length === 0 && (
+                    <p className="text-muted-foreground p-5 text-sm">
+                      Todavía no hay acuerdos capturados. Si tu escuela emite facturas deducibles,
+                      empieza por aquí.
+                    </p>
+                  )}
+
+                  <div className="mt-3 flex flex-col">
+                    {rvoes?.map((r) => (
+                      <div
+                        key={r.id}
+                        className="border-border flex flex-wrap items-center justify-between gap-3 border-b px-5 py-4 last:border-b-0"
+                      >
+                        <div className="flex flex-col items-start gap-1">
+                          <span className="text-mono font-medium">
+                            {NIVEL[r.nivelEducativo] ?? r.nivelEducativo}
+                          </span>
+                          <Badge variant="secondary">{r.sede}</Badge>
+                        </div>
+                        {/* Monoespaciada: es un folio, y se compara caracter a
+                            caracter contra un papel del SAT. */}
+                        <span className="text-primary font-mono text-sm">{r.acuerdo}</span>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardHeading>
+                    <CardTitle>Registrar o corregir un acuerdo</CardTitle>
+                  </CardHeading>
+                </CardHeader>
+                <CardContent>
+                  <form
+                    onSubmit={(e) => {
+                      void registrar(e);
+                    }}
+                    className="flex flex-col gap-4"
+                  >
+                    <CampoSelect etiqueta="Plantel" name="sedeId" required>
+                      {escuela?.sedes.map((s) => (
+                        <option key={s.id} value={s.id}>
+                          {s.nombre}
+                        </option>
+                      ))}
+                    </CampoSelect>
+
+                    <CampoSelect
+                      etiqueta="Nivel educativo"
+                      name="nivelEducativo"
+                      ayuda="Si vuelves a capturar un nivel que ya tiene acuerdo, se corrige el número — no se crea un segundo."
+                    >
+                      {Object.entries(NIVEL).map(([valor, texto]) => (
+                        <option key={valor} value={valor}>
+                          {texto}
+                        </option>
+                      ))}
+                    </CampoSelect>
+
+                    <Campo
+                      etiqueta="Número de acuerdo"
+                      name="acuerdo"
+                      placeholder="ACUERDO 123/2024"
+                      required
+                    />
+
+                    <Button type="submit" disabled={guardando}>
+                      {guardando ? 'Guardando…' : 'Guardar acuerdo'}
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+            </div>
+          </>
+        )}
+      </div>
+    </Container>
   );
 }
-
-const etiquetaEstilo = {
-  fontSize: 'var(--font-size-sm)',
-  fontWeight: 'var(--font-weight-medium)',
-  color: 'var(--texto-primario)',
-} as const;
-
-const campoEstilo = {
-  padding: 'var(--space-2) var(--space-3)',
-  borderRadius: 'var(--radio-md)',
-  border: '1px solid var(--borde)',
-  background: 'var(--superficie)',
-  color: 'var(--texto-primario)',
-  fontSize: 'var(--font-size-md)',
-  minHeight: 44,
-} as const;
-
-const ayudaEstilo = {
-  fontSize: 'var(--font-size-sm)',
-  color: 'var(--texto-tenue)',
-} as const;
