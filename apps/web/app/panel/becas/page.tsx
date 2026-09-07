@@ -2,8 +2,29 @@
 
 import { useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { Boton, Insignia, Tarjeta } from '@azahar/ui';
+import { TriangleAlert } from 'lucide-react';
+import { Alert, AlertDescription, AlertIcon } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardHeading, CardTitle } from '@/components/ui/card';
+import { Container } from '@/components/common/container';
 import { enviarJson, pedirApi } from '../../api';
+import { Campo, CampoCasilla, CampoSelect } from '../componentes/campo';
+
+/**
+ * BECAS Y CONVENIOS (AZ-M4.3a).
+ *
+ * TRES DECISIONES QUE NO SON COSMETICAS y que el cambio de marcado no toca:
+ *
+ *  1. **El motivo es obligatorio y se muestra.** La beca del 5 % de la matricula
+ *     es obligacion legal (LGE 149-III), no cortesia. Una autoridad puede pedir
+ *     a quien se otorgo y con que criterio, y un descuento sin motivo no prueba
+ *     nada. Por eso el campo no es opcional ni esta escondido en un detalle.
+ *  2. **La vigencia se dice en positivo y en negativo.** Una beca vencida sigue
+ *     en la lista, marcada como vencida: desaparecerla haria creer que nunca
+ *     existio, y los cargos que ya desconto seguirian ahi sin explicacion.
+ *  3. **Retirar no borra.** El boton dice "Retirar" porque eso es lo que hace.
+ */
 
 interface Beca {
   id: string;
@@ -43,20 +64,6 @@ function fechaCorta(fecha: string): string {
   return `${Number(dia)} ${MESES[Number(mes) - 1] ?? mes} ${anio}`;
 }
 
-/**
- * Becas y convenios (AZ-M4.3a).
- *
- * TRES DECISIONES QUE NO SON COSMÉTICAS:
- *
- *  1. **El motivo es obligatorio y se muestra.** La beca del 5 % de la matrícula
- *     es obligación legal (LGE 149-III), no cortesía. Una autoridad puede pedir
- *     a quién se otorgó y con qué criterio, y un descuento sin motivo no prueba
- *     nada. Por eso el campo no es opcional ni está escondido en un detalle.
- *  2. **La vigencia se dice en positivo y en negativo.** Una beca vencida sigue
- *     en la lista, marcada como vencida: desaparecerla haría creer que nunca
- *     existió, y los cargos que ya descontó seguirían ahí sin explicación.
- *  3. **Retirar no borra.** El botón dice "Retirar" porque eso es lo que hace.
- */
 export default function PaginaBecas() {
   const router = useRouter();
   const [becas, setBecas] = useState<Beca[] | null>(null);
@@ -94,7 +101,7 @@ export default function PaginaBecas() {
       }
       setBecas(datos);
 
-      // El catálogo y los alumnos alimentan el formulario; si fallan, la lista
+      // El catalogo y los alumnos alimentan el formulario; si fallan, la lista
       // sigue sirviendo. No se bloquea lo que ya se puede mostrar.
       const [{ datos: as }, { datos: cs }] = await Promise.all([
         pedirApi<AlumnoParaBeca[]>('/becas/alumnos'),
@@ -158,270 +165,193 @@ export default function PaginaBecas() {
   const legales = becas?.filter((b) => b.esObligacionLegal && b.vigenteHoy).length ?? 0;
 
   return (
-    <main>
-      <header style={{ marginBottom: 'var(--space-4)' }}>
-        <Boton variante="texto" onClick={() => router.push('/panel')} style={{ padding: 0 }}>
-          ‹ Panel
-        </Boton>
-        <h1 style={{ fontSize: 'var(--font-size-2xl)', marginTop: 'var(--space-2)' }}>
-          Becas y convenios
-        </h1>
-        <p style={{ color: 'var(--texto-tenue)', marginTop: 'var(--space-2)' }}>
-          Se aplican solas al generar los cargos, y dejan de aplicarse solas cuando vencen.
-        </p>
-      </header>
-
-      {error && (
-        <Tarjeta>
-          <p role="alert" style={{ margin: 0 }}>
-            {error}
+    <Container>
+      <div className="grid gap-5 lg:gap-7.5">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-mono text-2xl font-semibold">Becas y convenios</h1>
+          <p className="text-muted-foreground text-sm">
+            Se aplican solas al generar los cargos, y dejan de aplicarse solas cuando vencen.
           </p>
-        </Tarjeta>
-      )}
-
-      {!sinPermiso && (
-        <div style={{ display: 'grid', gap: 'var(--space-4)', marginTop: 'var(--space-4)' }}>
-          <Tarjeta titulo="Otorgadas">
-            {becas === null && (
-              <p style={{ color: 'var(--texto-tenue)', marginTop: 'var(--space-3)' }}>Cargando…</p>
-            )}
-
-            {becas?.length === 0 && (
-              <p style={{ color: 'var(--texto-tenue)', marginTop: 'var(--space-3)' }}>
-                Todavía no hay becas registradas. La primera suele ser la del 5 % que exige la ley.
-              </p>
-            )}
-
-            {/* El contador del cumplimiento legal, arriba y sin tener que sumarlo
-              a mano: es el número que una autoridad puede venir a pedir. */}
-            {legales > 0 && (
-              <p style={{ marginTop: 'var(--space-3)', color: 'var(--texto-tenue)' }}>
-                <strong>{legales}</strong> beca(s) vigente(s) marcada(s) como obligación legal.
-              </p>
-            )}
-
-            <ul style={{ listStyle: 'none', padding: 0, margin: 'var(--space-3) 0 0' }}>
-              {becas?.map((b) => (
-                <li
-                  key={b.id}
-                  style={{
-                    padding: 'var(--space-3) 0',
-                    borderBottom: '1px solid var(--borde)',
-                    display: 'grid',
-                    gap: 'var(--space-2)',
-                  }}
-                >
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      gap: 'var(--space-3)',
-                      flexWrap: 'wrap',
-                    }}
-                  >
-                    <strong>{b.alumno}</strong>
-                    <span
-                      style={{
-                        fontWeight: 'var(--font-weight-bold)',
-                        color: 'var(--texto-primario)',
-                        fontVariantNumeric: 'tabular-nums',
-                      }}
-                    >
-                      {b.tipo === 'PORCENTAJE' ? `${b.valor} %` : `$${b.valor}`}
-                    </span>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
-                    {/* El estado lleva TEXTO, no solo color (SC 1.4.1). */}
-                    <Insignia tono={b.vigenteHoy ? 'exito' : 'neutro'}>
-                      {!b.activa ? 'Retirada' : b.vigenteHoy ? 'Vigente hoy' : 'Fuera de vigencia'}
-                    </Insignia>
-                    {b.esObligacionLegal && <Insignia tono="info">Obligación legal</Insignia>}
-                    <Insignia tono="neutro">
-                      {b.concepto ? `Solo ${b.concepto.nombre}` : 'Todos los conceptos'}
-                    </Insignia>
-                  </div>
-
-                  <p
-                    style={{
-                      margin: 0,
-                      color: 'var(--texto-tenue)',
-                      fontSize: 'var(--font-size-sm)',
-                    }}
-                  >
-                    {fechaCorta(b.vigenteDesde)} —{' '}
-                    {b.vigenteHasta ? fechaCorta(b.vigenteHasta) : 'sin fecha de fin'} · {b.motivo}
-                  </p>
-
-                  {b.activa && (
-                    <div>
-                      <Boton
-                        variante="texto"
-                        style={{ padding: 0 }}
-                        onClick={() => {
-                          void retirar(b);
-                        }}
-                      >
-                        Retirar
-                      </Boton>
-                    </div>
-                  )}
-                </li>
-              ))}
-            </ul>
-          </Tarjeta>
-
-          <Tarjeta titulo="Otorgar una beca">
-            <form
-              onSubmit={(e) => {
-                void otorgar(e);
-              }}
-              style={{ display: 'grid', gap: 'var(--space-3)' }}
-            >
-              <div style={{ display: 'grid', gap: 'var(--space-1)' }}>
-                <label htmlFor="alumnoId" style={etiquetaEstilo}>
-                  Alumna o alumno
-                </label>
-                <select id="alumnoId" name="alumnoId" required style={campoEstilo}>
-                  {alumnos.map((a) => (
-                    <option key={a.id} value={a.id}>
-                      {a.nombre}
-                      {a.cohorte ? ` · ${a.cohorte}` : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div style={{ display: 'grid', gap: 'var(--space-1)' }}>
-                <label htmlFor="tipo" style={etiquetaEstilo}>
-                  Tipo
-                </label>
-                <select
-                  id="tipo"
-                  value={tipo}
-                  onChange={(e) =>
-                    setTipo(e.target.value === 'MONTO_FIJO' ? 'MONTO_FIJO' : 'PORCENTAJE')
-                  }
-                  style={campoEstilo}
-                >
-                  <option value="PORCENTAJE">Porcentaje</option>
-                  <option value="MONTO_FIJO">Monto fijo</option>
-                </select>
-              </div>
-
-              <Campo
-                etiqueta={tipo === 'PORCENTAJE' ? 'Porcentaje' : 'Importe'}
-                nombre="valor"
-                placeholder={tipo === 'PORCENTAJE' ? '5.00' : '500.00'}
-                inputMode="decimal"
-                ayuda={
-                  tipo === 'PORCENTAJE'
-                    ? 'Entre 0 y 100. El 5 % de la matrícula es el mínimo que exige la ley.'
-                    : 'En pesos. Se descuenta del precio de lista del concepto.'
-                }
-              />
-
-              <div style={{ display: 'grid', gap: 'var(--space-1)' }}>
-                <label htmlFor="conceptoId" style={etiquetaEstilo}>
-                  Se aplica a
-                </label>
-                <select id="conceptoId" name="conceptoId" style={campoEstilo}>
-                  <option value="">Todos los conceptos</option>
-                  {conceptos.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      Solo {c.nombre}
-                    </option>
-                  ))}
-                </select>
-                <span style={ayudaEstilo}>Lo normal es becar la colegiatura y no el comedor.</span>
-              </div>
-
-              <Campo
-                etiqueta="Vigente desde"
-                nombre="vigenteDesde"
-                type="date"
-                defaultValue={new Date().toISOString().slice(0, 10)}
-              />
-              <Campo
-                etiqueta="Vigente hasta"
-                nombre="vigenteHasta"
-                type="date"
-                ayuda="Opcional. Si la dejas vacía, la beca no caduca — y entonces alguien tiene que acordarse de retirarla."
-              />
-
-              <Campo
-                etiqueta="Motivo"
-                nombre="motivo"
-                placeholder="Beca de hermanos: segundo hijo inscrito"
-                ayuda="Obligatorio. Es la prueba de por qué se otorgó, y una autoridad puede pedirla."
-              />
-
-              <label style={{ display: 'flex', gap: 'var(--space-2)', alignItems: 'center' }}>
-                <input
-                  type="checkbox"
-                  checked={esLegal}
-                  onChange={(e) => setEsLegal(e.target.checked)}
-                  style={{ width: 20, height: 20 }}
-                />
-                <span>Cuenta para el 5 % que exige la ley</span>
-              </label>
-              <span style={ayudaEstilo}>
-                Márcalo en las becas con las que cumples la obligación de la Ley General de
-                Educación (art. 149-III). Así puedes demostrar el cumplimiento sin revisar los
-                motivos uno por uno.
-              </span>
-
-              <Boton type="submit" cargando={guardando}>
-                Otorgar beca
-              </Boton>
-            </form>
-          </Tarjeta>
         </div>
-      )}
-    </main>
-  );
-}
 
-const etiquetaEstilo = {
-  fontSize: 'var(--font-size-sm)',
-  fontWeight: 'var(--font-weight-medium)',
-  color: 'var(--texto-primario)',
-} as const;
+        {error && (
+          <Alert variant="destructive" appearance="light">
+            <AlertIcon>
+              <TriangleAlert />
+            </AlertIcon>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
 
-const campoEstilo = {
-  padding: 'var(--space-2) var(--space-3)',
-  borderRadius: 'var(--radio-md)',
-  border: '1px solid var(--borde)',
-  background: 'var(--superficie)',
-  color: 'var(--texto-primario)',
-  fontSize: 'var(--font-size-md)',
-  // 44 px de alto mínimo: es el objetivo táctil que la matriz D10 exige en
-  // todas las pantallas, también en las de escritorio.
-  minHeight: 44,
-} as const;
+        {!sinPermiso && (
+          <div className="grid items-start gap-5 lg:gap-7.5 xl:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardHeading>
+                  <CardTitle>Otorgadas</CardTitle>
+                </CardHeading>
+                {/* El contador del cumplimiento legal, arriba y sin tener que
+                    sumarlo a mano: es el numero que una autoridad puede venir
+                    a pedir. */}
+                {legales > 0 && (
+                  <Badge variant="info">{legales} vigente(s) por obligación legal</Badge>
+                )}
+              </CardHeader>
+              <CardContent className="p-0">
+                {becas === null && <p className="text-muted-foreground p-5 text-sm">Cargando…</p>}
 
-const ayudaEstilo = {
-  fontSize: 'var(--font-size-sm)',
-  color: 'var(--texto-tenue)',
-} as const;
+                {becas?.length === 0 && (
+                  <p className="text-muted-foreground p-5 text-sm">
+                    Todavía no hay becas registradas. La primera suele ser la del 5 % que exige la
+                    ley.
+                  </p>
+                )}
 
-function Campo({
-  etiqueta,
-  nombre,
-  ayuda,
-  ...resto
-}: {
-  etiqueta: string;
-  nombre: string;
-  ayuda?: string;
-} & React.InputHTMLAttributes<HTMLInputElement>) {
-  return (
-    <div style={{ display: 'grid', gap: 'var(--space-1)' }}>
-      <label htmlFor={nombre} style={etiquetaEstilo}>
-        {etiqueta}
-      </label>
-      <input id={nombre} name={nombre} style={campoEstilo} {...resto} />
-      {ayuda && <span style={ayudaEstilo}>{ayuda}</span>}
-    </div>
+                {becas?.map((b) => (
+                  <div
+                    key={b.id}
+                    className="border-border flex flex-col gap-2 border-b px-5 py-4 last:border-b-0"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <span className="text-mono font-medium">{b.alumno}</span>
+                      <span className="text-mono font-semibold tabular-nums">
+                        {b.tipo === 'PORCENTAJE' ? `${b.valor} %` : `$${b.valor}`}
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      {/* El estado lleva TEXTO, no solo color (SC 1.4.1). */}
+                      <Badge variant={b.vigenteHoy ? 'success' : 'secondary'}>
+                        {!b.activa
+                          ? 'Retirada'
+                          : b.vigenteHoy
+                            ? 'Vigente hoy'
+                            : 'Fuera de vigencia'}
+                      </Badge>
+                      {b.esObligacionLegal && <Badge variant="info">Obligación legal</Badge>}
+                      <Badge variant="secondary">
+                        {b.concepto ? `Solo ${b.concepto.nombre}` : 'Todos los conceptos'}
+                      </Badge>
+                    </div>
+
+                    <p className="text-muted-foreground text-xs">
+                      {fechaCorta(b.vigenteDesde)} —{' '}
+                      {b.vigenteHasta ? fechaCorta(b.vigenteHasta) : 'sin fecha de fin'} ·{' '}
+                      {b.motivo}
+                    </p>
+
+                    {b.activa && (
+                      <div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            void retirar(b);
+                          }}
+                        >
+                          Retirar
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardHeading>
+                  <CardTitle>Otorgar una beca</CardTitle>
+                </CardHeading>
+              </CardHeader>
+              <CardContent>
+                <form
+                  onSubmit={(e) => {
+                    void otorgar(e);
+                  }}
+                  className="flex flex-col gap-4"
+                >
+                  <CampoSelect etiqueta="Alumna o alumno" name="alumnoId" required>
+                    {alumnos.map((a) => (
+                      <option key={a.id} value={a.id}>
+                        {a.nombre}
+                        {a.cohorte ? ` · ${a.cohorte}` : ''}
+                      </option>
+                    ))}
+                  </CampoSelect>
+
+                  <CampoSelect
+                    etiqueta="Tipo"
+                    value={tipo}
+                    onChange={(e) =>
+                      setTipo(e.target.value === 'MONTO_FIJO' ? 'MONTO_FIJO' : 'PORCENTAJE')
+                    }
+                  >
+                    <option value="PORCENTAJE">Porcentaje</option>
+                    <option value="MONTO_FIJO">Monto fijo</option>
+                  </CampoSelect>
+
+                  <Campo
+                    etiqueta={tipo === 'PORCENTAJE' ? 'Porcentaje' : 'Importe'}
+                    name="valor"
+                    placeholder={tipo === 'PORCENTAJE' ? '5.00' : '500.00'}
+                    inputMode="decimal"
+                    ayuda={
+                      tipo === 'PORCENTAJE'
+                        ? 'Entre 0 y 100. El 5 % de la matrícula es el mínimo que exige la ley.'
+                        : 'En pesos. Se descuenta del precio de lista del concepto.'
+                    }
+                  />
+
+                  <CampoSelect
+                    etiqueta="Se aplica a"
+                    name="conceptoId"
+                    ayuda="Lo normal es becar la colegiatura y no el comedor."
+                  >
+                    <option value="">Todos los conceptos</option>
+                    {conceptos.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        Solo {c.nombre}
+                      </option>
+                    ))}
+                  </CampoSelect>
+
+                  <Campo
+                    etiqueta="Vigente desde"
+                    name="vigenteDesde"
+                    type="date"
+                    defaultValue={new Date().toISOString().slice(0, 10)}
+                  />
+                  <Campo
+                    etiqueta="Vigente hasta"
+                    name="vigenteHasta"
+                    type="date"
+                    ayuda="Opcional. Si la dejas vacía, la beca no caduca — y entonces alguien tiene que acordarse de retirarla."
+                  />
+
+                  <Campo
+                    etiqueta="Motivo"
+                    name="motivo"
+                    placeholder="Beca de hermanos: segundo hijo inscrito"
+                    ayuda="Obligatorio. Es la prueba de por qué se otorgó, y una autoridad puede pedirla."
+                  />
+
+                  <CampoCasilla
+                    etiqueta="Cuenta para el 5 % que exige la ley"
+                    marcada={esLegal}
+                    alCambiar={setEsLegal}
+                    ayuda="Márcalo en las becas con las que cumples la obligación de la Ley General de Educación (art. 149-III). Así puedes demostrar el cumplimiento sin revisar los motivos uno por uno."
+                  />
+
+                  <Button type="submit" disabled={guardando}>
+                    {guardando ? 'Guardando…' : 'Otorgar beca'}
+                  </Button>
+                </form>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+      </div>
+    </Container>
   );
 }

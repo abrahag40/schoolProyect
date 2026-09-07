@@ -1,9 +1,82 @@
 'use client';
 
-import { useEffect, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
-import { Boton, Insignia, Tarjeta } from '@azahar/ui';
+import {
+  getCoreRowModel,
+  getFilteredRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+  type ColumnDef,
+  type PaginationState,
+  type SortingState,
+} from '@tanstack/react-table';
+import { Search, TriangleAlert, X } from 'lucide-react';
+import { Alert, AlertDescription, AlertIcon } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardFooter,
+  CardHeader,
+  CardHeading,
+  CardTable,
+  CardTitle,
+} from '@/components/ui/card';
+import { Container } from '@/components/common/container';
+import { DataGrid } from '@/components/ui/data-grid';
+import { DataGridColumnHeader } from '@/components/ui/data-grid-column-header';
+import { DataGridPagination } from '@/components/ui/data-grid-pagination';
+import { DataGridTable } from '@/components/ui/data-grid-table';
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { ScrollArea, ScrollBar } from '@/components/ui/scroll-area';
 import { enviarJson, pedirApi } from '../../api';
+import { TarjetasCobranza, type CifrasCobranza } from '../componentes/tarjetas-cobranza';
+
+/**
+ * COBRANZA (AZ-M4.8, reconstruida sobre el `DataGrid` en AZ-D2.5/AZ-D2.6).
+ *
+ * Tres decisiones que vienen del wireframe aprobado y de la ley, y que NO
+ * cambian al cambiar de tecnologia:
+ *
+ *  1. **Las cifras arriba y siempre visibles.** Es lo que el director mira
+ *     primero, antes que cualquier tabla.
+ *  2. **La lectura legal ya hecha.** El Articulo 7 del Acuerdo de PROFECO
+ *     permite suspender el servicio tras tres colegiaturas impagas, con 15 dias
+ *     de aviso. La escuela no deberia tener que recordarlo.
+ *  3. **El pago se registra aqui mismo.** Ver quien debe y tener que ir a otra
+ *     seccion a capturar el abono es la friccion que hace que caja siga usando
+ *     su libreta.
+ *
+ * --- POR QUE ESTAS COLUMNAS (estudio del 6-sep-2026) ----------------------
+ *
+ * El endpoint ordena por «mas dias de atraso, y a igualdad, mas dinero». Eso no
+ * es una tabla de consulta: es una COLA DE TRABAJO. Las columnas responden a
+ * «¿a quien le hablo hoy, que le digo, y que puedo hacer legalmente?».
+ *
+ * LAS COLUMNAS 3, 4 Y 5 PARECEN REDUNDANTES Y NO LO SON. Una familia puede
+ * deber mucho sin meses vencidos (un cargo grande de inscripcion) o tener tres
+ * meses vencidos con poco dinero (colegiaturas becadas). El Articulo 7 se
+ * activa con la 5; la presion de caja esta en la 3. Colapsarlas repetiria el
+ * error de §52, que ya se corrigio una vez.
+ *
+ * DECLARACION DE METODO: no hay investigacion primaria con personal de cobranza
+ * escolar. Esto es hipotesis con evidencia —el esquema, el orden del endpoint y
+ * la ley—, no hecho validado.
+ *
+ * PENDIENTE EN EL API para completar el estudio: grado/grupo del alumno, el
+ * porcentaje de cada pagador, y el periodo mas antiguo vencido.
+ */
 
 interface Pagador {
   tutorId: string;
@@ -41,12 +114,11 @@ interface ResultadoPago {
 }
 
 /**
- * "41000.00" -> "41,000.00". Separadores de millar para que la cifra se lea de
- * un vistazo.
+ * "41000.00" -> "41,000.00".
  *
- * Se formatea la CADENA, no un número: convertir el importe a `number` para
- * darle formato lo haría pasar por punto flotante, que es justo lo que §4
- * prohíbe. Aquí solo se insertan comas en la parte entera.
+ * Se formatea la CADENA, no un numero: convertir el importe a `number` para
+ * darle formato lo haria pasar por punto flotante, que es justo lo que §43
+ * prohibe. Aqui solo se insertan comas en la parte entera.
  */
 function conSeparadores(monto: string): string {
   const [entero = '0', decimales = '00'] = monto.split('.');
@@ -59,21 +131,12 @@ function campoTexto(formulario: FormData, nombre: string): string {
   return typeof valor === 'string' ? valor : '';
 }
 
-/**
- * Panel de morosidad (AZ-M4.8) — pantalla 5 de la matriz D10.
- *
- * Tres decisiones que vienen del wireframe aprobado y de la ley:
- *
- *  1. **Los tres números arriba y siempre visibles.** Es lo que el director
- *     mira primero, antes que cualquier tabla.
- *  2. **La lectura legal ya hecha.** El Artículo 7 del Acuerdo de PROFECO
- *     permite suspender el servicio tras tres colegiaturas impagas, con 15 días
- *     de aviso. La escuela no debería tener que recordarlo: el panel le dice
- *     dónde está parada, y cuántos meses faltan si aún no puede.
- *  3. **El pago se registra aquí mismo.** Ver quién debe y tener que ir a otra
- *     sección a capturar el abono es la fricción que hace que caja siga usando
- *     su libreta.
- */
+/** Centavos, para ordenar por importe sin pasar por punto flotante (§43). */
+function aCentavos(monto: string): number {
+  const [entero = '0', decimales = '00'] = monto.split('.');
+  return Number(entero) * 100 + Number(decimales.padEnd(2, '0').slice(0, 2));
+}
+
 export default function PaginaMorosidad() {
   const router = useRouter();
   const [datos, setDatos] = useState<Morosidad | null>(null);
@@ -82,6 +145,9 @@ export default function PaginaMorosidad() {
   const [guardando, setGuardando] = useState(false);
   const [recibo, setRecibo] = useState<ResultadoPago | null>(null);
   const [recarga, setRecarga] = useState(0);
+  const [busqueda, setBusqueda] = useState('');
+  const [orden, setOrden] = useState<SortingState>([]);
+  const [pagina, setPagina] = useState<PaginationState>({ pageIndex: 0, pageSize: 10 });
 
   useEffect(() => {
     let vigente = true;
@@ -143,323 +209,330 @@ export default function PaginaMorosidad() {
     setRecarga((n) => n + 1);
   }
 
-  return (
-    <main>
-      <header style={{ marginBottom: 'var(--space-4)' }}>
-        <Boton variante="texto" onClick={() => router.push('/panel')} style={{ padding: 0 }}>
-          ‹ Panel
-        </Boton>
-        <h1 style={{ fontSize: 'var(--font-size-2xl)', marginTop: 'var(--space-2)' }}>Cobranza</h1>
-        <p style={{ color: 'var(--texto-tenue)', marginTop: 'var(--space-2)' }}>
-          Quién debe, desde cuándo y cuánto. Al {datos?.hoy ?? '…'}.
-        </p>
-      </header>
+  const familias = useMemo(() => {
+    const todas = datos?.familias ?? [];
+    const q = busqueda.trim().toLowerCase();
+    if (!q) return todas;
+    // Se busca por alumno Y por pagador: en el telefono, quien contesta es el
+    // tutor, y el director muchas veces recuerda su nombre y no el del alumno.
+    return todas.filter(
+      (f) =>
+        f.alumno.toLowerCase().includes(q) ||
+        f.pagadores.some((p) => p.nombre.toLowerCase().includes(q)),
+    );
+  }, [datos, busqueda]);
 
-      {error && (
-        <Tarjeta>
-          <p role="alert" style={{ margin: 0 }}>
-            {error}
-          </p>
-        </Tarjeta>
-      )}
-
-      {/* Los tres números, arriba y JUNTOS.
-          `minmax(0, 1fr)` en tres columnas fijas y no `auto-fit`: con auto-fit
-          los tres se apilaban a 360 px y empujaban la tabla fuera de pantalla,
-          que es exactamente lo contrario de lo que pide el wireframe D10 —
-          "arriba y siempre visibles". Verificado en el navegador a 360 px. */}
-      {datos && (
-        <div
-          style={{
-            display: 'grid',
-            gap: 'var(--space-2)',
-            // 9rem de mínimo: a 360 px caben dos por fila y la tercera baja,
-            // así los tres siguen visibles sin que la página scrollee de lado
-            // ni se corten los importes. Con tres columnas fijas, "$41,000.00"
-            // se desbordaba — visto en el navegador, no supuesto.
-            gridTemplateColumns: 'repeat(auto-fit, minmax(9rem, 1fr))',
-            marginBottom: 'var(--space-4)',
-          }}
-        >
-          <Cifra etiqueta="Cobrado" valor={datos.cobrado} />
-          <Cifra etiqueta="Por cobrar" valor={datos.porCobrar} />
-          <Cifra
-            etiqueta="Vencido"
-            valor={datos.vencido}
-            pie={`${datos.familias.length} ${datos.familias.length === 1 ? 'familia' : 'familias'}`}
-          />
-        </div>
-      )}
-
-      {recibo && (
-        <Tarjeta titulo="Pago registrado">
-          <div role="status">
-            <p style={{ margin: 'var(--space-2) 0' }}>
-              Se aplicaron <strong>${conSeparadores(recibo.aplicado)}</strong>
-              {recibo.saldoAFavor !== '0.00' && (
-                <>
-                  {' '}
-                  y quedaron <strong>${conSeparadores(recibo.saldoAFavor)}</strong> a favor de la
-                  familia
-                </>
-              )}
-              .
-            </p>
-            {recibo.aplicaciones.length > 0 && (
-              <ul style={{ margin: 0, paddingLeft: 'var(--space-4)' }}>
-                {recibo.aplicaciones.map((a, i) => (
-                  <li key={`${a.periodo}-${i}`}>
-                    {a.concepto} de {a.periodo}: ${conSeparadores(a.monto)}
-                  </li>
-                ))}
-              </ul>
-            )}
-            <div style={{ marginTop: 'var(--space-3)' }}>
-              <Boton variante="secundario" onClick={() => setRecibo(null)}>
-                Cerrar
-              </Boton>
-            </div>
+  const columnas = useMemo<ColumnDef<FamiliaMorosa>[]>(
+    () => [
+      {
+        id: 'alumno',
+        accessorFn: (f) => f.alumno,
+        header: ({ column }) => <DataGridColumnHeader title="Alumno" column={column} />,
+        size: 240,
+        cell: ({ row }) => (
+          <div className="flex flex-col gap-0.5">
+            <span className="text-mono font-medium">{row.original.alumno}</span>
+            {/* Vacio ≠ error: una familia sin pagadores registrados es el estado
+                real de una escuela recien migrada, y decirlo es mas util que
+                dejar un hueco que parece una falla de carga. */}
+            <span className="text-muted-foreground text-xs">
+              {row.original.pagadores.length === 0
+                ? 'Sin pagador registrado — hay que darlo de alta para poder cobrarle'
+                : `Paga${row.original.pagadores.length > 1 ? 'n' : ''}: ${row.original.pagadores
+                    .map((p) => p.nombre)
+                    .join(' · ')}`}
+            </span>
           </div>
-        </Tarjeta>
-      )}
-
-      {datos?.familias.length === 0 && (
-        <Tarjeta>
-          <p style={{ margin: 0 }}>
-            Nadie debe nada. Toda la escuela está al corriente — vale la pena decirlo.
-          </p>
-        </Tarjeta>
-      )}
-
-      <div style={{ display: 'grid', gap: 'var(--space-3)', marginTop: 'var(--space-4)' }}>
-        {datos?.familias.map((f) => (
-          <Tarjeta key={f.alumnoId}>
-            <div
-              style={{
-                display: 'flex',
-                justifyContent: 'space-between',
-                gap: 'var(--space-3)',
-                flexWrap: 'wrap',
-                alignItems: 'flex-start',
+        ),
+      },
+      {
+        id: 'saldo',
+        // Se ordena por CENTAVOS, no por la cadena: alfabeticamente "$9,796"
+        // va despues de "$41,000", que es exactamente al reves de lo util.
+        accessorFn: (f) => aCentavos(f.saldo),
+        header: ({ column }) => <DataGridColumnHeader title="Saldo vencido" column={column} />,
+        size: 140,
+        cell: ({ row }) => (
+          <span className="text-mono font-semibold tabular-nums">
+            ${conSeparadores(row.original.saldo)}
+          </span>
+        ),
+      },
+      {
+        id: 'dias',
+        accessorFn: (f) => f.diasDeAtraso,
+        header: ({ column }) => <DataGridColumnHeader title="Días de atraso" column={column} />,
+        size: 140,
+        cell: ({ row }) => (
+          // La insignia lleva TEXTO, no solo tono: el estado nunca se comunica
+          // unicamente con color (WCAG 2.2 SC 1.4.1).
+          <Badge variant={row.original.diasDeAtraso > 0 ? 'destructive' : 'secondary'}>
+            {row.original.diasDeAtraso > 0 ? `${row.original.diasDeAtraso} días` : 'Sin vencer'}
+          </Badge>
+        ),
+      },
+      {
+        id: 'meses',
+        accessorFn: (f) => f.situacion.periodosEnMora,
+        header: ({ column }) => <DataGridColumnHeader title="Meses vencidos" column={column} />,
+        size: 150,
+        cell: ({ row }) => (
+          <Badge variant={row.original.situacion.puedeSuspender ? 'destructive' : 'secondary'}>
+            {row.original.situacion.periodosEnMora}{' '}
+            {row.original.situacion.periodosEnMora === 1 ? 'colegiatura' : 'colegiaturas'}
+          </Badge>
+        ),
+      },
+      {
+        id: 'situacion',
+        enableSorting: false,
+        header: () => 'Situación legal',
+        size: 340,
+        // El texto sale del DOMINIO, no de la pantalla (§45): la escuela puede
+        // ser mas generosa que la ley, nunca mas estricta, y quien decide eso
+        // es el API.
+        cell: ({ row }) => (
+          <span className="text-muted-foreground text-xs">
+            {row.original.situacion.explicacion}
+          </span>
+        ),
+      },
+      {
+        id: 'accion',
+        enableSorting: false,
+        header: () => '',
+        size: 150,
+        cell: ({ row }) =>
+          row.original.pagadores.length > 0 ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setRecibo(null);
+                setCobrando(row.original);
               }}
             >
-              <div>
-                <strong style={{ fontSize: 'var(--font-size-lg)' }}>{f.alumno}</strong>
-                <p
-                  style={{
-                    margin: 'var(--space-1) 0 0',
-                    color: 'var(--texto-tenue)',
-                    fontSize: 'var(--font-size-sm)',
-                  }}
-                >
-                  {/* Vacío ≠ error: una familia sin pagadores registrados es el
-                      estado real de una escuela recién migrada, y decirlo es
-                      más útil que dejar un hueco que parece una falla de carga. */}
-                  {f.pagadores.length === 0
-                    ? 'Sin pagador registrado — hay que darlo de alta para poder cobrarle'
-                    : `Paga${f.pagadores.length > 1 ? 'n' : ''}: ${f.pagadores
-                        .map((p) => p.nombre)
-                        .join(' · ')}`}
-                </p>
-              </div>
-              <span
-                style={{
-                  fontSize: 'var(--font-size-2xl)',
-                  fontWeight: 'var(--font-weight-bold)',
-                  color: 'var(--texto-primario)',
-                  fontVariantNumeric: 'tabular-nums',
-                }}
-              >
-                ${conSeparadores(f.saldo)}
-              </span>
-            </div>
-
-            <div
-              style={{
-                display: 'flex',
-                gap: 'var(--space-2)',
-                marginTop: 'var(--space-3)',
-                flexWrap: 'wrap',
-              }}
-            >
-              {/* Las insignias llevan TEXTO, no solo tono: el estado nunca se
-                  comunica únicamente con color (WCAG 2.2 SC 1.4.1). */}
-              <Insignia tono={f.diasDeAtraso > 0 ? 'peligro' : 'neutro'}>
-                {f.diasDeAtraso > 0 ? `${f.diasDeAtraso} días de atraso` : 'Sin vencer'}
-              </Insignia>
-              <Insignia tono={f.situacion.puedeSuspender ? 'peligro' : 'neutro'}>
-                {f.situacion.periodosEnMora}{' '}
-                {f.situacion.periodosEnMora === 1 ? 'mes vencido' : 'meses vencidos'}
-              </Insignia>
-            </div>
-
-            {/* La lectura legal, hecha por el sistema. */}
-            <p
-              style={{
-                margin: 'var(--space-3) 0 0',
-                fontSize: 'var(--font-size-sm)',
-                color: 'var(--texto-tenue)',
-              }}
-            >
-              {f.situacion.explicacion}
-            </p>
-
-            {f.pagadores.length > 0 && (
-              <div style={{ marginTop: 'var(--space-3)' }}>
-                <Boton
-                  variante="secundario"
-                  onClick={() => {
-                    setRecibo(null);
-                    setCobrando(cobrando?.alumnoId === f.alumnoId ? null : f);
-                  }}
-                  aria-expanded={cobrando?.alumnoId === f.alumnoId}
-                >
-                  {cobrando?.alumnoId === f.alumnoId ? 'Cancelar' : 'Registrar un pago'}
-                </Boton>
-              </div>
-            )}
-
-            {cobrando?.alumnoId === f.alumnoId && (
-              <form
-                onSubmit={(evento) => {
-                  void registrarPago(evento);
-                }}
-                style={{
-                  display: 'grid',
-                  gap: 'var(--space-3)',
-                  marginTop: 'var(--space-3)',
-                  paddingTop: 'var(--space-3)',
-                  borderTop: '1px solid var(--borde)',
-                }}
-              >
-                <div style={{ display: 'grid', gap: 'var(--space-1)' }}>
-                  <label htmlFor={`tutor-${f.alumnoId}`} style={etiquetaEstilo}>
-                    Quién paga
-                  </label>
-                  <select id={`tutor-${f.alumnoId}`} name="tutorId" style={campoEstilo}>
-                    {f.pagadores.map((p) => (
-                      <option key={p.tutorId} value={p.tutorId}>
-                        {p.nombre}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div style={{ display: 'grid', gap: 'var(--space-1)' }}>
-                  <label htmlFor={`monto-${f.alumnoId}`} style={etiquetaEstilo}>
-                    Importe recibido
-                  </label>
-                  <input
-                    id={`monto-${f.alumnoId}`}
-                    name="monto"
-                    inputMode="decimal"
-                    placeholder="1470.00"
-                    style={campoEstilo}
-                  />
-                  <span style={ayudaEstilo}>
-                    Se aplica automáticamente al mes más antiguo. Lo que sobre queda a favor de la
-                    familia.
-                  </span>
-                </div>
-
-                <div style={{ display: 'grid', gap: 'var(--space-1)' }}>
-                  <label htmlFor={`fecha-${f.alumnoId}`} style={etiquetaEstilo}>
-                    Fecha del pago
-                  </label>
-                  <input
-                    id={`fecha-${f.alumnoId}`}
-                    name="fecha"
-                    type="date"
-                    defaultValue={datos?.hoy}
-                    style={campoEstilo}
-                  />
-                </div>
-
-                <div style={{ display: 'grid', gap: 'var(--space-1)' }}>
-                  <label htmlFor={`metodo-${f.alumnoId}`} style={etiquetaEstilo}>
-                    Cómo pagó
-                  </label>
-                  <select
-                    id={`metodo-${f.alumnoId}`}
-                    name="metodo"
-                    defaultValue="TRANSFERENCIA"
-                    style={campoEstilo}
-                  >
-                    <option value="TRANSFERENCIA">Transferencia</option>
-                    <option value="EFECTIVO">Efectivo</option>
-                    <option value="DEPOSITO">Depósito</option>
-                    <option value="TARJETA">Tarjeta</option>
-                    <option value="OTRO">Otro</option>
-                  </select>
-                </div>
-
-                <div style={{ display: 'grid', gap: 'var(--space-1)' }}>
-                  <label htmlFor={`ref-${f.alumnoId}`} style={etiquetaEstilo}>
-                    Folio o referencia
-                  </label>
-                  <input id={`ref-${f.alumnoId}`} name="referencia" style={campoEstilo} />
-                  <span style={ayudaEstilo}>
-                    Opcional, pero es lo que permite encontrar el pago en el estado de cuenta del
-                    banco.
-                  </span>
-                </div>
-
-                <Boton type="submit" cargando={guardando}>
-                  Registrar pago
-                </Boton>
-              </form>
-            )}
-          </Tarjeta>
-        ))}
-      </div>
-    </main>
+              Registrar pago
+            </Button>
+          ) : null,
+      },
+    ],
+    [],
   );
-}
 
-const etiquetaEstilo = {
-  fontSize: 'var(--font-size-sm)',
-  fontWeight: 'var(--font-weight-medium)',
-  color: 'var(--titulo)',
-} as const;
+  const tabla = useReactTable({
+    columns: columnas,
+    data: familias,
+    pageCount: Math.ceil(familias.length / pagina.pageSize),
+    getRowId: (f) => f.alumnoId,
+    state: { sorting: orden, pagination: pagina },
+    onSortingChange: setOrden,
+    onPaginationChange: setPagina,
+    getCoreRowModel: getCoreRowModel(),
+    getFilteredRowModel: getFilteredRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  });
 
-const campoEstilo = {
-  minHeight: 'var(--size-touch-target)',
-  padding: '0 var(--space-3)',
-  borderRadius: 'var(--radius-md)',
-  border: '1px solid var(--borde)',
-  background: 'var(--superficie)',
-  color: 'var(--texto)',
-  fontSize: 'var(--font-size-base)',
-  fontFamily: 'var(--font-family-sans)',
-} as const;
+  const cifras: CifrasCobranza | null = datos
+    ? {
+        cobrado: datos.cobrado,
+        porCobrar: datos.porCobrar,
+        vencido: datos.vencido,
+        familiasConAdeudo: datos.familias.length,
+      }
+    : null;
 
-const ayudaEstilo = { fontSize: 'var(--font-size-sm)', color: 'var(--texto-tenue)' } as const;
-
-function Cifra({ etiqueta, valor, pie }: { etiqueta: string; valor: string; pie?: string }) {
   return (
-    <Tarjeta>
-      <p style={{ color: 'var(--texto-tenue)', fontSize: 'var(--font-size-xs)', margin: 0 }}>
-        {etiqueta}
-      </p>
-      <p
-        style={{
-          // Escala con el ancho: legible a 360 px sin partirse, grande en
-          // escritorio, que es donde vive esta pantalla.
-          fontSize: 'clamp(var(--font-size-lg), 4vw, var(--font-size-2xl))',
-          fontWeight: 'var(--font-weight-extrabold)',
-          color: 'var(--texto-primario)',
-          margin: 'var(--space-1) 0 0',
-          // Los dígitos alineados en columna se comparan de un vistazo.
-          fontVariantNumeric: 'tabular-nums',
+    <Container>
+      <div className="grid gap-5 lg:gap-7.5">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-mono text-2xl font-semibold">Cobranza</h1>
+          <p className="text-muted-foreground text-sm">
+            Quién debe, desde cuándo y cuánto. Al {datos?.hoy ?? '…'}.
+          </p>
+        </div>
+
+        {error && (
+          <Alert variant="destructive" appearance="light">
+            <AlertIcon>
+              <TriangleAlert />
+            </AlertIcon>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {/* Las cifras arriba, como pide el wireframe D10. */}
+        <div className="grid grid-cols-2 gap-5 lg:grid-cols-4 lg:gap-7.5">
+          <TarjetasCobranza cifras={cifras} />
+        </div>
+
+        {recibo && (
+          <Alert appearance="light">
+            <AlertDescription>
+              Pago registrado: se aplicaron <strong>${conSeparadores(recibo.aplicado)}</strong>
+              {recibo.aplicaciones.length > 0 && (
+                <> a {recibo.aplicaciones.map((a) => `${a.concepto} ${a.periodo}`).join(', ')}</>
+              )}
+              {aCentavos(recibo.saldoAFavor) > 0 && (
+                <> · Quedan ${conSeparadores(recibo.saldoAFavor)} a favor de la familia.</>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        <DataGrid
+          table={tabla}
+          recordCount={familias.length}
+          isLoading={!datos && !error}
+          emptyMessage="Ninguna familia tiene saldo vencido. Nada que perseguir hoy."
+          tableLayout={{ rowBorder: true, headerBackground: true, columnsVisibility: true }}
+        >
+          <Card>
+            <CardHeader>
+              <CardHeading>
+                <CardTitle>Familias con adeudo</CardTitle>
+              </CardHeading>
+              <div className="relative">
+                <Search
+                  className="text-muted-foreground absolute start-3 top-1/2 size-4 -translate-y-1/2"
+                  aria-hidden="true"
+                />
+                <Input
+                  aria-label="Buscar por alumno o pagador"
+                  placeholder="Buscar familia…"
+                  value={busqueda}
+                  onChange={(e) => {
+                    setBusqueda(e.target.value);
+                    // Volver a la primera pagina al filtrar: sin esto, buscar
+                    // desde la pagina 3 puede dejar la tabla vacia aunque haya
+                    // resultados, y parece que no encontro nada.
+                    setPagina((p) => ({ ...p, pageIndex: 0 }));
+                  }}
+                  className="w-48 ps-9"
+                />
+                {busqueda.length > 0 && (
+                  <Button
+                    mode="icon"
+                    variant="ghost"
+                    aria-label="Limpiar la búsqueda"
+                    className="absolute end-1.5 top-1/2 size-6 -translate-y-1/2"
+                    onClick={() => {
+                      setBusqueda('');
+                    }}
+                  >
+                    <X className="size-3.5" aria-hidden="true" />
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+            <CardTable>
+              <ScrollArea>
+                <DataGridTable />
+                <ScrollBar orientation="horizontal" />
+              </ScrollArea>
+            </CardTable>
+            <CardFooter>
+              {/* Los textos van por props: asi no hay que editar su componente
+                  y la traduccion sobrevive a una version nueva de Metronic. */}
+              <DataGridPagination
+                sizesLabel="Mostrar"
+                sizesDescription="por página"
+                info="{from} - {to} de {count}"
+              />
+            </CardFooter>
+          </Card>
+        </DataGrid>
+      </div>
+
+      {/* El registro del pago en un dialogo y ya no incrustado en la fila: con
+          una tabla paginada, un formulario que empuja las filas de abajo hace
+          perder de vista a quien se le esta cobrando. */}
+      <Dialog
+        open={cobrando !== null}
+        onOpenChange={(abierto) => {
+          if (!abierto) setCobrando(null);
         }}
       >
-        ${conSeparadores(valor)}
-      </p>
-      {pie && (
-        <p style={{ color: 'var(--texto-tenue)', fontSize: 'var(--font-size-sm)', margin: 0 }}>
-          {pie}
-        </p>
-      )}
-    </Tarjeta>
+        <DialogContent className="max-w-[460px]">
+          <DialogHeader>
+            <DialogTitle>Registrar un pago</DialogTitle>
+            <DialogDescription>{cobrando?.alumno}</DialogDescription>
+          </DialogHeader>
+          <DialogBody>
+            <form
+              onSubmit={(evento) => {
+                void registrarPago(evento);
+              }}
+              className="flex flex-col gap-4"
+            >
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="tutorId">Quién paga</Label>
+                {/* `<select>` nativo y no el `Select` de Radix: dentro de un
+                    dialogo, el suyo monta otro portal y en movil el teclado
+                    tapa las opciones. El nativo usa el selector del sistema. */}
+                <select
+                  id="tutorId"
+                  name="tutorId"
+                  className="border-input bg-background h-8.5 rounded-md border px-3 text-sm"
+                >
+                  {cobrando?.pagadores.map((p) => (
+                    <option key={p.tutorId} value={p.tutorId}>
+                      {p.nombre}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="monto">Importe recibido</Label>
+                <Input
+                  id="monto"
+                  name="monto"
+                  inputMode="decimal"
+                  placeholder="1470.00"
+                  required
+                  aria-describedby="ayuda-monto"
+                />
+                <p id="ayuda-monto" className="text-muted-foreground text-xs">
+                  Se aplica automáticamente al mes más antiguo. Lo que sobre queda a favor de la
+                  familia.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="fecha">Fecha del pago</Label>
+                <Input id="fecha" name="fecha" type="date" defaultValue={datos?.hoy} required />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="metodo">Cómo pagó</Label>
+                <select
+                  id="metodo"
+                  name="metodo"
+                  defaultValue="TRANSFERENCIA"
+                  className="border-input bg-background h-8.5 rounded-md border px-3 text-sm"
+                >
+                  <option value="TRANSFERENCIA">Transferencia</option>
+                  <option value="EFECTIVO">Efectivo</option>
+                  <option value="DEPOSITO">Depósito</option>
+                  <option value="TARJETA">Tarjeta</option>
+                  <option value="OTRO">Otro</option>
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="referencia">Folio o referencia</Label>
+                <Input id="referencia" name="referencia" />
+              </div>
+
+              <Button type="submit" disabled={guardando} className="w-full">
+                {guardando ? 'Guardando…' : 'Registrar el pago'}
+              </Button>
+            </form>
+          </DialogBody>
+        </DialogContent>
+      </Dialog>
+    </Container>
   );
 }

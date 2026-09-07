@@ -5,6 +5,79 @@ Formato: [Keep a Changelog](https://keepachangelog.com/es-ES/1.1.0/) · Versiona
 Se escribe desde el primer commit, no al final: reconstruir la historia despues
 es caro; anotarla por release es gratis.
 
+## [0.9.0] — 2026-09-06 — Sprint 8: el frontend se reconstruye sobre Metronic
+
+Objetivo: que Azahar deje de tener un sistema visual propio a medio construir y
+corra sobre la plantilla que el CEO ya tenía pagada.
+
+**Origen (cambios C5 y C6):** el CEO tiene licencia Extended de Metronic v9.5.0
+sin usar. ADR-006 había previsto este caso con su escape hatch; ADR-012 lo
+ejecuta y ADR-013 extiende la adopción al armazón de layout.
+
+### La cifra
+
+|                                | Al abrir | Al cerrar                    |
+| ------------------------------ | -------- | ---------------------------- |
+| Estilos en línea               | 225      | **69**                       |
+| Medidas chicas escritas a mano | 9        | **0** (deuda del S7, pagada) |
+| Componentes disponibles        | 6        | **84**                       |
+| Pantallas sobre la plantilla   | 0        | **8**                        |
+
+### Agregado
+
+- **110 archivos de Metronic adoptados** (14,470 líneas): `DataGrid` sobre
+  TanStack Table, `Form`, primitivos sobre Radix, hooks y el armazón del demo1.
+  Inventariados en `docs/adr/inventario-metronic.md`.
+- **Cobranza reconstruida sobre el `DataGrid`**: ordenable, buscable por alumno
+  **y por pagador**, paginada. Las 6 columnas salen de un estudio sobre el
+  esquema de la BD y el orden que ya usaba el endpoint.
+- **Dashboard** con cifras reales de cobranza y las cinco familias más urgentes.
+- **Login** sobre el layout `branded`, **404** que antes no existía, y el
+  **riel plegable de 80 px** con expansión al pasar el ratón.
+- **Un gate nuevo para el puente de tokens** (§68) que mide el contraste sobre
+  el componente **renderizado**, porque los dos gates de color que existían son
+  ciegos al puente.
+- `Campo`, `CampoSelect` y `CampoCasilla`: las piezas de formulario de Azahar,
+  con `aria-describedby` atado de verdad — sin él un lector de pantalla lee la
+  etiqueta y se salta la explicación, que es donde vive lo importante aquí.
+
+### Corregido
+
+- **Dos defectos de accesibilidad que llevaban meses en el sistema**, cazados
+  por el gate nuevo en su primera corrida: el botón destructivo daba **3.70:1**
+  y el borde de los controles **1.24:1**. Nacen los tokens `danger-strong` y
+  `border-control`, siguiendo el precedente de §30.
+- **El color de peligro nunca había tenido prueba de contraste**, y la prueba
+  llamada «borde de control visible» medía en realidad el anillo de foco. Un
+  gate mal nombrado durante siete sprints.
+- **La contraseña de demo ya no viaja a producción.** El login traía la de la
+  directora en `defaultValue`, y estaba desplegado en staging.
+- **Tres defectos del armazón de Metronic**, corregidos al adoptarlo (ADR-013):
+  `role="content"` no es un rol ARIA válido; el sidebar lo decide el CSS y no
+  JavaScript; y las transiciones se habilitan tras un frame, no tras 1000 ms.
+
+### Seguridad y licencia
+
+- **15 MB de arte de KeenThemes entraron por error a un repositorio público** y
+  se retiraron. Ver el acta de cierre. **Siguen en el historial de git**;
+  sacarlos exige reescribir la historia y es decisión del CEO.
+- **`.vercelignore` nuevo**: el CLI de Vercel no lee `.gitignore` e iba a subir
+  la plantilla entera. Nos salvó un límite de archivos, no un gate.
+
+### Retirado
+
+- **Las 458 líneas de `packages/ui`**: `Boton`, `CampoTexto`, `Insignia`,
+  `Tarjeta`, `Rejilla` y `ArmazonPanel`. Al migrar el frontend dejaron de
+  importarse; borrarlas fue decisión del CEO con la evidencia medida delante.
+  El paquete sigue vivo publicando `theme.css`, que es lo que hace que
+  Metronic pinte con los colores de Azahar. `ArmazonPanel` era **mejor en
+  accesibilidad** que el armazón que lo sustituye (ADR-013) y vive en `v0.8.0`.
+
+### No entregado
+
+- `AZ-D2.10`: los formularios se rehicieron, pero **sin `react-hook-form` ni
+  validación con zod**, que era la razón de adoptar su `Form`.
+
 ## [0.8.0] — 2026-09-06 — Sprint 7: la capa de layout que nunca se construyó
 
 Objetivo: que cada pantalla use el ancho de la pantalla, y que el ancho deje de

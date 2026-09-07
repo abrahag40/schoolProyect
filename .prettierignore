@@ -1,2 +1,29 @@
 # Plantilla comercial: no es codigo del proyecto (ver .gitignore).
 metronic-v9.5.0/
+
+# EL ARBOL ADOPTADO DE METRONIC (AZ-D2.9). Es codigo que no escribimos, con el
+# formato de KeenThemes. Reformatearlo con nuestras reglas convertiria cada
+# archivo en un diff imposible de comparar contra Metronic 9.6, que es justo lo
+# que la regla 3 de adopcion existe para preservar.
+#
+# QUINTA HERRAMIENTA CON LA MISMA EXCLUSION, y ya es un patron: git decide que
+# se publica, ESLint que se revisa, check-tokens que colores se permiten,
+# .vercelignore que se sube, y Prettier que se formatea. Ninguna lee la
+# configuracion de las otras.
+apps/web/components/ui/
+apps/web/components/common/
+apps/web/components/keenicons/
+apps/web/hooks/
+apps/web/providers/
+apps/web/css/
+
+# Generado por Next en cada arranque; su contenido cambia entre `dev` y `build`.
+apps/web/next-env.d.ts
+
+# Lo genera pnpm y lo REESCRIBE en cada instalacion, en su propio formato.
+# Formatearlo con Prettier dura hasta el siguiente `pnpm add`, y entonces el
+# gate vuelve a ponerse rojo sin que nadie haya tocado codigo.
+#
+# NO ES DEUDA DE ESTE SPRINT: el lockfile de `main` tampoco pasa
+# `prettier --check`. Se destapo al correr el gate completo el 6-sep-2026.
+pnpm-lock.yaml

@@ -2,8 +2,16 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Boton, Insignia, Tarjeta } from '@azahar/ui';
+import { TriangleAlert } from 'lucide-react';
+import { Alert, AlertDescription, AlertIcon } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardHeading, CardTitle } from '@/components/ui/card';
+import { Container } from '@/components/common/container';
+import { Input } from '@/components/ui/input';
+import { cn } from '@/lib/utils';
 import { enviarJson, pedirApi } from '../../api';
+import { CampoSelect } from '../componentes/campo';
 
 type Estado = 'PRESENTE' | 'AUSENTE' | 'RETARDO' | 'JUSTIFICADA';
 
@@ -64,7 +72,7 @@ const OPCIONES: Array<{ estado: Estado; glifo: string; texto: string }> = [
 ];
 
 /**
- * Pase de lista (AZ-M3.1) — pantalla 6 de la matriz D10.
+ * PASE DE LISTA (AZ-M3.1) — pantalla 6 de la matriz D10.
  *
  * OBJETIVO DURO: menos de 30 segundos por grupo, con el pulgar, a 360 px.
  * De ahi salen las tres decisiones que se ven abajo:
@@ -77,6 +85,11 @@ const OPCIONES: Array<{ estado: Estado; glifo: string; texto: string }> = [
  * Si el docente tarda mas, vuelve al papel — y sin asistencia capturada no hay
  * alertas automaticas a las familias, que es la funcion con mejor evidencia de
  * impacto academico del producto.
+ *
+ * NOTA AL MIGRAR A METRONIC (AZ-D2.7): los botones de asistencia NO usan el
+ * `Button` adoptado. Sus tamaños son 28, 34 y 40 px de alto —los tres por
+ * debajo del minimo tactil de 44— y aqui ese numero es el requisito, no una
+ * preferencia. Se mantiene el boton propio, con `h-11` explicito.
  */
 export default function PaginaPaseLista() {
   const router = useRouter();
@@ -203,80 +216,55 @@ export default function PaginaPaseLista() {
 
   if (error) {
     return (
-      <main>
-        <Tarjeta>
-          <p role="alert">{error}</p>
-        </Tarjeta>
-        <div style={{ marginTop: 'var(--space-4)' }}>
-          <Boton variante="secundario" onClick={() => router.push('/panel')}>
-            Volver al panel
-          </Boton>
+      <Container>
+        <div className="flex flex-col gap-4">
+          <Alert variant="destructive" appearance="light">
+            <AlertIcon>
+              <TriangleAlert />
+            </AlertIcon>
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+          <div>
+            <Button variant="outline" onClick={() => router.push('/panel')}>
+              Volver al panel
+            </Button>
+          </div>
         </div>
-      </main>
+      </Container>
     );
   }
 
   return (
-    <main>
-      <header style={{ marginBottom: 'var(--space-4)' }}>
-        <Boton variante="texto" onClick={() => router.push('/panel')} style={{ padding: 0 }}>
-          ‹ Panel
-        </Boton>
-        <h1 style={{ fontSize: 'var(--font-size-2xl)', marginTop: 'var(--space-2)' }}>
-          Pase de lista
-        </h1>
-        {grupo && (
-          <div
-            style={{
-              display: 'flex',
-              gap: 'var(--space-2)',
-              marginTop: 'var(--space-2)',
-              flexWrap: 'wrap',
-            }}
-          >
-            <Insignia tono="info">
-              {TIPO_COHORTE[grupo.tipo] ?? 'Grupo'} {grupo.nombre}
-            </Insignia>
-            <Insignia tono="neutro">{grupo.sede}</Insignia>
-          </div>
+    <Container>
+      <div className="grid gap-5 lg:gap-7.5">
+        <div className="flex flex-col gap-2">
+          <h1 className="text-mono text-2xl font-semibold">Pase de lista</h1>
+          {grupo && (
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="info">
+                {TIPO_COHORTE[grupo.tipo] ?? 'Grupo'} {grupo.nombre}
+              </Badge>
+              <Badge variant="secondary">{grupo.sede}</Badge>
+            </div>
+          )}
+        </div>
+
+        {grupos && grupos.length === 0 && (
+          <Card>
+            <CardContent className="p-5">
+              <p className="text-sm">
+                No tienes grupos asignados todavía. La dirección de tu escuela puede asignártelos
+                desde el panel.
+              </p>
+            </CardContent>
+          </Card>
         )}
-      </header>
 
-      {grupos && grupos.length === 0 && (
-        <Tarjeta>
-          <p>
-            No tienes grupos asignados todavía. La dirección de tu escuela puede asignártelos desde
-            el panel.
-          </p>
-        </Tarjeta>
-      )}
-
-      {grupos && grupos.length > 1 && (
-        <div style={{ marginBottom: 'var(--space-4)' }}>
-          <label
-            htmlFor="grupo"
-            style={{
-              display: 'block',
-              fontSize: 'var(--font-size-sm)',
-              marginBottom: 'var(--space-1)',
-            }}
-          >
-            Grupo
-          </label>
-          <select
-            id="grupo"
+        {grupos && grupos.length > 1 && (
+          <CampoSelect
+            etiqueta="Grupo"
             value={grupoId ?? ''}
             onChange={(e) => setGrupoId(e.target.value || null)}
-            style={{
-              width: '100%',
-              minHeight: 'var(--size-touch-target)',
-              padding: '0 var(--space-3)',
-              borderRadius: 'var(--radius-md)',
-              border: '1px solid var(--borde)',
-              background: 'var(--superficie)',
-              color: 'var(--texto)',
-              fontSize: 'var(--font-size-base)',
-            }}
           >
             <option value="">Elige un grupo…</option>
             {grupos.map((g) => (
@@ -287,152 +275,105 @@ export default function PaginaPaseLista() {
                 {g.listaDeHoy ? ' · ya registrada hoy' : ''}
               </option>
             ))}
-          </select>
-        </div>
-      )}
+          </CampoSelect>
+        )}
 
-      {grupoId && alumnos && (
-        <>
-          <div
-            style={{
-              display: 'flex',
-              gap: 'var(--space-3)',
-              alignItems: 'center',
-              flexWrap: 'wrap',
-              marginBottom: 'var(--space-3)',
-            }}
-          >
-            <label htmlFor="fecha" style={{ fontSize: 'var(--font-size-sm)' }}>
-              Día
-            </label>
-            <input
-              id="fecha"
-              type="date"
-              value={fecha}
-              onChange={(e) => setFecha(e.target.value)}
-              style={{
-                minHeight: 'var(--size-touch-target)',
-                padding: '0 var(--space-3)',
-                borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--borde)',
-                background: 'var(--superficie)',
-                color: 'var(--texto)',
-              }}
-            />
-          </div>
+        {grupoId && alumnos && (
+          <Card>
+            <CardHeader>
+              <CardHeading>
+                <CardTitle>Lista del día</CardTitle>
+              </CardHeading>
+              <Input
+                aria-label="Día"
+                type="date"
+                value={fecha}
+                onChange={(e) => setFecha(e.target.value)}
+                className="w-40"
+              />
+            </CardHeader>
 
-          {/* El caso del 90% de los dias, en un toque. Va ARRIBA de la lista
-              porque es lo primero que hace el docente, no una opcion escondida. */}
-          <Boton onClick={todosPresentes} style={{ width: '100%' }}>
-            Todos presentes
-          </Boton>
+            <CardContent className="flex flex-col gap-4 p-5">
+              {/* El caso del 90% de los dias, en un toque. Va ARRIBA de la lista
+                  porque es lo primero que hace el docente, no una opcion
+                  escondida. `h-11` = 44 px, el minimo tactil. */}
+              <Button onClick={todosPresentes} className="h-11 w-full">
+                Todos presentes
+              </Button>
 
-          <ul style={{ listStyle: 'none', padding: 0, margin: 'var(--space-4) 0 0' }}>
-            {alumnos.map((a) => (
-              <li
-                key={a.alumnoId}
-                style={{
-                  padding: 'var(--space-3) 0',
-                  borderBottom: '1px solid var(--borde)',
-                }}
-              >
-                <p
-                  style={{ margin: '0 0 var(--space-2)', fontWeight: 'var(--font-weight-medium)' }}
-                >
-                  {a.apellidos}, {a.nombre}
-                </p>
-                <div
-                  role="group"
-                  aria-label={`Asistencia de ${a.nombre} ${a.apellidos}`}
-                  style={{ display: 'flex', gap: 'var(--space-2)' }}
-                >
-                  {OPCIONES.map((o) => {
-                    const activo = a.estado === o.estado;
-                    return (
-                      <button
-                        key={o.estado}
-                        type="button"
-                        onClick={() => marcar(a.alumnoId, o.estado)}
-                        aria-pressed={activo}
-                        style={{
-                          flex: 1,
-                          minHeight: 'var(--size-touch-target)',
-                          borderRadius: 'var(--radius-md)',
-                          // El estado seleccionado se marca con GROSOR y peso
-                          // de letra, no con color de relleno: asi no depende
-                          // del color y evita el problema de contraste del azul
-                          // de marca sobre texto claro (§30).
-                          border: activo
-                            ? '2px solid var(--texto-primario)'
-                            : '1px solid var(--borde)',
-                          background: activo ? 'var(--superficie-alt)' : 'var(--superficie)',
-                          color: 'var(--texto)',
-                          fontWeight: activo
-                            ? 'var(--font-weight-semibold)'
-                            : 'var(--font-weight-regular)',
-                          fontSize: 'var(--font-size-sm)',
-                          fontFamily: 'var(--font-family-sans)',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        {o.glifo} {o.texto}
-                      </button>
-                    );
-                  })}
-                </div>
-              </li>
-            ))}
-          </ul>
+              <div className="flex flex-col">
+                {alumnos.map((a) => (
+                  <div
+                    key={a.alumnoId}
+                    className="border-border flex flex-col gap-2 border-b py-3 last:border-b-0"
+                  >
+                    <p className="text-sm font-medium">
+                      {a.apellidos}, {a.nombre}
+                    </p>
+                    <div
+                      role="group"
+                      aria-label={`Asistencia de ${a.nombre} ${a.apellidos}`}
+                      className="flex gap-2"
+                    >
+                      {OPCIONES.map((o) => {
+                        const activo = a.estado === o.estado;
+                        return (
+                          <button
+                            key={o.estado}
+                            type="button"
+                            onClick={() => marcar(a.alumnoId, o.estado)}
+                            aria-pressed={activo}
+                            className={cn(
+                              // `h-11` = 44 px: es el requisito tactil, y por eso
+                              // no se usa el `Button` de Metronic, cuyo tamaño
+                              // mayor es de 40.
+                              'flex h-11 flex-1 items-center justify-center rounded-md text-sm',
+                              'focus-visible:ring-ring focus-visible:ring-2 focus-visible:outline-none',
+                              // El estado seleccionado se marca con GROSOR y peso
+                              // de letra, no con color de relleno: asi no depende
+                              // del color y evita el problema de contraste del
+                              // azul de marca sobre texto claro (§30).
+                              activo
+                                ? 'border-primary bg-accent border-2 font-semibold'
+                                : 'border-input bg-background border',
+                            )}
+                          >
+                            {o.glifo} {o.texto}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
 
-          <div
-            style={{
-              position: 'sticky',
-              bottom: 0,
-              background: 'var(--fondo)',
-              paddingTop: 'var(--space-3)',
-              paddingBottom: 'var(--space-3)',
-              marginTop: 'var(--space-3)',
-            }}
-          >
-            {/* aria-live: el conteo cambia sin recargar, y un lector de
-                pantalla debe enterarse igual que quien lo ve. */}
-            <p
-              aria-live="polite"
-              style={{
-                color: 'var(--texto-tenue)',
-                fontSize: 'var(--font-size-sm)',
-                margin: '0 0 var(--space-2)',
-              }}
-            >
-              {sinMarcar > 0
-                ? `Faltan ${sinMarcar} por marcar.`
-                : `${alumnos.length} alumnos listos para guardar.`}
-            </p>
-            <Boton
-              onClick={() => {
-                void guardar();
-              }}
-              cargando={guardando}
-              disabled={alumnos.length === 0 || sinMarcar > 0}
-              style={{ width: '100%' }}
-            >
-              Guardar lista
-            </Boton>
-            {mensaje && (
-              <p
-                role="status"
-                style={{
-                  marginTop: 'var(--space-3)',
-                  color: 'var(--texto)',
-                  fontSize: 'var(--font-size-sm)',
-                }}
-              >
-                {mensaje}
+            <div className="bg-background sticky bottom-0 flex flex-col gap-2 border-t border-border p-5">
+              {/* aria-live: el conteo cambia sin recargar, y un lector de
+                  pantalla debe enterarse igual que quien lo ve. */}
+              <p aria-live="polite" className="text-muted-foreground text-sm">
+                {sinMarcar > 0
+                  ? `Faltan ${sinMarcar} por marcar.`
+                  : `${alumnos.length} alumnos listos para guardar.`}
               </p>
-            )}
-          </div>
-        </>
-      )}
-    </main>
+              <Button
+                onClick={() => {
+                  void guardar();
+                }}
+                disabled={guardando || alumnos.length === 0 || sinMarcar > 0}
+                className="h-11 w-full"
+              >
+                {guardando ? 'Guardando…' : 'Guardar lista'}
+              </Button>
+              {mensaje && (
+                <p role="status" className="text-sm">
+                  {mensaje}
+                </p>
+              )}
+            </div>
+          </Card>
+        )}
+      </div>
+    </Container>
   );
 }

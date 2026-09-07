@@ -434,3 +434,45 @@ true)` dentro de una transaccion, nunca como ajuste de sesion. _(Motivo: con
   bastó. ESLint entró a analizarla y reventó el gate con errores ajenos. Cada
   herramienta decide algo distinto —git qué se publica, ESLint qué se revisa,
   Prettier qué se formatea— y cada una necesitaba su exclusión. Ver ADR-012._
+
+- **§68** — **Un puente entre sistemas de diseño necesita su propio gate; el del
+  sistema de origen no lo cubre.** El contraste se verifica sobre el componente
+  **renderizado**, no sobre el archivo de tokens.
+  _(Medido el 6-sep-2026 al abrir el Sprint 8. Dato duro: los dos gates de color
+  que existen son ciegos al puente. `packages/tokens/test/contraste.test.mjs`
+  lee **únicamente** `tokens/color.json` y nunca abre
+  `apps/web/app/tailwind.css`; `scripts/check-tokens.mjs` prohíbe colores
+  literales, y el puente no tiene literales —está hecho de `var()`—, así que
+  pasa trivialmente. Consecuencia concreta: mapear
+  `--primary: var(--color-brand-primary)` daría **2.63:1** y los dos gates
+  seguirían verdes.)_
+  _**Por qué es §65 otra vez, y no una regla nueva:** el estándar §30 existía y
+  era correcto; lo que no existía era algo que lo detuviera en la capa donde
+  ahora se decide el color. Es también la lección #2 de la retro del S7 — «un
+  gate que mide la capa equivocada es una garantía falsa, peor que ninguna»—
+  aplicada antes de que el defecto ocurra en vez de después._
+  _**Supuesto que queda vigilado:** Metronic colapsa en un solo `--primary` lo
+  que §30 separó a propósito en dos tokens, `--texto-primario` (color de texto)
+  y `--accion-fondo` (fondo de botón). Hoy valen lo mismo —`#0777b6` en claro,
+  `#04a9f5` en oscuro— así que el puente es seguro **por coincidencia de
+  valores, no por construcción**. El día que divergan, `text-primary` y
+  `bg-primary` no pueden ser ambos correctos._
+
+- **§69** — **Una prueba que se borra deja primero por escrito qué afirmaba.**
+  Reescribir una suite desde cero es legítimo; reescribirla de memoria no.
+  _(Decisión del CEO del 6-sep-2026 —D20— al ordenar el barrido del frontend:
+  las 22 pruebas de navegador se borran y se reescriben contra el markup nuevo,
+  en vez de adaptarles los selectores. El riesgo se advirtió por escrito **antes**
+  de decidir: eran la única red que caza en el navegador las reglas legales de
+  §51, §52 y §53, y tardaron cinco sprints en existir — eran la deuda del
+  Sprint 0.)_
+  _**La mitigación, que es la regla:** antes de borrar se extrajo el inventario
+  de lo que las 22 afirmaban y vive en el backlog del sprint (§7.1 de
+  `docs/sprints/S8-metronic.md`) como lista de casillas. La suite nueva no las
+  copia — tiene que volver a afirmar lo mismo con el markup que sea. Cada
+  casilla se cierra con una prueba o se declara no entregada; marcarla sin
+  prueba sería el incumplimiento de §60 otra vez._
+  _**Dónde vive lo que no se pierde:** las reglas legales están en el dominio,
+  en el API, no en la pantalla (§45). El barrido del frontend no puede tocarlas.
+  Lo que sí se lleva es la verificación de que **llegan** a la pantalla, y por
+  eso la reescritura es `Must` y no `Should`._

@@ -40,6 +40,26 @@ export default tseslint.config(
       // Se ignora aqui ademas de en `.gitignore` porque son herramientas
       // distintas: git decide que se publica, ESLint que se revisa.
       'metronic-v9.5.0/**',
+      // EL ARBOL ADOPTADO (AZ-D2.9). Mismo criterio que la linea de arriba: es
+      // codigo de Metronic copiado a nuestro repo, no escrito por nosotros.
+      // Nuestras reglas le encuentran 126 errores —`no-undef` sobre `window`,
+      // aserciones de tipo, `setState` dentro de efectos— que son diferencias
+      // de configuracion, no defectos suyos.
+      //
+      // POR QUE SE IGNORA EN VEZ DE ARREGLARSE. Arreglarlos convertiria cada
+      // archivo en un fork: al llegar Metronic 9.6 no se podria diffear, que es
+      // justo lo que la regla 3 de adopcion existe para preservar.
+      //
+      // LO QUE SI SE REVISA: todo lo que escribimos nosotros, incluido lo que
+      // vive DENTRO de `layouts/demo1` con nombre propio (`menu-usuario.tsx`,
+      // nuestro `header.tsx`). La frontera no es la carpeta: es la autoria, y
+      // se declara archivo por archivo mas abajo.
+      'apps/web/components/ui/**',
+      'apps/web/components/common/**',
+      'apps/web/components/keenicons/**',
+      'apps/web/hooks/**',
+      'apps/web/providers/**',
+      'apps/web/css/**',
     ],
   },
 
@@ -145,6 +165,26 @@ export default tseslint.config(
       '@typescript-eslint/no-unsafe-return': 'off',
       '@typescript-eslint/no-non-null-assertion': 'off',
       'no-console': 'off',
+    },
+  },
+
+  // --- Pantallas construidas sobre TanStack Table ---------------------------
+  // El compilador de React no puede optimizar `useReactTable` y avisa con
+  // `react-hooks/incompatible-library`. NO es un defecto nuestro ni suyo: la
+  // biblioteca usa patrones que el compilador no sabe analizar, asi que se
+  // salta esos componentes y todo sigue funcionando — solo pierde la
+  // memoizacion automatica en ellos.
+  //
+  // Se apaga AQUI y no con un `eslint-disable` en cada archivo porque va a
+  // repetirse en cada pantalla que lleve tabla, y porque el gate corre con
+  // `--max-warnings 0`: una advertencia que se repite y nadie puede quitar
+  // acaba enseñando a ignorar el gate entero.
+  //
+  // TanStack Table entro por ADR-012, con el `DataGrid` de Metronic.
+  {
+    files: ['apps/web/app/**/*.tsx'],
+    rules: {
+      'react-hooks/incompatible-library': 'off',
     },
   },
 

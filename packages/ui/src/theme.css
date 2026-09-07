@@ -80,9 +80,12 @@
   --texto: var(--color-light-text);
   --texto-tenue: var(--color-light-muted);
   --borde: var(--color-light-border);
+  --borde-control: var(--color-light-border-control);
   --texto-primario: var(--color-light-text-primary);
   --accion-fondo: var(--color-light-action-bg);
   --accion-texto: var(--color-light-on-action);
+  --peligro-fondo: var(--color-light-danger-bg);
+  --peligro-texto: var(--color-light-on-danger);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -94,9 +97,13 @@
     --texto: var(--color-dark-text);
     --texto-tenue: var(--color-dark-muted);
     --borde: var(--color-dark-border);
+    --borde-control: var(--color-dark-border-control);
+    --borde-control: var(--color-dark-border-control);
     --texto-primario: var(--color-dark-text-primary);
     --accion-fondo: var(--color-dark-action-bg);
     --accion-texto: var(--color-dark-on-action);
+    --peligro-fondo: var(--color-dark-danger-bg);
+    --peligro-texto: var(--color-dark-on-danger);
   }
 }
 
@@ -111,6 +118,8 @@
   --texto-primario: var(--color-dark-text-primary);
   --accion-fondo: var(--color-dark-action-bg);
   --accion-texto: var(--color-dark-on-action);
+  --peligro-fondo: var(--color-dark-danger-bg);
+  --peligro-texto: var(--color-dark-on-danger);
 }
 
 * {
