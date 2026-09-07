@@ -2,10 +2,10 @@
 
 | Campo    | Valor                                                      |
 | -------- | ---------------------------------------------------------- |
-| Estado   | EN CURSO — gate aprobado por el CEO el 6-sep-2026          |
+| Estado   | **CERRADO** el 6-sep-2026 · acta en `acta-cierre-S8.md`    |
 | Rama     | `sprint-8-metronic`                                        |
 | Origen   | **Cambios C5 y C6.** No estaba en el Plan Maestro. Ver §0. |
-| Vigencia | Vivo durante el sprint; se congela al cerrarlo             |
+| Vigencia | **CONGELADO.** El estado final vive en el acta de cierre   |
 
 ---
 
