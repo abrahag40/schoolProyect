@@ -9,7 +9,6 @@ import { Toaster } from '@/components/ui/sonner';
 // armazon demo1, nuestro tema, y el puente que reapunta sus variables a
 // nuestros tokens (§67). El orden es lo que decide de que color pinta la web.
 import './tailwind.css';
-import '@/components/keenicons/assets/styles.css';
 
 export const metadata: Metadata = {
   title: 'Azahar',

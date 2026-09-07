@@ -20,6 +20,14 @@ import { Card, CardContent } from '@/components/ui/card';
  * ICONOS EN VEZ DE LOGOS. El demo1 pinta el logo de LinkedIn, YouTube,
  * Instagram y TikTok. Aqui va un icono que dice que ES la cifra. Se usa
  * `lucide`, que es la familia que traen los componentes adoptados (ADR-013).
+ *
+ * DEGRADADO EN VEZ DE SU IMAGEN DE FONDO. El demo1 usa dos PNG suyos
+ * (`bg-3.png` / `bg-3-dark.png`). Se commitearon por error el 6-sep-2026 en un
+ * repositorio PUBLICO, que es redistribuir arte licenciado (ADR-012). Se
+ * retiraron junto con los 14 MB de `keenicons`. El degradado sale de nuestros
+ * tokens, da el mismo efecto de profundidad y no pide un solo byte a la red.
+ * La clase `azahar-tarjeta-cifra` se conserva porque es el ancla de las
+ * pruebas de `panel-metronic.spec.ts`.
  */
 
 export interface CifrasCobranza {
@@ -71,17 +79,11 @@ export function TarjetasCobranza({ cifras }: { cifras: CifrasCobranza | null }) 
 
   return (
     <>
-      <style>{`
-        .azahar-tarjeta-cifra { background-image: url('/media/images/2600x1600/bg-3.png'); }
-        [data-theme='dark'] .azahar-tarjeta-cifra,
-        .dark .azahar-tarjeta-cifra { background-image: url('/media/images/2600x1600/bg-3-dark.png'); }
-      `}</style>
-
       {items.map((item) => {
         const Icono = item.icono;
         return (
           <Card key={item.leyenda}>
-            <CardContent className="azahar-tarjeta-cifra flex h-full flex-col justify-between gap-6 bg-[right_top_-1.7rem] bg-cover bg-no-repeat p-0 rtl:bg-[left_top_-1.7rem]">
+            <CardContent className="azahar-tarjeta-cifra from-primary/8 to-card flex h-full flex-col justify-between gap-6 bg-gradient-to-br p-0">
               <Icono
                 className={`mt-4 ms-4 size-7 ${item.alarma ? 'text-destructive' : 'text-primary'}`}
                 aria-hidden="true"
