@@ -213,3 +213,80 @@ test.describe('las pantallas del panel sobre el armazon nuevo (AZ-D2.7)', () => 
     await expect(page.getByRole('link', { name: 'Ir al panel' })).toBeVisible();
   });
 });
+
+/**
+ * EL RIEL PLEGABLE DE 80 px (AZ-D2.11).
+ *
+ * Es la unica pieza del armazon de Metronic que se adopta TAL CUAL: el CSS del
+ * colapso ya venia en `demo1.css` y funciona sin adaptarlo.
+ *
+ * --- EL DETALLE QUE COSTO ENCONTRAR, Y QUE HAY QUE SABER PARA PROBARLO ---
+ *
+ * El boton de plegar vive DENTRO del sidebar. Al pulsarlo, el puntero se queda
+ * encima, y la regla `.demo1.sidebar-collapse .sidebar:hover` lo devuelve a
+ * 280 px. Resultado: **se pliega, pero no se ve hasta que el raton se aparta**.
+ * Diagnosticado el 6-sep-2026 con `hoverSobreSidebar: true` justo despues del
+ * clic; sin ese dato la conclusion facil era «el colapso no funciona».
+ *
+ * Por eso las pruebas mueven el raton antes de medir. No es un truco para que
+ * pasen: es reproducir lo que hace una persona, que suelta el boton y lleva la
+ * vista —y el cursor— al contenido.
+ *
+ * NOTA DE INSTRUMENTO. Esto NO se puede medir ejecutando JavaScript desde el
+ * navegador: durante la evaluacion de un script el compositor no avanza, la
+ * transicion de 0.3 s nunca progresa y el ancho se lee siempre un paso por
+ * detras. Cuando una medicion y una captura de pantalla se contradicen, la
+ * captura tiene razon.
+ */
+test.describe('el riel plegable (AZ-D2.11)', () => {
+  test('el sidebar se pliega a 80 px y recuerda la decision', async ({ page }) => {
+    await entrar(page);
+    await page.setViewportSize({ width: 1440, height: 900 });
+
+    const sidebar = page.locator('.sidebar');
+    await expect(sidebar).toBeVisible();
+    await expect(sidebar).toHaveCSS('width', '280px');
+
+    await page.getByRole('button', { name: 'Plegar la navegación' }).click();
+    // El raton se aparta: mientras siga sobre el sidebar, la regla de hover lo
+    // mantiene abierto (ver la cabecera).
+    await page.mouse.move(900, 500);
+    // `toHaveCSS` reintenta hasta que la transicion termina; leer un
+    // boundingBox una sola vez cazaria el fotograma intermedio.
+    await expect(sidebar).toHaveCSS('width', '80px');
+
+    // Las etiquetas se esconden: en 80 px no caben, y recortarlas seria peor
+    // que quitarlas. Se busca DENTRO del sidebar: «Catálogo de cargos» tambien
+    // es un boton del dashboard, y sin acotar el modo estricto falla por
+    // ambiguedad en vez de por el defecto real.
+    await expect(sidebar.getByRole('link', { name: 'Catálogo de cargos' })).toBeHidden();
+
+    // La decision sobrevive a la recarga — vive en localStorage, no en memoria.
+    await page.reload();
+    await page.mouse.move(900, 500);
+    await expect(page.locator('.sidebar')).toHaveCSS('width', '80px');
+
+    // Y se puede volver. El boton cambia de nombre, que es como un lector de
+    // pantalla sabe en que estado esta.
+    await page.getByRole('button', { name: 'Expandir la navegación' }).click();
+    await page.mouse.move(900, 500);
+    await expect(page.locator('.sidebar')).toHaveCSS('width', '280px');
+  });
+
+  test('plegado, el sidebar se expande al pasar el raton por encima', async ({ page }) => {
+    await entrar(page);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await expect(page.locator('.sidebar')).toBeVisible();
+
+    await page.getByRole('button', { name: 'Plegar la navegación' }).click();
+    await page.mouse.move(900, 500);
+
+    const sidebar = page.locator('.sidebar');
+    await expect(sidebar).toHaveCSS('width', '80px');
+
+    // Es lo que hace util a un riel: se consulta el menu sin desplegarlo.
+    await sidebar.hover();
+    await expect(sidebar).toHaveCSS('width', '280px');
+    await expect(sidebar.getByRole('link', { name: 'Catálogo de cargos' })).toBeVisible();
+  });
+});
