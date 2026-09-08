@@ -48,6 +48,7 @@ Toda propuesta, recomendación, advertencia o decisión DEBE:
   - **El trinquete resume el sprint:** estilos en línea **225 → 69**, y las **9 medidas chicas escritas a mano → 0** — deuda que estaba declarada abierta desde el S7.
   - **NO entregado:** `AZ-D2.10` es **PARCIAL** —los formularios se rehicieron pero sin `react-hook-form` ni validación con zod, que era la razón de adoptar su `Form`— `AZ-D2.12` se resolvió al aceptar: **el CEO ordenó borrar las 458 líneas huérfanas** de `packages/ui` —`Boton`, `CampoTexto`, `Insignia`, `Tarjeta`, `Rejilla` y `ArmazonPanel`—, que ya no importaba nadie. El paquete sobrevive publicando solo `theme.css`, que es lo que alimenta el puente (§67); pierde su TypeScript, su `tsconfig.json` y su tarea de `typecheck`. Trinquete: **69 → 55** estilos en línea.
   - **🔴 INCIDENTE DE LICENCIA, parcialmente resuelto.** Al copiar carpetas por lote entraron **15 MB de arte de KeenThemes** —`components/keenicons` con sus fuentes, más dos PNG— a un repositorio **público**, que es redistribuir y es lo que ADR-012 prohíbe. Retirado del árbol en `511d8e5` (de 17.8 MB a 2.8 MB), pero **siguen alcanzables en el historial de git**: sacarlos exige reescribir la historia y un push forzado, y es decisión del CEO.
+  - **🔴 TRES DEFECTOS DE INTERFAZ encontrados por el CEO el 7-sep-2026, abiertos:** (a) el panel lateral en móvil **no tiene botón de cerrar** —`close={false}` y su encabezado vacío—; (b) el menú de perfil está recortado a «cerrar sesión» porque no hay más destinos definidos; (c) los dos diálogos existentes no comparten estructura y en uno el botón va al lado del campo, no en un pie. Los tres se atienden en el rediseño de navegación, con el catálogo de flujos como base.
   - **REGLA QUE SALE DE ESTE SPRINT, y de dos incidentes con la misma causa:** al adoptar código de terceros hay que declarar la exclusión en **CINCO herramientas**, porque ninguna lee la configuración de las otras — `.gitignore` (qué se publica), `eslint.config.mjs` (qué se revisa), `check-tokens.mjs` (qué colores se permiten), `.vercelignore` (qué se sube; **el CLI de Vercel NO lee `.gitignore`** e iba a subir la plantilla entera) y `.prettierignore` (qué se formatea; CI estuvo en rojo por esto).
 
   - **Cambio C3 trazado (26-ago-2026, decisiones D14–D17):** tras el estudio de escenarios de cobranza —que encontró 22 escenarios con evidencia de los que soportábamos uno— el plan se reestructuró. Se **inserta un Sprint 6** de cobranza configurable (recupera M4.1–M4.4, que el S4 comprometió y no entregó, más los escenarios `Must` del estudio); el **pago en línea pasa al Sprint 7 con una regla de intercambio escrita por adelantado** (si al cerrar el S6 no existen las tres cuentas de nube, el proveedor decidido y la cuenta de comercio, el S7 cede el turno al S8 sin junta); y todo lo demás corre un lugar. **El MVP pasa del Sprint 12 al Sprint 14.** Documento de la replanificación: https://claude.ai/code/artifact/45b68553-66a3-466b-a1b4-c56c88e2c93f
@@ -64,6 +65,42 @@ Toda propuesta, recomendación, advertencia o decisión DEBE:
   - **Deuda declarada abierta:** no hay pruebas automatizadas en `apps/mobile`. Las de `apps/web` se pagaron en el S5 (Playwright). Por §46 se implementa o se difiere en gate; no se recicla.
   - **Riesgo operativo REINCIDENTE (S4 y S5):** el disco de la máquina de desarrollo se llena, cuelga a Docker y corrompe su almacén de imágenes — en el S5 tumbó el ensayo de despliegue con `parent snapshot does not exist`. Se resuelve con `docker builder prune -af` (caché regenerable; nunca volúmenes). `pnpm estado` reporta el espacio libre y avisa a partir del 85%.
   - El estado real del repo se genera con `pnpm estado` (nunca se escribe a mano — §7).
+
+## Los flujos son la fuente del diseño (instrucción del CEO, 7-sep-2026)
+
+**Ninguna pantalla se diseña ni se rediseña sin que su flujo esté en el catálogo**
+[docs/ux/flujos.md](docs/ux/flujos.md) (`AZ-F#.#`, 42 flujos, cobertura 26 %).
+Es la vara del rediseño, igual que [escenarios-cobranza.md](docs/mercado/escenarios-cobranza.md)
+lo es de la épica E4.
+
+_Por qué existe: el 7-sep-2026 el CEO reportó tres defectos de interfaz —el
+botón de cerrar el menú lateral, el menú de perfil y los modales sin
+estandarizar—. Verificados, los tres tenían la misma causa: se construyeron
+pantallas sin haber definido antes los flujos. Al buscarla aparecieron dos
+hallazgos peores: el menú es idéntico para los siete roles (una docente ve
+Cobranza y recibe 403), y el sistema no sabe dar de alta una escuela._
+
+**Las cuatro reglas que salen de ahí:**
+
+1. **La navegación se deriva del ROL.** Nunca una lista fija. Ofrecerle a alguien
+   una puerta que devuelve `403` es un defecto de prevención de errores, no un
+   detalle cosmético.
+2. **Tres experiencias, no una** — consola de administración (escritorio, densa),
+   herramienta del docente (teléfono, una tarea, 30 s) y portal de la familia
+   (teléfono, autoservicio). Comparten tokens y componentes; **no comparten
+   armazón**.
+3. **Todo diálogo usa el patrón único** del W3C ARIA APG: tres zonas, el pie NO
+   se desplaza, la acción principal a la derecha, foco atrapado, Escape cierra y
+   devuelve el foco. **Un formulario de más de seis campos no va en diálogo**, va
+   en página (Nielsen Norman Group).
+4. **Toda tarea declara su entrada y su salida.** Cómo se entra, cómo se cancela
+   y cómo se sabe que terminó. El defecto del menú lateral era exactamente eso.
+
+**Y una regla de método, que es la que más se ha pisado:** el catálogo de flujos
+**no tiene investigación primaria detrás** y lo dice en su encabezado. Ordena y
+prioriza; no sustituye ver a alguien usarlo. Cualquier afirmación sobre
+frecuencia, aparato o prisa de un usuario se marca como inferencia hasta que una
+escuela piloto la convierta en dato.
 
 ## Protocolo de cierre de avance (obligatorio, instrucción del CEO 6-sep-2026)
 
@@ -85,6 +122,37 @@ _Por qué existe esta regla: hasta el 6-sep-2026 los commits se acumulaban sin
 empujar y el cierre quedaba pendiente de una instrucción que no siempre
 llegaba. El trabajo terminado tiene que quedar guardado donde no dependa de un
 disco duro._
+
+## Precisión del trabajo por sesión (instrucción del CEO, 7-sep-2026)
+
+Alineado con la Guía Scrum 2020: un Sprint tiene **un solo Sprint Goal**, y el
+Sprint Backlog es del equipo, no una lista de deseos. Estas cuatro reglas
+existen porque el Sprint 8 entregó doce ítems y aun así dejó tres defectos de
+interfaz que el CEO encontró en cinco minutos de uso.
+
+1. **Una sesión, un objetivo declarado.** Se enuncia al abrir, con su criterio de
+   terminado, y no se amplía a mitad. Si aparece algo fuera, va al mecanismo de
+   tres salidas (§8): entra y algo sale · se cierra la sesión · va al backlog.
+   **Callarse y ejecutar fuera del objetivo es la falta**, no la lentitud.
+
+2. **Verificar como usuario, no como autor.** El Sprint 8 cerró con 25 pruebas de
+   navegador en verde y tres defectos vivos que ninguna cazó, porque probaban lo
+   que yo decidí probar. Antes de declarar terminada una pantalla hay que
+   **recorrerla como la recorre quien la va a usar**: entrar, hacer la tarea
+   completa, y salir. Las tres preguntas que ninguna prueba automática hace sola:
+   ¿cómo se cierra esto? · ¿qué ve aquí un rol que NO tiene permiso? · ¿esto se
+   parece a lo que dijimos que se iba a parecer?
+
+3. **El instrumento se valida antes que el resultado.** Dos veces en el Sprint 8
+   una medición mintió: un gate que no sabía leer `lab()` y una sonda de
+   JavaScript que no dejaba avanzar la transición. **Cuando una medición y una
+   captura de pantalla se contradicen, la captura tiene razón.** Y antes de
+   concluir que algo no funciona, comprobar que el instrumento sí.
+
+4. **Nada de terceros se copia por lote.** Se copia lo que una pantalla necesita,
+   y la exclusión se declara en las **cinco herramientas** ANTES de copiar.
+   Copiar carpetas enteras metió 15 MB de arte licenciado en un repositorio
+   público y estuvo a punto de subirlos a Vercel.
 
 ## Protocolo de cierre de sprint (obligatorio, instrucción del CEO 24-ago-2026)
 

@@ -47,3 +47,14 @@ playwright-report/
 # ---------------------------------------------------------------------------
 metronic-v9.5.0/
 .vercel
+
+# ARCHIVOS PERSONALES QUE VIVEN EN ESTA CARPETA Y NO SON DEL PROYECTO.
+#
+# El 7-sep-2026 un `git add -A` barrio 459 fotos personales —tres carpetas y dos
+# ZIP, 13.6 MB solo la mayor— hacia un commit con destino a un repositorio
+# PUBLICO. El push fallo por tamaño y eso lo impidio; no lo impidio ningun gate.
+#
+# Es el mismo error que metio 15 MB de arte licenciado en el Sprint 8, con la
+# misma causa: mover cosas por lote sin mirar que se mueve.
+monica*/
+monica*.zip
