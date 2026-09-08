@@ -43,6 +43,10 @@ pantalla nueva de negocio.
   (`npx turbo run test --concurrency=1 --force`).
 - Cierre de avance completo: commit **y push**, en el mismo acto. El despliegue
   es ejecución aparte.
+- **Nunca `git add -A` ni `git add .`** Se nombran los archivos, y antes de
+  commitear se lee `git diff --cached --name-only` entero. **Este directorio
+  contiene material personal que no es del proyecto** (carpetas `monica*`, ya
+  ignoradas) y el repositorio es **público**.
 
 **Contexto operativo que ya está resuelto y no hay que redescubrir:**
 

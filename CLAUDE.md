@@ -149,10 +149,23 @@ interfaz que el CEO encontró en cinco minutos de uso.
    captura de pantalla se contradicen, la captura tiene razón.** Y antes de
    concluir que algo no funciona, comprobar que el instrumento sí.
 
-4. **Nada de terceros se copia por lote.** Se copia lo que una pantalla necesita,
-   y la exclusión se declara en las **cinco herramientas** ANTES de copiar.
-   Copiar carpetas enteras metió 15 MB de arte licenciado en un repositorio
-   público y estuvo a punto de subirlos a Vercel.
+4. **Nada se mueve por lote: ni al copiar ni al commitear.**
+
+   - **Al adoptar código de terceros** se copia lo que una pantalla necesita, y
+     la exclusión se declara en las **cinco herramientas** ANTES de copiar.
+   - **Nunca `git add -A` ni `git add .`** Se nombran los archivos, y antes de
+     commitear se lee `git diff --cached --name-only` entero.
+
+   _Las dos mitades salen de dos incidentes en dos días, con la misma causa.
+   El 6-sep un copiado por lote metió **15 MB de arte licenciado** de KeenThemes
+   en este repositorio, que es **público**; sigue en el historial. El 7-sep un
+   `git add -A` barrió **459 fotos personales** —carpetas `monica*`, ajenas al
+   proyecto— hacia un commit con el mismo destino público._
+
+   _**Lo que impidió el segundo no fue un gate: fue que el push falló por
+   tamaño.** Y lo diagnostiqué como fallo de red y lo reporté así, con
+   seguridad, dos veces. Un gate que no existe no se puede distinguir de uno que
+   pasa._
 
 ## Protocolo de cierre de sprint (obligatorio, instrucción del CEO 24-ago-2026)
 
