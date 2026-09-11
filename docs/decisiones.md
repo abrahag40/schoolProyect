@@ -476,3 +476,32 @@ true)` dentro de una transaccion, nunca como ajuste de sesion. _(Motivo: con
   en el API, no en la pantalla (§45). El barrido del frontend no puede tocarlas.
   Lo que sí se lleva es la verificación de que **llegan** a la pantalla, y por
   eso la reescritura es `Must` y no `Should`._
+
+- **§70** — **«Add-on» no es un prefijo en un ID: son cuatro condiciones.**
+  Esquema de base de datos propio, dependencia unidireccional verificada por un
+  gate, contratación por escuela en el esquema `plataforma`, y navegación
+  derivada de rol **×** módulo contratado. Un `AZ-A#` que no cumpla las cuatro
+  es core con otro nombre. _(Decisión del CEO del 11-sep-2026 —D21— al ordenar
+  que la vertical deportiva se construya como módulo independiente. El detalle,
+  en ADR-014.)_
+  _**Por qué hacía falta decirlo:** llevábamos doce sprints con cinco add-ons
+  declarados —`AZ-A1`, `AZ-A8`, `AZ-A9`, `AZ-A10`, `AZ-A11`— y ningún mecanismo
+  detrás. `AZ-A1` (RVOE) está construido **dentro** del core: se llama add-on y
+  no lo es. Mientras la palabra no significara nada, no se podía vender por
+  separado, ni apagar, ni cobrar aparte — que son las tres cosas que un add-on
+  tiene que poder hacer._
+  _**La deuda que esto abre, declarada:** `AZ-A1` se migra o pierde el prefijo.
+  Dejarlo llamándose add-on sin serlo es exactamente la mentira documental que
+  §7 persigue cuando prohíbe escribir el estado a mano._
+
+- **§71** — **El `Must` de un add-on es `Must` DEL MÓDULO, nunca del MVP.**
+  Priorizar dentro de una épica opcional no la vuelve obligatoria, y ninguna
+  épica de add-on mueve la fecha del MVP. _(Decisión del CEO del 11-sep-2026
+  —D21—: la vertical deportiva es `Must` como módulo. Se escribe porque MoSCoW
+  sin denominador es ambiguo, y ISO/IEC/IEEE 29148:2018 existe justamente para
+  eliminar esa clase de ambigüedad.)_
+  _**El daño concreto que evita:** el MVP ya se corrió del Sprint 12 al 14 por
+  C3, y después lo movieron C4, C5 y C6 sin que nadie recalculara la fecha. Leer
+  «Must» sin su alcance lo habría movido una quinta vez, esta vez por una épica
+  que ni siquiera puede arrancar todavía — E10 depende del ciclo del alumno, que
+  está sin empezar._
