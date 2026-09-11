@@ -505,3 +505,18 @@ true)` dentro de una transaccion, nunca como ajuste de sesion. _(Motivo: con
   «Must» sin su alcance lo habría movido una quinta vez, esta vez por una épica
   que ni siquiera puede arrancar todavía — E10 depende del ciclo del alumno, que
   está sin empezar._
+
+- **§72** — **Una escuela nace en la plataforma ZaharDev, con contrato; la
+  consola de la escuela nunca ofrece «agregar escuela».** Un `Tenant` es un
+  contrato y lo crea ZaharDev (E9, wizard Activate); una `Sede` es un plantel
+  del mismo contrato. Ningún endpoint del API expuesto a la escuela crea
+  tenants — verificado el 11-sep-2026: la consola solo registra RVOE. _(Decisión
+  del CEO del 11-sep-2026: «registrar una escuela debería de tener un costo por
+  parte de ZaharDev; un cliente no puede agregar escuelas porque se tiene que
+  pagar por cada nueva escuela».)_
+  _**Por qué se escribe si ya era así:** era así por arquitectura (C1, E9,
+  ADR-008) y por omisión —nadie había construido la pantalla—, no por regla. Sin
+  la regla escrita, el primer sprint que construya el ciclo del alumno podría
+  añadir un «nueva escuela» por comodidad y nadie sabría que está prohibido._
+  _**Lo que queda abierto, y es precio:** si una escuela con varios planteles
+  paga por plantel o por contrato. Decisión del CEO, pendiente._
